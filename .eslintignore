@@ -1,0 +1,20 @@
+# Ignore generated files
+**/node_modules
+**/_generated
+**/dist
+**/build
+
+# Ignore environment files
+**/.env.local
+**/.env.*.local
+
+# Ignore lock files
+**/package-lock.json
+
+# Ignore Expo/React Native
+**/.expo
+**/.expo-shared
+**/web-build
+
+# Ignore convex local state
+**/.convex

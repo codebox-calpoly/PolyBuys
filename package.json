@@ -37,6 +37,10 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
+  "volta": {
+    "node": "20.11.0",
+    "npm": "10.8.0"
+  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "eslint --fix",
