@@ -11,13 +11,21 @@ Never commit directly to `main`.
 
 ## Repository Structure
 
-This repo is organized as a monorepo:
+This repo is organized as a monorepo with clear separation of concerns:
 
 - `frontend/` – Expo React Native app (user facing UI)
 - `backend/` – Convex functions, schema, and backend logic
-- `shared/` – Shared types and utilities used by both frontend and backend
-- `docs/` – Documentation, ADRs, and design notes
-- `scripts/` – Maintenance and tooling scripts
+- `packages/shared/` – Shared types and utilities used by both frontend and backend
+- `docs/` – Documentation, ADRs (Architecture Decision Records), and design notes
+- `scripts/` – Maintenance and tooling scripts (lint, format, etc.)
+- `.github/` – Issue templates, PR templates, and CI workflows
+
+**Best Practices:**
+
+- Keep modules small and focused
+- Use clear, descriptive names
+- Delete dead code—don't comment it out
+- Follow the existing folder structure
 
 ## Getting Started
 
@@ -191,13 +199,14 @@ For reviewers:
 
 ### Formatting and Linting
 
-- We use **ESLint** and **Prettier**.
-- Run them before pushing:
-  - `npm run lint`
-  - `npm run format`
+- We use **ESLint** and **Prettier** to maintain code quality.
+- **Pre-commit hooks** automatically format and lint your code before each commit.
+- You can also run manually:
+  - `npm run lint` - Check for linting errors
+  - `npm run format` - Format all files
 - CI will run lint and tests on every PR. Fix any issues before requesting review.
 
-We also include an `.editorconfig` file to normalize editor settings.
+We also include an **`.editorconfig`** file to normalize IDE settings across the team.
 
 ### Environment Variables and Secrets
 
@@ -216,8 +225,19 @@ Ask tech leads for any additional secrets needed (API keys, etc.)
 
 ### Documentation
 
-- If you add a new feature or change behavior, update the `README.md`.
-- For significant architectural decisions, add an Architecture Decision Record (ADR) under `docs/adr/`.
+- **Update README.md** when adding new features or changing behavior
+- **Create ADRs** (Architecture Decision Records) in `docs/adr/` for significant architectural decisions
+  - Example: choosing a new library, changing database schema, major refactors
+  - Use the template in `docs/adr/template.md`
+- **Update this contributing guide** if you change the development workflow
+- **Document complex code** with comments explaining "why," not just "what"
+
+### Testing
+
+- Write tests for new features and bug fixes
+- Run tests locally before pushing: `npm run test`
+- CI runs tests automatically on every PR
+- Don't merge PRs with failing tests
 
 ## Releases
 
