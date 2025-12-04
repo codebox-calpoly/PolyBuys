@@ -1,22 +1,28 @@
-## Developer: First Last
-Closes Issue #<id>
+## Linked Issues
+
+Closes #<issue-number>
+Linear: <linear-issue-key> (e.g., POLY-123)
 
 ## Summary
-Briefly explain the change and why
 
-## Modifications
-List files changed/added/deleted
+Briefly explain the change and why.
 
-## Testing Considerations
-Steps to verify locally
+## How to Test
+
+Steps to verify locally:
+
+1.
+2.
+3.
 
 ## Checklist
-- [ ] Code is neat, readable, and works
-- [ ] Comments are appropriate
-- [ ] The commit messages follows conventions
-- [ ] The developer name is specified
-- [ ] The summary is completed
-- [ ] Assign reviewers
+
+- [ ] Tests added/updated (if applicable)
+- [ ] Lint/tests pass locally (`npm run lint`)
+- [ ] Docs updated (README/ADR/changelog if needed)
+- [ ] Follows conventional commit format
+- [ ] No merge conflicts with `dev`
 
 ## Screenshots / Demos
-(if UI or visible behavior)
+
+(if UI or visible behavior - attach images, videos, or GIFs)
