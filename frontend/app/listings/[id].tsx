@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from 'convex/react';
-import { api } from '../../../backend/convex/_generated/api';
-import { Id } from '../../../backend/convex/_generated/dataModel';
+import { api } from 'convex/_generated/api';
+import { Id } from 'convex/_generated/dataModel';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams();

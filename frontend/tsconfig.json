@@ -11,7 +11,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
-      "@polybuys/shared": ["../packages/shared"]
+      "@polybuys/shared": ["../packages/shared"],
+      "convex/*": ["../backend/convex/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],

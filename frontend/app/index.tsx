@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useQuery } from 'convex/react';
-import { api } from '../../backend/convex/_generated/api';
+import { api } from 'convex/_generated/api';
 import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
