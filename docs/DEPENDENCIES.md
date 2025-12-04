@@ -8,7 +8,11 @@
 - `@typescript-eslint/parser`: ^7.18.0 → ^8.17.0
 - `prettier`: ^3.3.3 → ^3.4.2
 - `eslint-plugin-react-hooks`: ^4.6.2 → ^5.1.0
-- Added explicit Babel transform plugins to frontend to replace deprecated proposal plugins
+- `react-native`: 0.76.5 → 0.76.9 (Expo 52 compatibility)
+- Added `react-native-web@~0.19.13` for web platform support
+- Added `react-dom@18.3.1` for web rendering
+- Added `@expo/metro-runtime@~4.0.0` for Metro bundler
+- Added explicit Babel transform plugins to replace deprecated proposal plugins
 
 ### Cannot Update Yet ⚠️
 
@@ -56,8 +60,24 @@ npm update
 npx npm-check-updates
 ```
 
+## Monorepo Structure
+
+### How Convex Works Across Workspaces
+
+- **Backend**: Convex functions live in `backend/convex/`
+- **Frontend**: References backend via TypeScript path mapping `"convex/*": ["../backend/convex/*"]`
+- **No duplication**: Frontend imports `convex/_generated/api` which resolves to backend folder
+- **Development**: Run `npm run dev:backend` to start Convex, then `npm run dev` for frontend
+
+### Shared Types
+
+- **Location**: `packages/shared/types/`
+- **Usage**: Both frontend and backend import from `@polybuys/shared`
+- **Benefits**: Single source of truth for TypeScript types
+
 ## References
 
 - [ESLint Version Support](https://eslint.org/version-support)
 - [Expo SDK Changelog](https://expo.dev/changelog)
 - [React Native Upgrade Helper](https://react-native-community.github.io/upgrade-helper/)
+- [Convex Documentation](https://docs.convex.dev/)
