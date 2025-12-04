@@ -2,7 +2,7 @@
 
 A marketplace for verified Cal Poly students to buy and sell their belongings, tickets, textbooks, and more. Provides a secure, student-only platform to connect Cal Poly students with one another.
 
-## 🚀 Tech Stack
+## Tech Stack
 
 - **Frontend**: React Native (Expo) - Cross-platform mobile app
 - **Backend**: Convex - Serverless backend with real-time sync
@@ -10,7 +10,7 @@ A marketplace for verified Cal Poly students to buy and sell their belongings, t
 - **Monorepo**: npm workspaces - Shared types and utilities
 - **Code Quality**: ESLint, Prettier, Husky pre-commit hooks
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 PolyBuy/
@@ -22,7 +22,7 @@ PolyBuy/
 └── .github/           # Issue/PR templates
 ```
 
-## 👥 Team
+## Team
 
 - [Evan Taylor](https://www.linkedin.com/) - Project Manager
 - [Jaydon Chen](https://www.linkedin.com/in/jaydon-chen/) - Tech Lead
@@ -36,7 +36,7 @@ PolyBuy/
 - [Domenic Federico](https://www.linkedin.com/) - Developer
 - [Omar Garcia](https://www.linkedin.com/) - Developer
 
-## 🛠️ Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -74,7 +74,7 @@ For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 
 Pre-commit hooks automatically format and lint your code before each commit.
 
-## 🤝 Contributing
+## Contributing
 
 We follow a structured git workflow with Linear issue tracking. See [CONTRIBUTING.md](docs/contributing.md) for:
 
@@ -84,11 +84,11 @@ We follow a structured git workflow with Linear issue tracking. See [CONTRIBUTIN
 - PR process
 - Code review guidelines
 
-## 📄 License
+## License
 
 See [LICENSE](LICENSE) for details.
 
-## 📚 Documentation
+## Documentation
 
 - [Contributing Guide](docs/contributing.md) - How to contribute
 - [Architecture Decisions](docs/adr/) - ADRs for major technical decisions
