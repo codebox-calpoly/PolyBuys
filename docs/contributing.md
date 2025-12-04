@@ -21,35 +21,106 @@ This repo is organized as a monorepo:
 
 ## Getting Started
 
-1. Clone the repo (SSH or HTTPS):
+### Prerequisites
+
+- Node.js 18+ and npm
+- Git
+- Access to the PolyBuy Convex team (ask tech leads to invite you)
+- Expo Go app on your phone (for testing)
+
+### Initial Setup
+
+1. **Clone the repository** (SSH or HTTPS):
 
    ```bash
-   git clone git@github.com:<org>/<repo>.git
-   cd <repo>
-   
-2. Switch to the `dev` branch and ensure it’s up to date:
+   git clone git@github.com:codebox-calpoly/PolyBuy.git
+   cd PolyBuy
+   ```
+
+2. **Switch to the `dev` branch** and ensure it's up to date:
+
    ```bash
    git checkout dev
    git pull origin dev
-Do NOT commit directly to `main`.
+   ```
+
+   Do NOT commit directly to `main`.
+
+3. **Install dependencies**:
+
+   ```bash
+   npm install
+   ```
+
+4. **Set up Convex backend**:
+
+   Ask a tech lead to invite you to the Convex team first. Once invited:
+
+   ```bash
+   npm run dev:backend
+   ```
+
+   This will:
+   - Prompt you to login to Convex (creates account if needed)
+   - Show you a list of projects - select **PolyBuy**
+   - Start the Convex development server
+   - Display your deployment URL (save this for the next step)
+
+5. **Configure environment variables**:
+
+   **Frontend:**
+
+   ```bash
+   cp frontend/.env.example frontend/.env.local
+   ```
+
+   Edit `frontend/.env.local` and add your Convex deployment URL (shown in terminal after step 4):
+
+   ```
+   EXPO_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+   ```
+
+   **Backend:**
+
+   ```bash
+   cp backend/.env.example backend/.env.local
+   ```
+
+   The `CONVEX_DEPLOYMENT` value is set automatically by `npx convex dev`.
+
+6. **Start the Expo development server**:
+
+   In a new terminal (keep Convex running):
+
+   ```bash
+   npm run dev
+   ```
+
+   Scan the QR code with:
+   - **iOS**: Built-in Camera app
+   - **Android**: Expo Go app
+
+You're now ready to develop! 🚀
 
 ## Making Changes
 
 Every Linear issue maps to one feature branch.
 
 1. From dev, create a feature branch:
-     ```bash
-    git checkout dev
-    git pull origin dev
-    git checkout -b feature/<linear-key>-short-description
-    # e.g. feature/PROJ-12-login-page
+   ```bash
+   git checkout dev
+   git pull origin dev
+   git checkout -b feature/<linear-key>-short-description
+   # e.g. feature/PROJ-12-login-page
+   ```
 2. Make your changes on thie branch.
 3. If `dev` has moved while you were working, update your branch:
-     ```bash
-     git fetch origin
-     git merge origin/dev   # or `git rebase origin/dev` if you prefer
-  Resolve any merge conflicts, run tests, and commit.
-  
+   ```bash
+   git fetch origin
+   git merge origin/dev   # or `git rebase origin/dev` if you prefer
+   Resolve any merge conflicts, run tests, and commit.
+   ```
+
 ## Committing Changes
 
 1. Stage files:
@@ -58,14 +129,18 @@ Every Linear issue maps to one feature branch.
    git add .              # stage all files
    # or
    git add <file-name>    # stage a specific file
+   ```
+
 2. Commit using [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/)
    ```bash
    git commit -m "<type>: <description>"
    # e.g. "feat: add login form" or
    #      "fix: handle empty search query"
+   ```
 3. Push your branch
    ```bash
    `git push -u origin feature/<linear-key>-short-description`
+   ```
 
 ## Making Pull Requests
 
@@ -106,18 +181,28 @@ We also include an `.editorconfig` file to normalize editor settings.
 
 ### Environment Variables and Secrets
 
-- Copy `.env.example` to `.env.local` and fill in the values.
-- Never commit real secrets. Do not add `.env*` files to git.
-- If you introduce a new environment variable, update `.env.example` and document its purpose.
+- **Never commit `.env.local` or any file containing secrets** - these are in `.gitignore`
+- If you introduce a new environment variable:
+  1. Add it to the appropriate `.env.example` file
+  2. Document its purpose in this file
+  3. Notify the team in your PR
+
+**Key Environment Variables:**
+
+- `EXPO_PUBLIC_CONVEX_URL` - Your Convex deployment URL (frontend)
+- `CONVEX_DEPLOYMENT` - Set automatically by Convex CLI (backend)
+
+Ask tech leads for any additional secrets needed (API keys, etc.)
 
 ### Documentation
 
 - If you add a new feature or change behavior, update the `README.md`.
 - For significant architectural decisions, add an Architecture Decision Record (ADR) under `docs/adr/`.
 
-
 ## Releases
+
 Tech leads periodically (e.g. every 3 days):
-   - Merge `dev` → `main`
-   - Deploy from `main`
-   - Update Linear issues to reflect what’s been released
+
+- Merge `dev` → `main`
+- Deploy from `main`
+- Update Linear issues to reflect what’s been released
