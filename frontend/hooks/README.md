@@ -22,7 +22,7 @@ hooks/
 ```typescript
 import { useQuery } from 'convex/react';
 import { api } from '../../backend/convex/_generated/api';
-import type { Listing } from '@polybuy/shared';
+import type { Listing } from '@polybuys/shared';
 
 export function useListings() {
   const listings = useQuery(api.listings.getListings);

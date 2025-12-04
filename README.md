@@ -1,4 +1,4 @@
-# PolyBuy
+# PolyBuys
 
 A marketplace for verified Cal Poly students to buy and sell their belongings, tickets, textbooks, and more. Provides a secure, student-only platform to connect Cal Poly students with one another.
 
@@ -13,7 +13,7 @@ A marketplace for verified Cal Poly students to buy and sell their belongings, t
 ## Repository Structure
 
 ```
-PolyBuy/
+PolyBuys/
 ├── frontend/          # Expo React Native mobile app
 ├── backend/           # Convex serverless functions
 ├── packages/shared/   # Shared TypeScript types and utilities
@@ -49,8 +49,8 @@ PolyBuy/
 
 ```bash
 # Clone the repository
-git clone git@github.com:codebox-calpoly/PolyBuy.git
-cd PolyBuy
+git clone git@github.com:codebox-calpoly/PolyBuys.git
+cd PolyBuys
 
 # Install dependencies
 npm install

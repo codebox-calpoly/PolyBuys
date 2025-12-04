@@ -55,7 +55,7 @@ Edit `packages/shared/types/` - automatically available in frontend and backend
 ### Use shared utilities
 
 ```typescript
-import { formatPrice, isCalPolyEmail } from '@polybuy/shared';
+import { formatPrice, isCalPolyEmail } from '@polybuys/shared';
 ```
 
 ## 🐛 Troubleshooting

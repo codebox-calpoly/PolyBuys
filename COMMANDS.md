@@ -5,8 +5,8 @@ Pin this to your team chat or workspace! 🚀
 ## 🏁 First Time Setup
 
 ```bash
-git clone git@github.com:codebox-calpoly/PolyBuy.git
-cd PolyBuy
+git clone git@github.com:codebox-calpoly/PolyBuys.git
+cd PolyBuys
 npm install
 npm run dev:backend  # Login to Convex
 # Copy the Convex URL shown

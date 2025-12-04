@@ -14,7 +14,7 @@
     "rootDir": "./convex",
     "baseUrl": ".",
     "paths": {
-      "@polybuy/shared": ["../packages/shared"]
+      "@polybuys/shared": ["../packages/shared"]
     },
     "types": ["node"]
   },

@@ -33,7 +33,7 @@ This repo is organized as a monorepo with clear separation of concerns:
 
 - Node.js 18+ and npm
 - Git
-- Access to the PolyBuy Convex team (ask tech leads to invite you)
+- Access to the PolyBuys Convex team (ask tech leads to invite you)
 - Expo Go app on your phone (for testing)
 
 ### Initial Setup
@@ -41,8 +41,8 @@ This repo is organized as a monorepo with clear separation of concerns:
 1. **Clone the repository** (SSH or HTTPS):
 
    ```bash
-   git clone git@github.com:codebox-calpoly/PolyBuy.git
-   cd PolyBuy
+   git clone git@github.com:codebox-calpoly/PolyBuys.git
+   cd PolyBuys
    ```
 
 2. **Switch to the `dev` branch** and ensure it's up to date:
@@ -70,7 +70,7 @@ This repo is organized as a monorepo with clear separation of concerns:
 
    This will:
    - Prompt you to login to Convex (creates account if needed)
-   - Show you a list of projects - select **PolyBuy**
+   - Show you a list of projects - select **PolyBuys**
    - Start the Convex development server
    - Display your deployment URL (save this for the next step)
 

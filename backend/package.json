@@ -1,5 +1,5 @@
 {
-  "name": "@polybuy/backend",
+  "name": "@polybuys/backend",
   "version": "1.0.0",
   "scripts": {
     "dev": "convex dev",
@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "convex": "^1.17.2",
-    "@polybuy/shared": "*"
+    "@polybuys/shared": "*"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

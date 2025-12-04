@@ -14,8 +14,8 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@polybuy/shared": ["."],
-      "@polybuy/shared/*": ["./*"]
+      "@polybuys/shared": ["."],
+      "@polybuys/shared/*": ["./*"]
     }
   },
   "include": ["**/*.ts"],
