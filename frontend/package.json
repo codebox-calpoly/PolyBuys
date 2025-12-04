@@ -31,7 +31,10 @@
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@types/react": "~18.3.12",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@babel/plugin-transform-class-properties": "^7.25.9",
+    "@babel/plugin-transform-nullish-coalescing-operator": "^7.25.9",
+    "@babel/plugin-transform-optional-chaining": "^7.25.9"
   },
   "private": true
 }
