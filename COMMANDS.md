@@ -1,8 +1,6 @@
 # Developer Commands Cheat Sheet
 
-Pin this to your team chat or workspace! 🚀
-
-## 🏁 First Time Setup
+## First Time Setup
 
 ```bash
 git clone git@github.com:codebox-calpoly/PolyBuys.git
@@ -14,7 +12,7 @@ echo "EXPO_PUBLIC_CONVEX_URL=<url>" > frontend/.env.local
 npm run dev          # In a new terminal
 ```
 
-## 💻 Daily Development
+## Daily Development
 
 ```bash
 # Start backend (Terminal 1)
@@ -29,7 +27,7 @@ npm run format
 npm run typecheck
 ```
 
-## 🌿 Git Workflow
+## Git Workflow
 
 ```bash
 # Start new feature
@@ -44,7 +42,7 @@ git commit -m "feat: add X"
 git push -u origin feature/POLY-123-description
 ```
 
-## 🔍 Common Issues
+## Common Issues
 
 | Problem                 | Solution                                 |
 | ----------------------- | ---------------------------------------- |
@@ -53,7 +51,7 @@ git push -u origin feature/POLY-123-description
 | Type errors             | `npm install && npm run typecheck`       |
 | Pre-commit hooks broken | `npm install && npx husky install`       |
 
-## 📂 Where to Add Code
+## Where to Add Code
 
 | Task               | Location                 |
 | ------------------ | ------------------------ |
@@ -64,13 +62,13 @@ git push -u origin feature/POLY-123-description
 | Shared types       | `packages/shared/types/` |
 | Shared utilities   | `packages/shared/utils/` |
 
-## 📱 Test on Phone
+## Test on Phone
 
 1. Install Expo Go app
 2. Run `npm run dev`
 3. Scan QR code with camera (iOS) or Expo Go (Android)
 
-## 🆘 Need Help?
+## Need Help?
 
 - Check [CONTRIBUTING.md](docs/contributing.md) for detailed guide
 - Check [QUICK_START.md](QUICK_START.md) for more examples
