@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "editorconfig.editorconfig",
+    "firsttris.vscode-jest-runner",
+    "ms-vscode.vscode-typescript-next",
+    "expo.vscode-expo-tools",
+    "convex.convex"
+  ]
+}
