@@ -6,6 +6,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleResolution": "bundler",
+    "types": [],
     "allowSyntheticDefaultImports": true,
     "jsx": "react-native",
     "paths": {

@@ -9,15 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial project setup with monorepo structure
-- Expo React Native frontend with expo-router
-- Convex serverless backend
-- Shared TypeScript types and utilities
-- ESLint and Prettier configuration
-- Pre-commit hooks with Husky and lint-staged
-- GitHub issue and PR templates
-- Architecture Decision Records (ADRs)
-- Comprehensive documentation (README, CONTRIBUTING)
+- N/A
 
 ### Changed
 

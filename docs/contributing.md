@@ -11,8 +11,6 @@ Never commit directly to `main`.
 
 ## Repository Structure
 
-This repo is organized as a monorepo with clear separation of concerns:
-
 - `frontend/` – Expo React Native app (user facing UI)
 - `backend/` – Convex functions, schema, and backend logic
 - `packages/shared/` – Shared types and utilities used by both frontend and backend

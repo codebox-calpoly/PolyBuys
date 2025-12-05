@@ -11,9 +11,13 @@ Briefly explain the change and why.
 
 Steps to verify locally:
 
-1.
-2.
-3.
+- `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- Manual flow:
+  1. `npm run dev:backend` (in terminal A)
+  2. `npm run dev` (in terminal B)
+  3. Verify the change: <describe expected behavior/screens>
 
 ## Checklist
 

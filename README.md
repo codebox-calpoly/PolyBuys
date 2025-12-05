@@ -22,6 +22,14 @@ PolyBuys/
 └── .github/           # Issue/PR templates
 ```
 
+## Where to Look
+
+- Quick start & daily commands: [QUICK_START.md](QUICK_START.md)
+- Contribution process and workflow: [docs/contributing.md](docs/contributing.md)
+- Backend specifics: [backend/convex/README.md](backend/convex/README.md)
+- Issue/PR templates: [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE) and [.github/pull_request_template.md](.github/pull_request_template.md)
+- Architecture decisions: [docs/adr/](docs/adr/)
+
 ## Team
 
 - [Evan Taylor](https://www.linkedin.com/) - Project Manager
