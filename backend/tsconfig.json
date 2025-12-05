@@ -3,7 +3,8 @@
     "target": "ES2021",
     "lib": ["ES2021"],
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "5.0",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -12,7 +13,6 @@
     "allowSyntheticDefaultImports": true,
     "outDir": "./dist",
     "rootDir": "./convex",
-    "baseUrl": ".",
     "paths": {
       "@polybuys/shared": ["../packages/shared"]
     },
