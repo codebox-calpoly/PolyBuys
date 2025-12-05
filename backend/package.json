@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "convex dev",
-    "build": "convex deploy --cmd 'npm run build:functions'",
+    "build": "npm run build:functions",
     "build:functions": "tsc",
     "typecheck": "tsc --noEmit",
     "deploy": "convex deploy"

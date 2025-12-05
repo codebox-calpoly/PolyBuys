@@ -4,7 +4,8 @@
   "main": "index.ts",
   "types": "index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
