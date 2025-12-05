@@ -15,7 +15,8 @@
     "lint": "./scripts/lint.sh",
     "format": "./scripts/format.sh",
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "clean": "rm -rf node_modules frontend/node_modules backend/node_modules packages/shared/node_modules",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "prepare": "husky"
