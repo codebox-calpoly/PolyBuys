@@ -6,8 +6,7 @@
     "build": "convex deploy --cmd 'npm run build:functions'",
     "build:functions": "tsc",
     "typecheck": "tsc --noEmit",
-    "deploy": "convex deploy",
-    "test": "jest"
+    "deploy": "convex deploy"
   },
   "dependencies": {
     "convex": "^1.17.2",
