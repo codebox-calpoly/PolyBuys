@@ -2,9 +2,8 @@
   "compilerOptions": {
     "target": "ES2021",
     "lib": ["ES2021"],
-    "module": "commonjs",
-    "moduleResolution": "node10",
-    "ignoreDeprecations": "5.0",
+    "module": "Node16",
+    "moduleResolution": "node16",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
