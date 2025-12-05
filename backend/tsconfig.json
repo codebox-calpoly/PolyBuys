@@ -16,7 +16,7 @@
     "paths": {
       "@polybuys/shared": ["../packages/shared"]
     },
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": ["convex/**/*"],
   "exclude": ["node_modules", "dist"]
