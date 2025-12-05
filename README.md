@@ -62,6 +62,33 @@ npm run dev:backend
 npm run dev
 ```
 
+### Platform-Specific Development
+
+**Mac Users (with Xcode installed):**
+
+```bash
+npm run dev
+# Press 'i' for iOS Simulator
+```
+
+**Windows/Linux Users:**
+
+```bash
+# Option 1: Android Emulator (requires Android Studio)
+npm run dev
+# Press 'a' for Android
+
+# Option 2: Web Browser (easiest, no setup needed)
+npm run dev
+# Press 'w' for web browser
+```
+
+**Testing on Physical Devices:**
+
+- **Android**: Connect via USB with developer mode enabled, run `npm run android`
+- **iOS**: Requires Mac with Xcode
+- **Note**: Expo Go app requires SDK 52 - if you have SDK 54+ installed, use web or emulator instead
+
 For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 
 ## 📱 Development
