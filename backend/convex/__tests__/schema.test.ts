@@ -1,34 +1,50 @@
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
+import schema from '../schema';
 
-describe('Convex Schema', () => {
-  it('defines listings table with required fields', () => {
-    // Simple validation test - ensures schema exports correctly
-    expect(defineSchema).toBeDefined();
-    expect(defineTable).toBeDefined();
-    expect(v).toBeDefined();
+describe('Convex schema', () => {
+  const schemaJson = JSON.parse((schema as any).export());
+  const listings = schemaJson.tables.find((table: any) => table.tableName === 'listings');
+
+  it('defines the listings table', () => {
+    expect(listings).toBeDefined();
   });
 
-  it('validates listing category enum', () => {
-    const validCategories = [
-      'textbooks',
-      'electronics',
-      'furniture',
-      'clothing',
-      'tickets',
-      'other',
-    ];
-
-    validCategories.forEach((category) => {
-      expect(validCategories).toContain(category);
-    });
+  it('has required listing fields', () => {
+    const fields = Object.keys(listings.documentType.value);
+    expect(fields).toEqual([
+      'title',
+      'description',
+      'price',
+      'sellerEmail',
+      'category',
+      'status',
+      'createdAt',
+    ]);
   });
 
-  it('validates listing status enum', () => {
-    const validStatuses = ['active', 'sold', 'pending'];
+  it('enforces category and status enums', () => {
+    const { fieldType: category } = listings.documentType.value.category;
+    const categoryLiterals = category.value.map((v: any) => v.value);
+    expect(categoryLiterals).toEqual(['textbooks', 'electronics', 'furniture', 'tickets', 'other']);
 
-    validStatuses.forEach((status) => {
-      expect(validStatuses).toContain(status);
-    });
+    const { fieldType: status } = listings.documentType.value.status;
+    const statusLiterals = status.value.map((v: any) => v.value);
+    expect(statusLiterals).toEqual(['active', 'sold', 'inactive']);
+  });
+
+  it('exposes indexes and search index for listings', () => {
+    const indexNames = listings.indexes.map((i: any) => i.indexDescriptor);
+    expect(indexNames).toContain('by_status');
+    expect(indexNames).toContain('by_category');
+
+    const statusIndex = listings.indexes.find((i: any) => i.indexDescriptor === 'by_status');
+    expect(statusIndex.fields).toEqual(['status']);
+
+    const categoryIndex = listings.indexes.find((i: any) => i.indexDescriptor === 'by_category');
+    expect(categoryIndex.fields).toEqual(['category']);
+
+    const searchIndex = listings.searchIndexes.find(
+      (i: any) => i.indexDescriptor === 'search_title'
+    );
+    expect(searchIndex.searchField).toBe('title');
   });
 });
