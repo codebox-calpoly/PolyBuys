@@ -36,7 +36,7 @@ PolyBuys/
 - [Jaydon Chen](https://www.linkedin.com/in/jaydon-chen/) - Tech Lead
 - [Saman Sepehr](https://www.linkedin.com/) - Tech Lead
 - [Chanelle Friend](https://www.linkedin.com/) - Designer
-- [Matthew Phan](https://www.linkedin.com/) - Developer
+- [Matthew Phan](https://www.linkedin.com/in/matthewphanm) - Developer
 - [Taye Staats](https://www.linkedin.com/) - Developer
 - [Cole Hackman](https://www.linkedin.com/) - Developer
 - [Lorinc Heutchy](https://www.linkedin.com/) - Developer
