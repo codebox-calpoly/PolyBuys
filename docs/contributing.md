@@ -179,6 +179,28 @@ Every Linear issue maps to one feature branch.
 
 **Note:** Pre-commit hooks will automatically format your code and run linting before each commit!
 
+## Commit signing (required)
+
+This repository requires all commits to be cryptographically signed.
+Unsigned commits cannot be merged into protected branches.
+
+### Recommended setup (SSH signing)
+We recommend using SSH-based commit signing (simpler than GPG):
+
+1. Generate an SSH key (or reuse an existing one):
+   ssh-keygen -t ed25519 -C "your_email@example.com"
+
+2. Add the public key to GitHub:
+   Settings → SSH and GPG keys → New SSH key
+   Key type: Signing key
+
+3. Configure git:
+   git config --global gpg.format ssh
+   git config --global user.signingkey ~/.ssh/id_ed25519.pub
+   git config --global commit.gpgsign true
+
+Make sure your git email matches a verified email on your GitHub account.
+
 ## Code Review Expectations
 
 For authors:
