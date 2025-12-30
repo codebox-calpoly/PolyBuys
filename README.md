@@ -40,7 +40,7 @@ PolyBuys/
 - [Taye Staats](https://www.linkedin.com/) - Developer
 - [Cole Hackman](https://www.linkedin.com/) - Developer
 - [Lorinc Heutchy](https://www.linkedin.com/) - Developer
-- [Haixin Huang](https://www.linkedin.com/) - Developer
+- [Haixin Huang](https://www.linkedin.com/in/haixin-huang-116799200) - Developer
 - [Domenic Federico](https://www.linkedin.com/) - Developer
 - [Omar Garcia](https://www.linkedin.com/) - Developer
 
