@@ -1,0 +1,11 @@
+# Default owners
+* @codebox-calpoly/techleads
+
+# Backend (Convex)
+/backend/ @codebox-calpoly/techleads
+
+# Frontend (Expo)
+/frontend/ @codebox-calpoly/techleads
+
+# Documentation
+/docs/ @codebox-calpoly/techleads

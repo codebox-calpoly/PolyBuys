@@ -11,45 +11,127 @@ Never commit directly to `main`.
 
 ## Repository Structure
 
-This repo is organized as a monorepo:
-
 - `frontend/` – Expo React Native app (user facing UI)
 - `backend/` – Convex functions, schema, and backend logic
-- `shared/` – Shared types and utilities used by both frontend and backend
-- `docs/` – Documentation, ADRs, and design notes
-- `scripts/` – Maintenance and tooling scripts
+- `packages/shared/` – Shared types and utilities used by both frontend and backend
+- `docs/` – Documentation, ADRs (Architecture Decision Records), and design notes
+- `scripts/` – Maintenance and tooling scripts (lint, format, etc.)
+- `.github/` – Issue templates, PR templates, and CI workflows
+
+**Best Practices:**
+
+- Keep modules small and focused
+- Use clear, descriptive names
+- Delete dead code—don't comment it out
+- Follow the existing folder structure
 
 ## Getting Started
 
-1. Clone the repo (SSH or HTTPS):
+### Prerequisites
+
+- Node.js 18+ and npm
+- Git
+- Access to the PolyBuys Convex team (ask tech leads to invite you)
+- Expo Go app on your phone (for testing)
+
+### Initial Setup
+
+1. **Clone the repository** (SSH or HTTPS):
 
    ```bash
-   git clone git@github.com:<org>/<repo>.git
-   cd <repo>
-   
-2. Switch to the `dev` branch and ensure it’s up to date:
+   git clone git@github.com:codebox-calpoly/PolyBuys.git
+   cd PolyBuys
+   ```
+
+2. **Switch to the `dev` branch** and ensure it's up to date:
+
    ```bash
    git checkout dev
    git pull origin dev
-Do NOT commit directly to `main`.
+   ```
+
+   Do NOT commit directly to `main`.
+
+3. **Install dependencies**:
+
+   ```bash
+   npm install
+   ```
+
+4. **Set up Convex backend**:
+
+   Ask a tech lead to invite you to the Convex team first. Once invited:
+
+   ```bash
+   npm run dev:backend
+   ```
+
+   This will:
+   - Prompt you to login to Convex (creates account if needed)
+   - Show you a list of projects - select **PolyBuys**
+   - Start the Convex development server
+   - Display your deployment URL (save this for the next step)
+
+5. **Configure environment variables**:
+
+   **Frontend:**
+
+   ```bash
+   cp frontend/.env.example frontend/.env.local
+   ```
+
+   Edit `frontend/.env.local` and add your Convex deployment URL (shown in terminal after step 4):
+
+   ```
+   EXPO_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+   ```
+
+   **Backend:**
+
+   ```bash
+   cp backend/.env.example backend/.env.local
+   ```
+
+   The `CONVEX_DEPLOYMENT` value is set automatically by `npx convex dev`.
+
+6. **Start the Expo development server**:
+
+   In a new terminal (keep Convex running):
+
+   ```bash
+   npm run dev
+   ```
+
+   Scan the QR code with:
+   - **iOS**: Built-in Camera app
+   - **Android**: Expo Go app
+
+You're now ready to develop! 🚀
 
 ## Making Changes
 
 Every Linear issue maps to one feature branch.
 
-1. From dev, create a feature branch:
-     ```bash
-    git checkout dev
-    git pull origin dev
-    git checkout -b feature/<linear-key>-short-description
-    # e.g. feature/PROJ-12-login-page
-2. Make your changes on thie branch.
-3. If `dev` has moved while you were working, update your branch:
-     ```bash
-     git fetch origin
-     git merge origin/dev   # or `git rebase origin/dev` if you prefer
-  Resolve any merge conflicts, run tests, and commit.
-  
+1. **Pick a Linear issue** from the project board and assign it to yourself.
+
+2. **Create a feature branch** from dev:
+
+   ```bash
+   git checkout dev
+   git pull origin dev
+   git checkout -b feature/<linear-key>-short-description
+   # e.g. feature/POLY-12-login-page
+   ```
+
+3. **Make your changes** on this branch.
+
+4. If `dev` has moved while you were working, update your branch:
+   ```bash
+   git fetch origin
+   git merge origin/dev   # or `git rebase origin/dev` if you prefer
+   Resolve any merge conflicts, run tests, and commit.
+   ```
+
 ## Committing Changes
 
 1. Stage files:
@@ -58,25 +140,67 @@ Every Linear issue maps to one feature branch.
    git add .              # stage all files
    # or
    git add <file-name>    # stage a specific file
+   ```
+
 2. Commit using [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/)
    ```bash
    git commit -m "<type>: <description>"
    # e.g. "feat: add login form" or
    #      "fix: handle empty search query"
+   ```
 3. Push your branch
    ```bash
    `git push -u origin feature/<linear-key>-short-description`
+   ```
 
 ## Making Pull Requests
 
-1. Open a PR on GitHub:
+1. **Push your branch** to GitHub:
+
+   ```bash
+   git push -u origin feature/<linear-key>-short-description
+   ```
+
+2. **Open a PR on GitHub**:
    - Base branch: `dev`
    - Compare branch: `feature/<linear-key>-short-description`
-2. Fill out the PR template.
-3. Link the PR to the Linear issue (include the issue ID in the
-   title/description, e.g. `[PROJ-12] Add login page`).
-4. Request a reviewer to check your code
-5. Once approved, your code is ready to be merged!
+   - Title format: `[POLY-123] Add login page`
+
+3. **Fill out the PR template**:
+   - Link the Linear issue (e.g., `Linear: POLY-123`)
+   - Provide clear summary and testing steps
+   - Add screenshots for UI changes
+
+4. **Request reviewers** (assign at least one tech lead or team member)
+
+5. **Address feedback** if changes are requested
+
+6. **Once approved**, a tech lead will merge to `dev`
+
+**Note:** Pre-commit hooks will automatically format your code and run linting before each commit!
+
+## Commit signing (required)
+
+This repository requires all commits to be cryptographically signed.
+Unsigned commits cannot be merged into protected branches.
+
+### Recommended setup (SSH signing)
+
+We recommend using SSH-based commit signing (simpler than GPG):
+
+1. Generate an SSH key (or reuse an existing one):
+   ssh-keygen -t ed25519 -C "your_email@example.com"
+
+2. Add the public key to GitHub:
+   Settings → SSH and GPG keys → New SSH key
+   Key type: Signing key
+
+3. Configure git:
+   git config --global gpg.format ssh
+   git config --global user.signingkey ~/.ssh/id_ed25519.pub
+   git config --global commit.gpgsign true
+
+Make sure your git email matches a verified email on your GitHub account.
 
 ## Code Review Expectations
 
@@ -96,28 +220,50 @@ For reviewers:
 
 ### Formatting and Linting
 
-- We use **ESLint** and **Prettier**.
-- Run them before pushing:
-  - `npm run lint`
-  - `npm run format`
+- We use **ESLint** and **Prettier** to maintain code quality.
+- **Pre-commit hooks** automatically format and lint your code before each commit.
+- You can also run manually:
+  - `npm run lint` - Check for linting errors
+  - `npm run format` - Format all files
 - CI will run lint and tests on every PR. Fix any issues before requesting review.
 
-We also include an `.editorconfig` file to normalize editor settings.
+We also include an **`.editorconfig`** file to normalize IDE settings across the team.
 
 ### Environment Variables and Secrets
 
-- Copy `.env.example` to `.env.local` and fill in the values.
-- Never commit real secrets. Do not add `.env*` files to git.
-- If you introduce a new environment variable, update `.env.example` and document its purpose.
+- **Never commit `.env.local` or any file containing secrets** - these are in `.gitignore`
+- If you introduce a new environment variable:
+  1. Add it to the appropriate `.env.example` file
+  2. Document its purpose in this file
+  3. Notify the team in your PR
+
+**Key Environment Variables:**
+
+- `EXPO_PUBLIC_CONVEX_URL` - Your Convex deployment URL (frontend)
+- `CONVEX_DEPLOYMENT` - Set automatically by Convex CLI (backend)
+
+Ask tech leads for any additional secrets needed (API keys, etc.)
 
 ### Documentation
 
-- If you add a new feature or change behavior, update the `README.md`.
-- For significant architectural decisions, add an Architecture Decision Record (ADR) under `docs/adr/`.
+- **Update README.md** when adding new features or changing behavior
+- **Create ADRs** (Architecture Decision Records) in `docs/adr/` for significant architectural decisions
+  - Example: choosing a new library, changing database schema, major refactors
+  - Use the template in `docs/adr/template.md`
+- **Update this contributing guide** if you change the development workflow
+- **Document complex code** with comments explaining "why," not just "what"
 
+### Testing
+
+- Write tests for new features and bug fixes
+- Run tests locally before pushing: `npm run test`
+- CI runs tests automatically on every PR
+- Don't merge PRs with failing tests
 
 ## Releases
+
 Tech leads periodically (e.g. every 3 days):
-   - Merge `dev` → `main`
-   - Deploy from `main`
-   - Update Linear issues to reflect what’s been released
+
+- Merge `dev` → `main`
+- Deploy from `main`
+- Update Linear issues to reflect what’s been released

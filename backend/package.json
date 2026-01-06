@@ -1,0 +1,20 @@
+{
+  "name": "@polybuys/backend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "convex dev",
+    "build": "npm run build:functions",
+    "build:functions": "tsc",
+    "typecheck": "tsc --noEmit",
+    "deploy": "convex deploy"
+  },
+  "dependencies": {
+    "convex": "^1.17.2",
+    "@polybuys/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  },
+  "private": true
+}

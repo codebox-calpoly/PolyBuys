@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "PolyBuy",
+    "slug": "polybuy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "platforms": ["ios", "android", "web"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.polybuy.app"
+    },
+    "android": {
+      "package": "com.polybuy.app"
+    },
+    "plugins": ["expo-router"],
+    "scheme": "polybuy",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
