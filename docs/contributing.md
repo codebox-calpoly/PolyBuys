@@ -185,6 +185,7 @@ This repository requires all commits to be cryptographically signed.
 Unsigned commits cannot be merged into protected branches.
 
 ### Recommended setup (SSH signing)
+
 We recommend using SSH-based commit signing (simpler than GPG):
 
 1. Generate an SSH key (or reuse an existing one):
