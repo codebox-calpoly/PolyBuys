@@ -32,7 +32,7 @@ PolyBuys/
 
 ## Team
 
-- [Evan Taylor](https://www.linkedin.com/) - Project Manager
+- [Evan Taylor](https://www.linkedin.com/in/evan-l-taylor/) - Project Manager
 - [Jaydon Chen](https://www.linkedin.com/in/jaydon-chen/) - Tech Lead
 - [Saman Sepehr](https://www.linkedin.com/) - Tech Lead
 - [Chanelle Friend](https://www.linkedin.com/) - Designer
