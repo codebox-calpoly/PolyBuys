@@ -31,7 +31,6 @@ Never commit directly to `main`.
 
 - Node.js 18+ and npm
 - Git
-- Access to the PolyBuys Convex team (ask tech leads to invite you)
 - Expo Go app on your phone (for testing)
 
 ### Initial Setup
@@ -58,41 +57,40 @@ Never commit directly to `main`.
    npm install
    ```
 
-4. **Set up Convex backend**:
+4. **Configure environment variables**:
 
-   Ask a tech lead to invite you to the Convex team first. Once invited:
+   Ask a tech lead for the Convex admin key and backend URL.
+
+   **Backend:**
+
+   Create `backend/.env.local`:
+
+   ```bash
+   CONVEX_SELF_HOSTED_URL='https://api.polybuys.com'
+   CONVEX_SELF_HOSTED_ADMIN_KEY='<admin-key-from-tech-lead>'
+   ```
+
+   **Frontend:**
+
+   Create `frontend/.env.local`:
+
+   ```bash
+   EXPO_PUBLIC_CONVEX_URL='https://api.polybuys.com'
+   ```
+
+   **Note**: We use self-hosted Convex on Railway, not Convex cloud. See [SELF_HOSTED_CONVEX.md](SELF_HOSTED_CONVEX.md) for detailed setup and troubleshooting.
+
+5. **Start Convex backend**:
 
    ```bash
    npm run dev:backend
    ```
 
    This will:
-   - Prompt you to login to Convex (creates account if needed)
-   - Show you a list of projects - select **PolyBuys**
-   - Start the Convex development server
-   - Display your deployment URL (save this for the next step)
-
-5. **Configure environment variables**:
-
-   **Frontend:**
-
-   ```bash
-   cp frontend/.env.example frontend/.env.local
-   ```
-
-   Edit `frontend/.env.local` and add your Convex deployment URL (shown in terminal after step 4):
-
-   ```
-   EXPO_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-   ```
-
-   **Backend:**
-
-   ```bash
-   cp backend/.env.example backend/.env.local
-   ```
-
-   The `CONVEX_DEPLOYMENT` value is set automatically by `npx convex dev`.
+   - Connect to the self-hosted Convex backend at `api.polybuys.com`
+   - Sync your schema and functions
+   - Watch for changes
+   - Generate TypeScript types in `backend/convex/_generated/`
 
 6. **Start the Expo development server**:
 
@@ -239,8 +237,9 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 
 **Key Environment Variables:**
 
-- `EXPO_PUBLIC_CONVEX_URL` - Your Convex deployment URL (frontend)
-- `CONVEX_DEPLOYMENT` - Set automatically by Convex CLI (backend)
+- `EXPO_PUBLIC_CONVEX_URL` - Self-hosted Convex backend URL (frontend): `https://api.polybuys.com`
+- `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL (backend): `https://api.polybuys.com`
+- `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (backend only, get from tech leads)
 
 Ask tech leads for any additional secrets needed (API keys, etc.)
 

@@ -2,15 +2,24 @@
 
 This directory contains the Convex serverless backend for PolyBuys.
 
+**Note**: We use self-hosted Convex deployed on Railway, not Convex cloud.
+
 ## Getting Started
 
-Run the Convex development server:
+First, create `backend/.env.local` with:
+
+```bash
+CONVEX_SELF_HOSTED_URL='https://api.polybuys.com'
+CONVEX_SELF_HOSTED_ADMIN_KEY='<admin-key-from-team>'
+```
+
+Then run the Convex development server:
 
 ```bash
 npm run dev:backend
 ```
 
-This starts the Convex dev server, watches for changes, and syncs your schema and functions to your deployment.
+This connects to our self-hosted Convex backend, watches for changes, and syncs your schema and functions to the deployment.
 
 ## Project Structure
 
