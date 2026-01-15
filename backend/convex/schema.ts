@@ -7,6 +7,9 @@ export default defineSchema({
     description: v.string(),
     price: v.number(),
     sellerEmail: v.string(),
+    sellerId: v.string(),
+    images: v.array(v.string()),
+    condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
     category: v.union(
       v.literal('textbooks'),
       v.literal('electronics'),
@@ -14,8 +17,14 @@ export default defineSchema({
       v.literal('tickets'),
       v.literal('other')
     ),
-    status: v.union(v.literal('active'), v.literal('sold'), v.literal('inactive')),
+    status: v.union(
+      v.literal('active'),
+      v.literal('sold'),
+      v.literal('inactive'),
+      v.literal('deleted')
+    ),
     createdAt: v.number(),
+    postedOn: v.number(),
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
