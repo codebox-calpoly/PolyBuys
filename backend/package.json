@@ -9,11 +9,12 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
-    "convex": "^1.17.2",
-    "@polybuys/shared": "*"
+    "@polybuys/shared": "*",
+    "convex": "^1.17.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "convex-test": "^0.0.41",
     "typescript": "^5.7.2"
   },
   "private": true
