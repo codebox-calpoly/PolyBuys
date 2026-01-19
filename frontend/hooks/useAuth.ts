@@ -7,7 +7,12 @@ export interface UseAuthReturn {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string, flow: 'signIn' | 'signUp') => Promise<void>;
+  signIn: (
+    email: string,
+    password: string,
+    flow: 'signIn' | 'signUp',
+    name?: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   error: string | null;
 }
@@ -28,13 +33,15 @@ export function useAuth(): UseAuthReturn {
   const signIn = async (
     email: string,
     password: string,
-    flow: 'signIn' | 'signUp'
+    flow: 'signIn' | 'signUp',
+    name?: string
   ): Promise<void> => {
     try {
       await authSignIn('password', {
         email,
         password,
         flow,
+        ...(name && { name }),
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';

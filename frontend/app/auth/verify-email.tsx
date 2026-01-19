@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useMutation } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -19,6 +19,7 @@ export default function VerifyEmailScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const markEmailVerified = useMutation(api.users.markEmailVerified);
+  const resendVerificationEmail = useAction(api.emailActions.resendVerificationEmail);
 
   const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,10 +51,8 @@ export default function VerifyEmailScreen() {
     setError(null);
 
     try {
-      // Verify the code with the backend
-      // Note: The actual verification logic will depend on how @convex-dev/auth handles verification
-      // This is a placeholder - you may need to call a specific verification mutation
-      await markEmailVerified({ email });
+      // Verify the code with the backend - now passing the token
+      await markEmailVerified({ email, token: verificationCode.trim() });
 
       // On success, redirect to home
       router.replace('/');
@@ -66,8 +65,25 @@ export default function VerifyEmailScreen() {
   };
 
   const handleResendCode = async () => {
-    // TODO: Implement resend verification code functionality
-    setError('Resend functionality coming soon');
+    if (!email) {
+      setError('Email address not found');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Call the resend action (hook is declared at component top level)
+      await resendVerificationEmail({ email });
+      // Show success feedback
+      alert('Verification code sent! Check your email.');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

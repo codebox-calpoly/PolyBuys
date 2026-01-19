@@ -53,7 +53,7 @@ export default function SignUpScreen() {
     setErrors({});
 
     try {
-      await signIn(email.toLowerCase().trim(), password, 'signUp');
+      await signIn(email.toLowerCase().trim(), password, 'signUp', name.trim() || undefined);
       // Redirect to verification screen
       router.push('/auth/verify-email');
     } catch (error) {
