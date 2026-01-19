@@ -237,9 +237,17 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 
 **Key Environment Variables:**
 
-- `EXPO_PUBLIC_CONVEX_URL` - Self-hosted Convex backend URL (frontend): `https://api.polybuys.com`
-- `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL (backend): `https://api.polybuys.com`
-- `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (backend only, get from tech leads)
+**Frontend** (`frontend/.env.local`):
+
+- `EXPO_PUBLIC_CONVEX_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
+
+**Backend** (`backend/.env.local`):
+
+- `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
+- `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (get from tech leads)
+- `SENDGRID_API_KEY` - SendGrid API key for sending verification emails (get from tech leads)
+- `SENDGRID_FROM_EMAIL` - Email address for sending verification emails (e.g., `noreply@polybuys.app`)
+- `APP_URL` - Base URL of the application (optional, defaults to `https://polybuys.app`)
 
 Ask tech leads for any additional secrets needed (API keys, etc.)
 

@@ -22,4 +22,10 @@ export default defineSchema({
     .searchIndex('search_title', {
       searchField: 'title',
     }),
+  users: defineTable({
+    email: v.string(),
+    emailVerified: v.boolean(),
+    name: v.union(v.string(), v.null()),
+    createdAt: v.number(),
+  }).index('by_email', ['email']),
 });
