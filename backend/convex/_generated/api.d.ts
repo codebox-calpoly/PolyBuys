@@ -9,6 +9,7 @@
  */
 
 import type * as listings from "../listings.js";
+import type * as profiles from "../profiles.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +19,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   listings: typeof listings;
+  profiles: typeof profiles;
 }>;
 
 /**
