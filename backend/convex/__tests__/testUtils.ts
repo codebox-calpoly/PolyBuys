@@ -140,6 +140,7 @@ export async function createTestConversation(
       listingId,
       buyerId,
       sellerId,
+      participantIds: [buyerId, sellerId],
       createdAt: now,
       updatedAt: now,
       buyerLastReadAt: now,
