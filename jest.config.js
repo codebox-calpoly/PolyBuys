@@ -7,4 +7,10 @@ module.exports = {
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/packages/shared',
   },
+  // Transform ES modules like convex-test and convex
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.js$': 'babel-jest',
+  },
+  transformIgnorePatterns: ['node_modules/(?!(convex-test|convex)/)'],
 };

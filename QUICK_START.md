@@ -71,7 +71,8 @@ npm start -- --clear
 
 ```bash
 npm run dev:backend
-# Check if logged in to correct project
+# Check backend/.env.local has correct URL and admin key
+# Verify backend is accessible: curl https://api.polybuys.com
 ```
 
 **Type errors after pulling?**
