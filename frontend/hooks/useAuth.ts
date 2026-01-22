@@ -1,5 +1,5 @@
-import { useAuthActions, useAuthStore } from '@convex-dev/auth/react';
-import { useQuery } from 'convex/react';
+import { useAuthActions } from '@convex-dev/auth/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { User } from '@polybuys/shared';
 
@@ -7,47 +7,22 @@ export interface UseAuthReturn {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  signIn: (
-    email: string,
-    password: string,
-    flow: 'signIn' | 'signUp',
-    name?: string
-  ) => Promise<void>;
   signOut: () => Promise<void>;
-  error: string | null;
 }
 
 /**
  * Custom hook for authentication
  * Wraps Convex Auth hooks and provides user data
+ *
+ * Note: For OTP sign-in, use useAuthActions().signIn directly in the login screen
  */
 export function useAuth(): UseAuthReturn {
-  const { signIn: authSignIn, signOut: authSignOut } = useAuthActions();
-  const authStore = useAuthStore();
+  const { signOut: authSignOut } = useAuthActions();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
   // Get current user from database
   const user = useQuery(api.users.getCurrentUser);
-  const isLoading = authStore === undefined || user === undefined;
-  const isAuthenticated = authStore !== null && user !== null;
-
-  const signIn = async (
-    email: string,
-    password: string,
-    flow: 'signIn' | 'signUp',
-    name?: string
-  ): Promise<void> => {
-    try {
-      await authSignIn('password', {
-        email,
-        password,
-        flow,
-        ...(name && { name }),
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
-      throw new Error(errorMessage);
-    }
-  };
+  const isLoading = authLoading || user === undefined;
 
   const signOut = async (): Promise<void> => {
     try {
@@ -62,8 +37,6 @@ export function useAuth(): UseAuthReturn {
     user: user || null,
     isAuthenticated,
     isLoading,
-    signIn,
     signOut,
-    error: null,
   };
 }

@@ -24,17 +24,7 @@ export default defineSchema({
     }),
   users: defineTable({
     email: v.string(),
-    emailVerified: v.boolean(),
     name: v.union(v.string(), v.null()),
     createdAt: v.number(),
   }).index('by_email', ['email']),
-
-  // Store verification tokens for email validation
-  verificationTokens: defineTable({
-    email: v.string(),
-    token: v.string(),
-    expiresAt: v.number(),
-  })
-    .index('by_email', ['email'])
-    .index('by_token', ['token']),
 });

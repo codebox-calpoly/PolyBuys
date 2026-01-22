@@ -11,8 +11,9 @@
   "dependencies": {
     "convex": "^1.17.2",
     "@polybuys/shared": "*",
-    "@convex-dev/auth": "^0.2.0",
-    "@sendgrid/mail": "^8.1.0"
+    "@convex-dev/auth": "^0.0.90",
+    "resend": "^4.0.0",
+    "@oslojs/crypto": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

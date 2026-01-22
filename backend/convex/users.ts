@@ -1,26 +1,31 @@
+import { getAuthUserId } from '@convex-dev/auth/server';
 import { query, mutation } from './_generated/server';
-import { v } from 'convex/values';
-import { auth } from './auth';
-import { ConvexError } from 'convex/values';
+import { v, ConvexError } from 'convex/values';
 
 /**
- * Get the current authenticated user
+ * Get the current authenticated user's profile from our users table
  */
 export const getCurrentUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await auth.getUserIdentity(ctx);
-    if (!identity) {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
       return null;
     }
 
-    // Find user by email (which matches the identity email)
-    const user = await ctx.db
+    // Get the auth user record
+    const authUser = await ctx.db.get(userId);
+    if (!authUser) {
+      return null;
+    }
+
+    // Find user profile by email
+    const userProfile = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', identity.email))
+      .withIndex('by_email', (q) => q.eq('email', authUser.email!))
       .first();
 
-    return user;
+    return userProfile;
   },
 });
 
@@ -47,112 +52,69 @@ export const updateUserProfile = mutation({
     name: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
-    const identity = await auth.getUserIdentity(ctx);
-    if (!identity) {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
       throw new ConvexError('Not authenticated');
     }
 
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', identity.email))
-      .first();
-
-    if (!user) {
+    const authUser = await ctx.db.get(userId);
+    if (!authUser || !authUser.email) {
       throw new ConvexError('User not found');
     }
 
-    await ctx.db.patch(user._id, {
+    const userProfile = await ctx.db
+      .query('users')
+      .withIndex('by_email', (q) => q.eq('email', authUser.email!))
+      .first();
+
+    if (!userProfile) {
+      throw new ConvexError('User profile not found');
+    }
+
+    await ctx.db.patch(userProfile._id, {
       name: args.name,
     });
 
-    return await ctx.db.get(user._id);
+    return await ctx.db.get(userProfile._id);
   },
 });
 
 /**
- * Create user profile after email verification
- * This is typically called automatically by the auth system,
- * but we provide it as a utility function
+ * Get or create user profile after authentication
+ * Called when user successfully authenticates via OTP
  */
-export const createUserProfile = mutation({
-  args: {
-    email: v.string(),
-    name: v.union(v.string(), v.null()),
-  },
-  handler: async (ctx, args) => {
-    // Check if user already exists
-    const existingUser = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', args.email.toLowerCase().trim()))
-      .first();
-
-    if (existingUser) {
-      throw new ConvexError('User with this email already exists');
+export const getOrCreateUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new ConvexError('Not authenticated');
     }
 
-    const userId = await ctx.db.insert('users', {
-      email: args.email.toLowerCase().trim(),
-      emailVerified: false,
-      name: args.name || null,
+    const authUser = await ctx.db.get(userId);
+    if (!authUser || !authUser.email) {
+      throw new ConvexError('Auth user not found');
+    }
+
+    const email = authUser.email.toLowerCase().trim();
+
+    // Check if user profile already exists
+    const existingProfile = await ctx.db
+      .query('users')
+      .withIndex('by_email', (q) => q.eq('email', email))
+      .first();
+
+    if (existingProfile) {
+      return existingProfile;
+    }
+
+    // Create new user profile
+    const profileId = await ctx.db.insert('users', {
+      email,
+      name: authUser.name || null,
       createdAt: Date.now(),
     });
 
-    return await ctx.db.get(userId);
-  },
-});
-
-/**
- * Mark user email as verified (requires valid token)
- */
-export const markEmailVerified = mutation({
-  args: {
-    email: v.string(),
-    token: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const email = args.email.toLowerCase().trim();
-    const token = args.token.trim();
-
-    // Find the verification token
-    const verificationToken = await ctx.db
-      .query('verificationTokens')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    if (!verificationToken) {
-      throw new ConvexError('Verification code not found. Please request a new code.');
-    }
-
-    // Check if token matches
-    if (verificationToken.token !== token) {
-      throw new ConvexError('Invalid verification code. Please try again.');
-    }
-
-    // Check if token is expired (24 hours)
-    if (Date.now() > verificationToken.expiresAt) {
-      // Delete expired token
-      await ctx.db.delete(verificationToken._id);
-      throw new ConvexError('Verification code has expired. Please request a new code.');
-    }
-
-    // Find the user
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    if (!user) {
-      throw new ConvexError('User not found');
-    }
-
-    // Mark email as verified
-    await ctx.db.patch(user._id, {
-      emailVerified: true,
-    });
-
-    // Delete the used token
-    await ctx.db.delete(verificationToken._id);
-
-    return await ctx.db.get(user._id);
+    return await ctx.db.get(profileId);
   },
 });

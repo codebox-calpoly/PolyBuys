@@ -8,76 +8,151 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthActions } from '@convex-dev/auth/react';
 import { getEmailValidationError } from '@polybuys/shared';
+
+type Step = 'email' | { email: string };
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn } = useAuthActions();
+
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{
-    email?: string;
-    password?: string;
-    general?: string;
-  }>({});
+  const [error, setError] = useState<string | null>(null);
 
-  const validateForm = (): boolean => {
-    const newErrors: typeof errors = {};
-
+  const handleSendCode = async () => {
     // Validate email
     const emailError = getEmailValidationError(email);
     if (emailError) {
-      newErrors.email = emailError;
-    }
-
-    // Validate password
-    if (!password) {
-      newErrors.password = 'Password is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleLogin = async () => {
-    if (!validateForm()) {
+      setError(emailError);
       return;
     }
 
     setIsLoading(true);
-    setErrors({});
+    setError(null);
 
     try {
-      await signIn(email.toLowerCase().trim(), password, 'signIn');
-      // Redirect to home on success
-      router.replace('/');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
-
-      if (
-        errorMessage.includes('invalid') ||
-        errorMessage.includes('credentials') ||
-        errorMessage.includes('incorrect')
-      ) {
-        setErrors({
-          general: 'Invalid email or password. Please try again.',
-        });
-      } else if (errorMessage.includes('not verified') || errorMessage.includes('verification')) {
-        setErrors({
-          general: 'Please verify your email address before logging in.',
-        });
-      } else {
-        setErrors({ general: errorMessage });
-      }
+      await signIn('resend-otp', { email: email.toLowerCase().trim() });
+      setStep({ email: email.toLowerCase().trim() });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send code';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleVerifyCode = async () => {
+    if (!code.trim() || code.trim().length !== 8) {
+      setError('Please enter the 8-digit code');
+      return;
+    }
+
+    if (typeof step === 'string') {
+      setError('Please enter your email first');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await signIn('resend-otp', { email: step.email, code: code.trim() });
+      // On success, redirect to home
+      router.replace('/');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (typeof step === 'string') return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await signIn('resend-otp', { email: step.email });
+      setError(null);
+      // Show success feedback
+      setCode('');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setStep('email');
+    setCode('');
+    setError(null);
+  };
+
+  // Email entry step
+  if (step === 'email') {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <Text style={styles.title}>Welcome to PolyBuys</Text>
+            <Text style={styles.subtitle}>Sign in with your Cal Poly email to continue</Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="you@calpoly.edu"
+                placeholderTextColor="#999"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                editable={!isLoading}
+              />
+            </View>
+
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleSendCode}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Send Code</Text>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.footerText}>Only @calpoly.edu emails are allowed</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Code entry step
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -85,68 +160,52 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your PolyBuys account</Text>
+          <Text style={styles.title}>Enter Verification Code</Text>
+          <Text style={styles.subtitle}>
+            We sent a code to{'\n'}
+            <Text style={styles.emailHighlight}>{step.email}</Text>
+          </Text>
 
-          {errors.general && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Verification Code</Text>
+            <TextInput
+              style={[styles.input, styles.codeInput]}
+              placeholder="12345678"
+              placeholderTextColor="#999"
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              maxLength={8}
+              autoComplete="one-time-code"
+              editable={!isLoading}
+            />
+          </View>
+
+          {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{errors.general}</Text>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Cal Poly Email</Text>
-              <TextInput
-                style={[styles.input, errors.email && styles.inputError]}
-                placeholder="your.name@calpoly.edu"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (errors.email) {
-                    setErrors({ ...errors, email: undefined });
-                  }
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-              {errors.email && <Text style={styles.fieldError}>{errors.email}</Text>}
-            </View>
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleVerifyCode}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Verify</Text>
+            )}
+          </TouchableOpacity>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={[styles.input, errors.password && styles.inputError]}
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (errors.password) {
-                    setErrors({ ...errors, password: undefined });
-                  }
-                }}
-                secureTextEntry
-                editable={!isLoading}
-              />
-              {errors.password && <Text style={styles.fieldError}>{errors.password}</Text>}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              <Text style={styles.buttonText}>{isLoading ? 'Signing In...' : 'Sign In'}</Text>
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity onPress={handleResendCode} disabled={isLoading}>
+              <Text style={styles.linkText}>Resend code</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkButton}
-              onPress={() => router.push('/auth/signup')}
-              disabled={isLoading}
-            >
-              <Text style={styles.linkText}>Don&apos;t have an account? Sign up</Text>
+            <TouchableOpacity onPress={handleBack} disabled={isLoading}>
+              <Text style={styles.linkText}>Use different email</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -162,25 +221,29 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
   },
   content: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
+    color: '#154734',
+    textAlign: 'center',
     marginBottom: 8,
-    color: '#1f4e3d',
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
+    textAlign: 'center',
     marginBottom: 32,
+    lineHeight: 24,
   },
-  form: {
-    width: '100%',
+  emailHighlight: {
+    color: '#154734',
+    fontWeight: '600',
   },
   inputContainer: {
     marginBottom: 20,
@@ -188,56 +251,62 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8,
     color: '#333',
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#f9f9f9',
   },
-  inputError: {
-    borderColor: '#d32f2f',
-  },
-  fieldError: {
-    color: '#d32f2f',
-    fontSize: 12,
-    marginTop: 4,
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '600',
+    letterSpacing: 4,
   },
   errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: 12,
+    backgroundColor: '#fee',
     borderRadius: 8,
-    marginBottom: 20,
+    padding: 12,
+    marginBottom: 16,
   },
   errorText: {
-    color: '#d32f2f',
+    color: '#c00',
     fontSize: 14,
+    textAlign: 'center',
   },
   button: {
-    backgroundColor: '#1f4e3d',
+    backgroundColor: '#154734',
+    borderRadius: 12,
     padding: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 8,
+    marginBottom: 16,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  linkButton: {
-    marginTop: 16,
-    alignItems: 'center',
+  footerText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
   },
   linkText: {
-    color: '#1f4e3d',
+    color: '#154734',
     fontSize: 14,
+    fontWeight: '500',
   },
 });

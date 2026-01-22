@@ -2,7 +2,6 @@ export interface User {
   _id: string;
   _creationTime: number;
   email: string;
-  emailVerified: boolean;
   name: string | null;
   createdAt: number;
 }
