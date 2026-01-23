@@ -22,8 +22,23 @@ export function formatDate(timestamp: number): string {
 }
 
 /**
- * Validate Cal Poly email
+ * Validate Cal Poly email using regex
+ * Matches emails ending with @calpoly.edu
  */
 export function isCalPolyEmail(email: string): boolean {
-  return email.endsWith('@calpoly.edu');
+  const calPolyEmailRegex = /^[a-zA-Z0-9._%+-]+@calpoly\.edu$/i;
+  return calPolyEmailRegex.test(email);
+}
+
+/**
+ * Get validation error message for email
+ */
+export function getEmailValidationError(email: string): string | null {
+  if (!email) {
+    return 'Email is required';
+  }
+  if (!isCalPolyEmail(email)) {
+    return 'Email must be a @calpoly.edu address';
+  }
+  return null;
 }

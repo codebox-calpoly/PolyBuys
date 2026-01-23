@@ -31,4 +31,9 @@ export default defineSchema({
     .searchIndex('search_title', {
       searchField: 'title',
     }),
+  users: defineTable({
+    email: v.string(),
+    name: v.union(v.string(), v.null()),
+    createdAt: v.number(),
+  }).index('by_email', ['email']),
 });

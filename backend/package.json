@@ -1,6 +1,7 @@
 {
   "name": "@polybuys/backend",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "convex dev",
     "build": "npm run build:functions",
@@ -9,8 +10,11 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
+    "convex": "^1.17.2",
     "@polybuys/shared": "*",
-    "convex": "^1.17.2"
+    "@convex-dev/auth": "^0.0.90",
+    "resend": "^4.0.0",
+    "@oslojs/crypto": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
