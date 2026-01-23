@@ -16,9 +16,13 @@ describe('Convex schema', () => {
       'description',
       'price',
       'sellerEmail',
+      'sellerId',
+      'images',
+      'condition',
       'category',
       'status',
       'createdAt',
+      'postedOn',
     ]);
   });
 
@@ -29,7 +33,7 @@ describe('Convex schema', () => {
 
     const { fieldType: status } = listings.documentType.value.status;
     const statusLiterals = status.value.map((v: any) => v.value);
-    expect(statusLiterals).toEqual(['active', 'sold', 'inactive']);
+    expect(statusLiterals).toEqual(['active', 'sold', 'inactive', 'deleted']);
   });
 
   it('exposes indexes and search index for listings', () => {

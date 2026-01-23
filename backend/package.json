@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "convex-test": "^0.0.41",
     "typescript": "^5.7.2"
   },
   "private": true
