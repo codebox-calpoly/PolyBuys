@@ -20,9 +20,10 @@ export const getCurrentUser = query({
     }
 
     // Find user profile by email
+    const email = authUser.email.toLowerCase().trim();
     const userProfile = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', authUser.email))
+      .withIndex('by_email', (q) => q.eq('email', email))
       .first();
 
     return userProfile;
@@ -62,9 +63,10 @@ export const updateUserProfile = mutation({
       throw new ConvexError('User not found');
     }
 
+    const email = authUser.email.toLowerCase().trim();
     const userProfile = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', authUser.email!))
+      .withIndex('by_email', (q) => q.eq('email', email))
       .first();
 
     if (!userProfile) {
