@@ -1,6 +1,7 @@
 {
   "name": "@polybuys/backend",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "convex dev",
     "build": "npm run build:functions",
