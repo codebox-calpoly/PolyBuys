@@ -26,6 +26,11 @@ export const ResendOTP = Email({
   },
 
   async sendVerificationRequest({ identifier: email, provider, token }) {
+    // Validate API key is configured
+    if (!provider.apiKey) {
+      throw new ConvexError('Email service not configured. Please contact support.');
+    }
+
     // Validate Cal Poly email domain
     if (!isCalPolyEmail(email)) {
       throw new ConvexError('Email must be a @calpoly.edu address');

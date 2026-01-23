@@ -20,9 +20,9 @@ export function useAuth(): UseAuthReturn {
   const { signOut: authSignOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
-  // Get current user from database
-  const user = useQuery(api.users.getCurrentUser);
-  const isLoading = authLoading || user === undefined;
+  // Get current user from database (skip query when not authenticated)
+  const user = useQuery(api.users.getCurrentUser, isAuthenticated ? undefined : 'skip');
+  const isLoading = authLoading || (isAuthenticated && user === undefined);
 
   const signOut = async (): Promise<void> => {
     try {

@@ -245,8 +245,7 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 
 - `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
 - `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (get from tech leads)
-- `SENDGRID_API_KEY` - SendGrid API key for sending verification emails (get from tech leads)
-- `SENDGRID_FROM_EMAIL` - Email address for sending verification emails (not set)
+- `AUTH_RESEND_KEY` - Resend API key for sending verification emails (get from tech leads)
 
 Ask tech leads for any additional secrets needed (API keys, etc.)
 

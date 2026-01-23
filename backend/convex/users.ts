@@ -15,14 +15,14 @@ export const getCurrentUser = query({
 
     // Get the auth user record
     const authUser = await ctx.db.get(userId);
-    if (!authUser) {
+    if (!authUser || !authUser.email) {
       return null;
     }
 
     // Find user profile by email
     const userProfile = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', authUser.email!))
+      .withIndex('by_email', (q) => q.eq('email', authUser.email))
       .first();
 
     return userProfile;

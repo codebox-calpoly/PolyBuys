@@ -25,6 +25,7 @@ export default function LoginScreen() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSendCode = async () => {
     // Validate email
@@ -79,12 +80,12 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       await signIn('resend-otp', { email: step.email });
-      setError(null);
-      // Show success feedback
       setCode('');
+      setSuccessMessage('A new code has been sent to your email');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
       setError(errorMessage);
@@ -187,6 +188,12 @@ export default function LoginScreen() {
             </View>
           )}
 
+          {successMessage && (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>{successMessage}</Text>
+            </View>
+          )}
+
           <TouchableOpacity
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleVerifyCode}
@@ -276,6 +283,17 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#c00',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  successContainer: {
+    backgroundColor: '#e6f4ea',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: '#137333',
     fontSize: 14,
     textAlign: 'center',
   },
