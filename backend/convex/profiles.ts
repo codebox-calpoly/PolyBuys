@@ -20,7 +20,7 @@ export const getProfilebyName = query({
       .withIndex('by_name', (q) => q.eq('name', args.name))
       .collect();
 
-    if (!profiles) return null;
+    if (profiles.length === 0) return null;
 
     return profiles.map((profile) => ({
       name: profile.name,
@@ -50,6 +50,15 @@ export const createProfile = mutation({
     if (!identity) {
       throw new Error('You must be logged in to create a profile');
     }
+
+    const existingProfile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .unique();
+    if (existingProfile) {
+      throw new Error('Profile already exists for this user');
+    }
+
     const profileId = await ctx.db.insert('profiles', {
       userId: identity.subject,
       joinDate: Date.now(),
