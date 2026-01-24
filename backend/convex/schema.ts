@@ -28,8 +28,11 @@ export default defineSchema({
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
-    .searchIndex('search_title', {
+    .index('by_status_category', ['status', 'category'])
+    .index('by_status_createdAt', ['status', 'createdAt'])
+    .searchIndex('search_listings', {
       searchField: 'title',
+      filterFields: ['status', 'category', 'condition', 'description'],
     }),
   users: defineTable({
     email: v.string(),
