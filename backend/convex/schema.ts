@@ -43,8 +43,7 @@ export default defineSchema({
 =======
 
   conversations: defineTable({
-    //listingId: v.id('listings'),
-    listingId: v.string(),
+    listingId: v.id('listings'),
     buyerId: v.string(),
     sellerId: v.string(),
     participantIds: v.array(v.string()),

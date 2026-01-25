@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
+//Sends a message and updates conversation metadata
 export const sendMessage = mutation({
   args: {
     conversationId: v.id('conversations'),
@@ -34,7 +35,7 @@ export const sendMessage = mutation({
   },
 });
 
-//Debugging method
+//Debug helper for local testing
 export const debugCreateConversationID = mutation({
   args: {},
   handler: async (ctx) => {
@@ -54,6 +55,7 @@ export const debugCreateConversationID = mutation({
   },
 });
 
+//Retrieve all messages for a conversation with conversationID in chronological order
 export const getConversationHistory = query({
   args: {
     conversationId: v.id('conversations'),
@@ -68,6 +70,7 @@ export const getConversationHistory = query({
   },
 });
 
+//List all user conversations a user participates in, ordered by most recent activity
 export const listUserConversations = query({
   args: {
     userId: v.string(),
