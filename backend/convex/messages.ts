@@ -1,4 +1,4 @@
-import { mutation } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
 export const sendMessage = mutation({
@@ -34,6 +34,7 @@ export const sendMessage = mutation({
   },
 });
 
+//Debugging method
 export const debugCreateConversationID = mutation({
   args: {},
   handler: async (ctx) => {
@@ -50,5 +51,19 @@ export const debugCreateConversationID = mutation({
     });
 
     return { conversationId };
+  },
+});
+
+export const getConversationHistory = query({
+  args: {
+    conversationId: v.id('conversations'),
+  },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_conversation', (q) => q.eq('conversationId', args.conversationId))
+      .collect();
+
+    return messages;
   },
 });
