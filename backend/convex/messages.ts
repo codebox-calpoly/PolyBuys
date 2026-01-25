@@ -29,5 +29,26 @@ export const sendMessage = mutation({
       updatedAt: now,
       lastMessageId: messageId,
     });
+
+    return { messageId };
+  },
+});
+
+export const debugCreateConversationID = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    const conversationId = await ctx.db.insert('conversations', {
+      listingId: 'debug-listing-id' as any,
+      buyerId: 'buyer@test.com',
+      sellerId: 'seller@test.com',
+      participantIds: ['buyer@test.com', 'seller@test.com'],
+      createdAt: now,
+      updatedAt: now,
+      lastMessageAt: now,
+    });
+
+    return { conversationId };
   },
 });
