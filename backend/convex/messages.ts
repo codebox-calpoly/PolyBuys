@@ -67,3 +67,20 @@ export const getConversationHistory = query({
     return messages;
   },
 });
+
+export const listUserConversations = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const conversations = await ctx.db
+      .query('conversations')
+      .withIndex('by_updatedAt')
+      .order('desc')
+      .collect();
+
+    const myConversations = conversations.filter((c) => c.participantIds.includes(args.userId));
+
+    return myConversations;
+  },
+});
