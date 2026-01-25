@@ -6,13 +6,15 @@
     "build": "npm run build:functions",
     "build:functions": "tsc",
     "typecheck": "tsc --noEmit",
-    "deploy": "convex deploy"
+    "deploy": "convex deploy",
+    "test": "jest"
   },
   "dependencies": {
     "@polybuys/shared": "*",
     "convex": "^1.17.2"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.10.1",
     "convex-test": "^0.0.41",
     "typescript": "^5.7.2"

@@ -53,4 +53,20 @@ export default defineSchema({
     createdAt: v.number(),
     read: v.boolean(),
   }).index('by_conversation', ['conversationId', 'createdAt']),
+  users: defineTable({
+    // auth reference
+    clerkId: v.string(), // from your auth provider (Clerk/Auth0/etc)
+
+    // profile info
+    email: v.string(),
+    name: v.string(),
+    avatar: v.optional(v.string()), // profile picture URL
+
+    // optional but useful
+    bio: v.optional(v.string()),
+
+    // timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_clerkId', ['clerkId']), // fast lookup by auth ID
 });

@@ -1,5 +1,4 @@
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.ts'],
   collectCoverageFrom: ['**/utils/**/*.ts', '**/types/**/*.ts'],
@@ -7,10 +6,19 @@ module.exports = {
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/packages/shared',
   },
-  // Transform ES modules like convex-test and convex
+  testPathIgnorePatterns: [],
+  // Use ts-jest to transform TypeScript files
   transform: {
-    '^.+\\.ts$': 'ts-jest',
-    '^.+\\.js$': 'babel-jest',
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          // Tell ts-jest to parse JSX/TypeScript syntax
+          jsx: 'react',
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
+      },
+    ],
   },
-  transformIgnorePatterns: ['node_modules/(?!(convex-test|convex)/)'],
 };
