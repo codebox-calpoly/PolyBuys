@@ -7,9 +7,7 @@ import { paginationOptsValidator } from 'convex/server';
 export const getProfiles = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query('profiles')
-      .paginate(args.paginationOpts);
+    return await ctx.db.query('profiles').paginate(args.paginationOpts);
   },
 });
 
@@ -115,7 +113,7 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error('You must be logged in');
-    
+
     return await ctx.storage.generateUploadUrl();
   },
 });
