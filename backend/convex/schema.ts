@@ -34,13 +34,12 @@ export default defineSchema({
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],
     }),
-<<<<<<< HEAD
+
   users: defineTable({
     email: v.string(),
     name: v.union(v.string(), v.null()),
     createdAt: v.number(),
   }).index('by_email', ['email']),
-=======
 
   conversations: defineTable({
     listingId: v.id('listings'),
@@ -63,5 +62,4 @@ export default defineSchema({
     createdAt: v.number(),
     read: v.boolean(),
   }).index('by_conversation', ['conversationId', 'createdAt']),
->>>>>>> b541618 (POLY-10 add messaging and conversation schema and sendMessage mutation)
 });
