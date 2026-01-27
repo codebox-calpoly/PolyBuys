@@ -10,7 +10,7 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
-    "convex": "^1.17.2",
+    "convex": "^1.31.5",
     "@polybuys/shared": "*",
     "@convex-dev/auth": "^0.0.90",
     "resend": "^4.0.0",
