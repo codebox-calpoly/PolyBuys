@@ -18,19 +18,21 @@ export const sendMessage = mutation({
       throw new Error('Conversation not found');
     }
 
+    const recipientId =
+      args.senderId === conversation.buyerId ? conversation.sellerId : conversation.buyerId;
+
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
+      listingId: conversation.listingId,
       senderId: args.senderId,
+      recipientId,
       body: args.body,
-      type: 'text',
       createdAt: now,
-      read: false,
+      readAt: 0,
     });
 
     await ctx.db.patch(conversation._id, {
-      lastMessageAt: now,
       updatedAt: now,
-      lastMessageId: messageId,
     });
 
     return { messageId };
@@ -47,10 +49,10 @@ export const debugCreateConversationID = mutation({
       listingId: 'debug-listing-id' as any,
       buyerId: 'buyer@test.com',
       sellerId: 'seller@test.com',
-      participantIds: ['buyer@test.com', 'seller@test.com'],
       createdAt: now,
       updatedAt: now,
-      lastMessageAt: now,
+      buyerLastReadAt: now,
+      sellerLastReadAt: now,
     });
 
     return { conversationId };
@@ -63,9 +65,11 @@ export const getConversationHistory = query({
     conversationId: v.id('conversations'),
   },
   handler: async (ctx, args) => {
+    await requireParticipant(ctx, args.conversationId);
+
     const messages = await ctx.db
       .query('messages')
-      .withIndex('by_conversation', (q) => q.eq('conversationId', args.conversationId))
+      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
       .collect();
 
     return messages;
@@ -78,15 +82,19 @@ export const listUserConversations = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const conversations = await ctx.db
+    const buyerConvos = await ctx.db
       .query('conversations')
-      .withIndex('by_updatedAt')
+      .withIndex('by_buyer', (q) => q.eq('buyerId', args.userId))
       .order('desc')
       .collect();
 
-    const myConversations = conversations.filter((c) => c.participantIds.includes(args.userId));
+    const sellerConvos = await ctx.db
+      .query('conversations')
+      .withIndex('by_seller', (q) => q.eq('sellerId', args.userId))
+      .order('desc')
+      .collect();
 
-    return myConversations;
+    return [...buyerConvos, ...sellerConvos].sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -127,8 +135,9 @@ export const getOrCreateConversation = mutation({
 
     const existing = await ctx.db
       .query('conversations')
-      .withIndex('by_listing_buyer', (q) => q.eq('listingId', args.listingId))
-      .filter((q) => q.eq(q.field('buyerId'), buyerId))
+      .withIndex('by_listing_buyer_seller', (q) =>
+        q.eq('listingId', args.listingId).eq('buyerId', buyerId)
+      )
       .filter((q) => q.eq(q.field('sellerId'), sellerId))
       .first();
 

@@ -45,21 +45,25 @@ export default defineSchema({
     listingId: v.id('listings'),
     buyerId: v.string(),
     sellerId: v.string(),
-    participantIds: v.array(v.string()),
-    lastMessageAt: v.optional(v.number()),
-    lastMessageId: v.optional(v.id('messages')),
     createdAt: v.number(),
     updatedAt: v.number(),
+    buyerLastReadAt: v.number(),
+    sellerLastReadAt: v.number(),
   })
-    .index('by_listing_buyer_seller', ['listingId', 'buyerId', 'sellerId'])
-    .index('by_updatedAt', ['updatedAt']),
+    .index('by_listing_buyer_seller', ['listingId', 'buyerId'])
+    .index('by_buyer', ['buyerId', 'updatedAt'])
+    .index('by_seller', ['sellerId', 'updatedAt'])
+    .index('by_listing', ['listingId']),
 
   messages: defineTable({
     conversationId: v.id('conversations'),
+    listingId: v.id('listings'),
     senderId: v.string(),
+    recipientId: v.string(),
     body: v.string(),
-    type: v.string(),
     createdAt: v.number(),
-    read: v.boolean(),
-  }).index('by_conversation', ['conversationId', 'createdAt']),
+    readAt: v.number(),
+  })
+    .index('by_conversation_createdAt', ['conversationId', 'createdAt'])
+    .index('by_conversation_recipient_readAt', ['conversationId', 'recipientId', 'readAt']),
 });
