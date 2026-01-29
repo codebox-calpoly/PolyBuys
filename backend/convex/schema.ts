@@ -28,9 +28,27 @@ export default defineSchema({
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
-    .searchIndex('search_title', {
+    .index('by_status_category', ['status', 'category'])
+    .index('by_status_createdAt', ['status', 'createdAt'])
+    .searchIndex('search_listings', {
       searchField: 'title',
+      filterFields: ['status', 'category', 'condition', 'description'],
     }),
+
+  profiles: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    email: v.string(),
+    bio: v.optional(v.string()),
+    picture: v.optional(v.id('_storage')),
+    joinDate: v.number(),
+    major: v.string(),
+    year: v.number(),
+    rating: v.number(),
+    review_count: v.number(),
+  })
+    .index('by_name', ['name'])
+    .index('by_userId', ['userId']),
   users: defineTable({
     email: v.string(),
     name: v.union(v.string(), v.null()),
