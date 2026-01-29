@@ -52,7 +52,7 @@ export default defineSchema({
   users: defineTable({
     email: v.string(),
     name: v.union(v.string(), v.null()),
-    emailVerified: v.boolean(),
+    emailVerified: v.optional(v.boolean()),
     createdAt: v.number(),
   }).index('by_email', ['email']),
 
