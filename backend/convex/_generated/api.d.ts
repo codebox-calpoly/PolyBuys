@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as listings from "../listings.js";
 import type * as profiles from "../profiles.js";
+import type * as reports from "../reports.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   listings: typeof listings;
   profiles: typeof profiles;
+  reports: typeof reports;
   users: typeof users;
 }>;
 
