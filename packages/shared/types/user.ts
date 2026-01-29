@@ -3,6 +3,7 @@ export interface User {
   _creationTime: number;
   email: string;
   name: string | null;
+  emailVerified: boolean;
   createdAt: number;
 }
 

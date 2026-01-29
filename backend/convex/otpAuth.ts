@@ -1,19 +1,33 @@
-import { mutation, action } from './_generated/server';
-import { api } from './_generated/api';
+import { mutation, action, internalMutation } from './_generated/server';
+import { internal } from './_generated/api';
 import { v, ConvexError } from 'convex/values';
 import { hashOTP, verifyOTPHash } from './crypto';
 import { Resend } from 'resend';
 
 /**
- * Internal mutation to store OTP in database
+ * Internal mutation to atomically check rate limit and store OTP
+ * This prevents race conditions in concurrent OTP requests
  */
-export const storeOTP = mutation({
+export const createAndStoreOTPInternal = internalMutation({
   args: {
     email: v.string(),
     codeHash: v.string(),
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
+    // Check rate limit (3 per hour per email)
+    const oneHourAgo = Date.now() - 3600000;
+    const recentRequests = await ctx.db
+      .query('otpCodes')
+      .withIndex('by_email', (q) => q.eq('email', args.email))
+      .filter((q) => q.gt(q.field('createdAt'), oneHourAgo))
+      .collect();
+
+    if (recentRequests.length >= 3) {
+      throw new ConvexError('Too many requests. Please try again later.');
+    }
+
+    // Store OTP atomically in same transaction
     await ctx.db.insert('otpCodes', {
       email: args.email,
       codeHash: args.codeHash,
@@ -25,23 +39,17 @@ export const storeOTP = mutation({
 });
 
 /**
- * Internal query to count recent OTP requests
+ * Generate a cryptographically secure 6-digit OTP
+ * Uses Web Crypto API for secure random number generation
  */
-export const getRecentOTPCount = mutation({
-  args: {
-    email: v.string(),
-    since: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const recentRequests = await ctx.db
-      .query('otpCodes')
-      .withIndex('by_email', (q) => q.eq('email', args.email))
-      .filter((q) => q.gt(q.field('createdAt'), args.since))
-      .collect();
-
-    return recentRequests.length;
-  },
-});
+function generateSecureOTP(): string {
+  // Generate a random number between 100000 and 999999
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  // Use modulo to get a number in our range
+  const randomNum = (array[0] % 900000) + 100000;
+  return randomNum.toString();
+}
 
 /**
  * Request an OTP code for Cal Poly email authentication
@@ -58,23 +66,14 @@ export const requestOTP = action({
       throw new ConvexError('Please use your Cal Poly email address');
     }
 
-    // 2. Rate limit check (3 per hour per email)
-    const oneHourAgo = Date.now() - 3600000;
-    const recentCount = await ctx.runMutation(api.otpAuth.getRecentOTPCount, {
-      email,
-      since: oneHourAgo,
-    });
+    // 2. Generate cryptographically secure 6-digit OTP
+    const otp = generateSecureOTP();
 
-    if (recentCount >= 3) {
-      throw new ConvexError('Too many requests. Please try again later.');
-    }
-
-    // 3. Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // 4. Hash and store OTP
+    // 3. Hash the OTP
     const codeHash = await hashOTP(otp);
-    await ctx.runMutation(api.otpAuth.storeOTP, {
+
+    // 4. Atomically check rate limit and store OTP
+    await ctx.runMutation(internal.otpAuth.createAndStoreOTPInternal, {
       email,
       codeHash,
       expiresAt: Date.now() + 600000, // 10 minutes
