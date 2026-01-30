@@ -23,6 +23,9 @@ export default defineSchema({
       v.literal('inactive'),
       v.literal('deleted')
     ),
+    isHidden: v.optional(v.boolean()),
+    hiddenAt: v.optional(v.number()),
+    hiddenReason: v.optional(v.string()),
     createdAt: v.number(),
     postedOn: v.number(),
   })
@@ -46,6 +49,9 @@ export default defineSchema({
     year: v.number(),
     rating: v.number(),
     review_count: v.number(),
+    isHidden: v.optional(v.boolean()),
+    hiddenAt: v.optional(v.number()),
+    hiddenReason: v.optional(v.string()),
   })
     .index('by_name', ['name'])
     .index('by_userId', ['userId']),

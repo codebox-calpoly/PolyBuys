@@ -4,6 +4,7 @@ import type { Id } from './_generated/dataModel';
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_REPORTS_PER_DAY = 10;
+const REPORT_THRESHOLD = 3; // Number of unique reporters before auto-hide
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -24,35 +25,50 @@ export const createReport = mutation({
       throw new ConvexError('You must be logged in to report content');
     }
 
-    // 2. Get the user from the users table
+    // 2. Validate and normalize email
+    if (!identity.email) {
+      throw new ConvexError('User email missing');
+    }
+    const email = identity.email.toLowerCase().trim();
+
+    // 3. Get the user from the users table
     const user = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', identity.email!))
+      .withIndex('by_email', (q) => q.eq('email', email))
       .first();
 
     if (!user) {
       throw new ConvexError('User not found');
     }
 
-    // 3. Validate notes length if provided
+    // 4. Validate notes length if provided
     if (args.notes && args.notes.length > MAX_NOTES_LENGTH) {
       throw new ConvexError(`Notes must be ${MAX_NOTES_LENGTH} characters or less`);
     }
 
-    // 4. Validate target exists
-    if (args.targetType === 'listing') {
-      const listing = await ctx.db.get(args.targetId as Id<'listings'>);
-      if (!listing) {
-        throw new ConvexError('Listing not found');
+    // 5. Validate target exists and handle malformed IDs
+    try {
+      if (args.targetType === 'listing') {
+        const listing = await ctx.db.get(args.targetId as Id<'listings'>);
+        if (!listing) {
+          throw new ConvexError('Listing not found');
+        }
+      } else if (args.targetType === 'profile') {
+        const profile = await ctx.db.get(args.targetId as Id<'profiles'>);
+        if (!profile) {
+          throw new ConvexError('Profile not found');
+        }
       }
-    } else if (args.targetType === 'profile') {
-      const profile = await ctx.db.get(args.targetId as Id<'profiles'>);
-      if (!profile) {
+    } catch {
+      // Handle malformed IDs by throwing user-friendly errors
+      if (args.targetType === 'listing') {
+        throw new ConvexError('Listing not found');
+      } else {
         throw new ConvexError('Profile not found');
       }
     }
 
-    // 5. Check for duplicate report (same user + same target)
+    // 6. Check for duplicate report (same user + same target)
     const existingReport = await ctx.db
       .query('reports')
       .withIndex('by_target', (q) =>
@@ -86,6 +102,35 @@ export const createReport = mutation({
       notes: args.notes,
       createdAt: Date.now(),
     });
+
+    // 8. Check if content should be auto-hidden
+    // Count all reports for this target
+    const allReports = await ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) =>
+        q.eq('targetId', args.targetId).eq('targetType', args.targetType)
+      )
+      .collect();
+
+    // Count unique reporters using Set
+    const uniqueReporters = new Set(allReports.map((r) => r.reporterId)).size;
+
+    // If threshold reached, hide the content
+    if (uniqueReporters >= REPORT_THRESHOLD) {
+      if (args.targetType === 'listing') {
+        await ctx.db.patch(args.targetId as Id<'listings'>, {
+          isHidden: true,
+          hiddenAt: Date.now(),
+          hiddenReason: 'auto_moderation',
+        });
+      } else if (args.targetType === 'profile') {
+        await ctx.db.patch(args.targetId as Id<'profiles'>, {
+          isHidden: true,
+          hiddenAt: Date.now(),
+          hiddenReason: 'auto_moderation',
+        });
+      }
+    }
 
     return reportId;
   },

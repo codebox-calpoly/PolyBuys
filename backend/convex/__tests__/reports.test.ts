@@ -27,7 +27,6 @@ describe('Reports mutations', () => {
       return await ctx.db.insert('users', {
         email,
         name: 'Test User',
-        emailVerified: true,
         createdAt: Date.now(),
       });
     });
@@ -303,5 +302,318 @@ describe('Reports mutations', () => {
     });
 
     expect(report?.notes).toBe(validNotes);
+  });
+
+  // Auto-hide functionality tests
+  it('listing auto-hidden after 3rd unique report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create 3 different users
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    // Report from 3 different users
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    // Check that listing is now hidden
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBe(true);
+    expect(listing?.hiddenReason).toBe('auto_moderation');
+    expect(typeof listing?.hiddenAt).toBe('number');
+  });
+
+  it('listing NOT hidden after 2 unique reports (below threshold)', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'spam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'spam',
+    });
+
+    // Check that listing is NOT hidden
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBeUndefined();
+  });
+
+  it('profile auto-hidden after 3rd unique report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const profileId = await createTestProfile(t, 'profile-user-id');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    // Check that profile is now hidden
+    const profile = await t.run(async (ctx: any) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(profile?.isHidden).toBe(true);
+    expect(profile?.hiddenReason).toBe('auto_moderation');
+    expect(typeof profile?.hiddenAt).toBe('number');
+  });
+
+  it('hidden listing excluded from getListings query', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a hidden listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Manually mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Query listings
+    const listings = await t.query(api.listings.getListings, {});
+
+    // Hidden listing should not be in the results
+    expect(listings.find((l: any) => l._id === listingId)).toBeUndefined();
+  });
+
+  it('owner can view their own hidden listing via getListing', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Owner should still be able to see it
+    const listing = await seller.query(api.listings.getListing, { id: listingId });
+    expect(listing).not.toBeNull();
+    expect(listing?.isHidden).toBe(true);
+  });
+
+  it('non-owner cannot view hidden listing via getListing', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Different user should get null
+    const otherUser = t.withIdentity({ name: 'Other', subject: 'other-id' });
+    const listing = await otherUser.query(api.listings.getListing, { id: listingId });
+    expect(listing).toBeNull();
+  });
+
+  it("getMyHiddenListings returns only user's hidden listings", async () => {
+    const t = convexTest(schema as any, modules);
+
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+
+    // Create 2 listings
+    const listingId1 = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing 1',
+      description: 'First listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing 2',
+      description: 'Second listing',
+      price: 60,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'new',
+      category: 'electronics',
+    });
+
+    // Hide first listing
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId1, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Query hidden listings
+    const hiddenListings = await seller.query(api.listings.getMyHiddenListings, {});
+
+    expect(hiddenListings.length).toBe(1);
+    expect(hiddenListings[0]._id).toBe(listingId1);
+    expect(hiddenListings[0].isHidden).toBe(true);
+  });
+
+  it('hidden content excluded from searchAndFilterListings', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+
+    // Create a listing
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Textbook',
+      description: 'A test textbook',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Hide it
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Search for it
+    const results = await t.query(api.listings.searchAndFilterListings, {
+      filters: { category: 'textbooks' },
+    });
+
+    // Should not be in results
+    expect(results.items.find((l: any) => l._id === listingId)).toBeUndefined();
   });
 });
