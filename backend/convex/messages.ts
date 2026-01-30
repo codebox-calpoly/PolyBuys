@@ -1,4 +1,4 @@
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
@@ -7,31 +7,24 @@ import type { Id } from './_generated/dataModel';
 export const sendMessage = mutation({
   args: {
     conversationId: v.id('conversations'),
-    senderId: v.string(),
     body: v.string(),
   },
   handler: async (ctx, args) => {
+    const { userId, convo } = await requireParticipant(ctx, args.conversationId);
     const now = Date.now();
-    const conversation = await ctx.db.get(args.conversationId);
-
-    if (!conversation) {
-      throw new Error('Conversation not found');
-    }
-
-    const recipientId =
-      args.senderId === conversation.buyerId ? conversation.sellerId : conversation.buyerId;
+    const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
 
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
-      listingId: conversation.listingId,
-      senderId: args.senderId,
+      listingId: convo.listingId,
+      senderId: userId,
       recipientId,
       body: args.body,
       createdAt: now,
       readAt: 0,
     });
 
-    await ctx.db.patch(conversation._id, {
+    await ctx.db.patch(convo._id, {
       updatedAt: now,
     });
 
@@ -40,13 +33,15 @@ export const sendMessage = mutation({
 });
 
 //Debug helper for local testing
-export const debugCreateConversationID = mutation({
-  args: {},
-  handler: async (ctx) => {
+export const debugCreateConversationID = internalMutation({
+  args: {
+    listingId: v.id('listings'),
+  },
+  handler: async (ctx, args) => {
     const now = Date.now();
 
     const conversationId = await ctx.db.insert('conversations', {
-      listingId: 'debug-listing-id' as any,
+      listingId: args.listingId,
       buyerId: 'buyer@test.com',
       sellerId: 'seller@test.com',
       createdAt: now,
@@ -78,19 +73,18 @@ export const getConversationHistory = query({
 
 //List all user conversations a user participates in, ordered by most recent activity
 export const listUserConversations = query({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getUserId(ctx);
     const buyerConvos = await ctx.db
       .query('conversations')
-      .withIndex('by_buyer', (q) => q.eq('buyerId', args.userId))
+      .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
       .order('desc')
       .collect();
 
     const sellerConvos = await ctx.db
       .query('conversations')
-      .withIndex('by_seller', (q) => q.eq('sellerId', args.userId))
+      .withIndex('by_seller', (q) => q.eq('sellerId', userId))
       .order('desc')
       .collect();
 
