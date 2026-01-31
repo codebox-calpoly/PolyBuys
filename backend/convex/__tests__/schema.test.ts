@@ -23,6 +23,7 @@ describe('Convex schema', () => {
       'status',
       'createdAt',
       'postedOn',
+      'tags',
     ]);
   });
 

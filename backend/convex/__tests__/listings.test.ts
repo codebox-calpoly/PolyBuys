@@ -28,6 +28,7 @@ describe('Listings mutations', () => {
     category: 'textbooks' as const,
     images: ['https://example.com/book1.png'],
     condition: 'used' as const,
+    tags: ['csc202'],
   };
 
   it('createListing succeeds with valid data', async () => {
@@ -51,6 +52,7 @@ describe('Listings mutations', () => {
       category: baseArgs.category,
       status: 'active',
       sellerId: 'alice-id',
+      tags: baseArgs.tags,
     });
 
     // Extra checks: images + postedOn/createdAt exist
@@ -95,6 +97,95 @@ describe('Listings mutations', () => {
         images: tooManyImages,
       });
     }).rejects.toThrowError('Must have 1-8 images');
+  });
+
+  it('createListing normalizes tags to be trimmed and in lowercase', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    const unnormalized = '   fOUrTH EditION ';
+
+    const listingId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: [unnormalized],
+    });
+
+    const listing = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing).toBeDefined();
+    expect(listing?.tags).toEqual(['fourth edition']);
+  });
+
+  it('createListing removes duplicate tags', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    const listingId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
+    });
+
+    const listing = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing).toBeDefined();
+    expect(listing?.tags).toEqual(['fourth edition', 'csc101']);
+  });
+
+  it('createListing fails when tags array is too long', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    await expect(async () => {
+      await asUser.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
+      });
+    }).rejects.toThrowError('Maximum 5 tags allowed');
+  });
+
+  it('createListing fails when tag is empty', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    await expect(async () => {
+      await asUser.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: [' '],
+      });
+    }).rejects.toThrowError('Empty tags are not allowed');
+  });
+
+  it('createListing fails when tag is >20 characters long', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    await expect(async () => {
+      await asUser.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: ['supercalifragilisticexpialidocious'],
+      });
+    }).rejects.toThrowError('Tags must be 20 characters or less');
+  });
+
+  it('createListing succeeds with no tags', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice' });
+
+    const listingId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: [],
+    });
+
+    const listing = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing).toBeDefined();
+    expect(listing?.tags).toEqual([]);
   });
 
   it('updateListing allows the owner to update fields', async () => {
@@ -167,5 +258,98 @@ describe('Listings mutations', () => {
         title: 'New title after delete',
       });
     }).rejects.toThrowError('Cannot update a deleted listing');
+  });
+
+  it('updateListing, normalizes tags to be trimmed and in lowercase', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    const unnormalized = '   fOUrTH EditION ';
+
+    const listingId = await asOwner.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: [unnormalized],
+    });
+
+    await asOwner.mutation(api.listings.updateListing, {
+      id: listingId,
+      tags: ['   fOurTH EdiTIOn  '],
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+    expect(updated).toBeDefined();
+    expect(updated?.tags).toEqual(['fourth edition']);
+  });
+
+  it('updateListing removes duplicate tags', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    const listingId = await asOwner.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
+    });
+
+    const listing = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing).toBeDefined();
+    expect(listing?.tags).toEqual(['fourth edition', 'csc101']);
+  });
+
+  it('updateListing fails when tags array is too long', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
+      });
+    }).rejects.toThrowError('Maximum 5 tags allowed');
+  });
+
+  it('updateListing fails when tag is empty', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: [' '],
+      });
+    }).rejects.toThrowError('Empty tags are not allowed');
+  });
+
+  it('updateListing fails when tag is >20 characters long', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.createListing, {
+        ...baseArgs,
+        tags: ['supercalifragilisticexpialidocious'],
+      });
+    }).rejects.toThrowError('Tags must be 20 characters or less');
+  });
+
+  it('updateListing succeeds with no tags', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
+
+    const listingId = await asOwner.mutation(api.listings.createListing, {
+      ...baseArgs,
+      tags: [],
+    });
+
+    const listing = await t.run(async (ctx) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing).toBeDefined();
+    expect(listing?.tags).toEqual([]);
   });
 });
