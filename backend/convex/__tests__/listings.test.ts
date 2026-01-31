@@ -287,8 +287,9 @@ describe('Listings mutations', () => {
     const t = convexTest(schema as any, modules);
     const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
 
-    const listingId = await asOwner.mutation(api.listings.createListing, {
-      ...baseArgs,
+    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    await asOwner.mutation(api.listings.updateListing, {
+      id: listingId,
       tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
     });
 
@@ -304,9 +305,11 @@ describe('Listings mutations', () => {
     const t = convexTest(schema as any, modules);
     const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
 
+    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+
     await expect(async () => {
-      await asOwner.mutation(api.listings.createListing, {
-        ...baseArgs,
+      await asOwner.mutation(api.listings.updateListing, {
+        id: listingId,
         tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
       });
     }).rejects.toThrowError('Maximum 5 tags allowed');
@@ -316,9 +319,11 @@ describe('Listings mutations', () => {
     const t = convexTest(schema as any, modules);
     const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
 
+    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+
     await expect(async () => {
-      await asOwner.mutation(api.listings.createListing, {
-        ...baseArgs,
+      await asOwner.mutation(api.listings.updateListing, {
+        id: listingId,
         tags: [' '],
       });
     }).rejects.toThrowError('Empty tags are not allowed');
@@ -340,8 +345,9 @@ describe('Listings mutations', () => {
     const t = convexTest(schema as any, modules);
     const asOwner = t.withIdentity({ name: 'Owner', subject: 'owner-id' });
 
-    const listingId = await asOwner.mutation(api.listings.createListing, {
-      ...baseArgs,
+    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    await asOwner.mutation(api.listings.updateListing, {
+      id: listingId,
       tags: [],
     });
 
