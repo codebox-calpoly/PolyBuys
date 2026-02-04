@@ -616,4 +616,67 @@ describe('Reports mutations', () => {
     // Should not be in results
     expect(results.items.find((l: any) => l._id === listingId)).toBeUndefined();
   });
+  it('auto-hide does NOT overwrite existing hidden context', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const listingId = await createTestListing(t, 'seller-id');
+
+    // Manually hide it (simulating admin action)
+    const originalHiddenAt = Date.now() - 10000;
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: originalHiddenAt,
+        hiddenReason: 'manual_admin_action',
+      });
+    });
+
+    // Create 3 reports (triggering threshold)
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    // Verify listing is still hidden but metadata is UNCHANGED
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBe(true);
+    expect(listing?.hiddenReason).toBe('manual_admin_action'); // Should NOT be 'auto_moderation'
+    expect(listing?.hiddenAt).toBe(originalHiddenAt); // Should prevent update
+  });
 });

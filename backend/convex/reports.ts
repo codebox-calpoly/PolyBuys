@@ -47,17 +47,20 @@ export const createReport = mutation({
     }
 
     // 5. Validate target exists and handle malformed IDs
+    let isAlreadyHidden = false;
     try {
       if (args.targetType === 'listing') {
         const listing = await ctx.db.get(args.targetId as Id<'listings'>);
         if (!listing) {
           throw new ConvexError('Listing not found');
         }
+        isAlreadyHidden = !!listing.isHidden;
       } else if (args.targetType === 'profile') {
         const profile = await ctx.db.get(args.targetId as Id<'profiles'>);
         if (!profile) {
           throw new ConvexError('Profile not found');
         }
+        isAlreadyHidden = !!profile.isHidden;
       }
     } catch {
       // Handle malformed IDs by throwing user-friendly errors
@@ -116,7 +119,7 @@ export const createReport = mutation({
     const uniqueReporters = new Set(allReports.map((r) => r.reporterId)).size;
 
     // If threshold reached, hide the content
-    if (uniqueReporters >= REPORT_THRESHOLD) {
+    if (uniqueReporters >= REPORT_THRESHOLD && !isAlreadyHidden) {
       if (args.targetType === 'listing') {
         await ctx.db.patch(args.targetId as Id<'listings'>, {
           isHidden: true,
