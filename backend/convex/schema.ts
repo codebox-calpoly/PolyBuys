@@ -25,11 +25,13 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     postedOn: v.number(),
+    tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])
+    .index('by_tag', ['tags'])
     .searchIndex('search_listings', {
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],
