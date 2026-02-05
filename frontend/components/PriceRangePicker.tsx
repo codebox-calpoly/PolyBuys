@@ -53,6 +53,10 @@ export function PriceRangePicker({
       setError('Minimum price cannot be negative');
       return;
     }
+    if (maxVal !== undefined && maxVal < 0) {
+      setError('Maximum price cannot be negative');
+      return;
+    }
     if (maxVal !== undefined && minVal !== undefined && maxVal < minVal) {
       setError('Maximum must be greater than minimum');
       return;

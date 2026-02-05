@@ -59,13 +59,12 @@ export function FilterBar({
         contentContainerStyle={styles.scrollContent}
       >
         {/* Category Filter Chip */}
-        <TouchableOpacity
-          style={[styles.chip, hasCategory && styles.chipActive]}
-          onPress={onCategoryPress}
-        >
-          <Text style={[styles.chipText, hasCategory && styles.chipTextActive]}>
-            {hasCategory ? CATEGORY_LABELS[filters.category!] : 'Category'}
-          </Text>
+        <View style={[styles.chip, hasCategory && styles.chipActive]}>
+          <TouchableOpacity style={styles.chipMainButton} onPress={onCategoryPress}>
+            <Text style={[styles.chipText, hasCategory && styles.chipTextActive]}>
+              {hasCategory ? CATEGORY_LABELS[filters.category!] : 'Category'}
+            </Text>
+          </TouchableOpacity>
           {hasCategory && (
             <TouchableOpacity
               style={styles.clearButton}
@@ -75,16 +74,15 @@ export function FilterBar({
               <Text style={styles.clearButtonText}>×</Text>
             </TouchableOpacity>
           )}
-        </TouchableOpacity>
+        </View>
 
         {/* Price Filter Chip */}
-        <TouchableOpacity
-          style={[styles.chip, hasPrice && styles.chipActive]}
-          onPress={onPricePress}
-        >
-          <Text style={[styles.chipText, hasPrice && styles.chipTextActive]}>
-            {getPriceLabel()}
-          </Text>
+        <View style={[styles.chip, hasPrice && styles.chipActive]}>
+          <TouchableOpacity style={styles.chipMainButton} onPress={onPricePress}>
+            <Text style={[styles.chipText, hasPrice && styles.chipTextActive]}>
+              {getPriceLabel()}
+            </Text>
+          </TouchableOpacity>
           {hasPrice && (
             <TouchableOpacity
               style={styles.clearButton}
@@ -94,7 +92,7 @@ export function FilterBar({
               <Text style={styles.clearButtonText}>×</Text>
             </TouchableOpacity>
           )}
-        </TouchableOpacity>
+        </View>
 
         {/* Clear All Button */}
         {hasAnyFilter && (
@@ -125,6 +123,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    padding: 0, // Reset padding as inner elements handle spacing
+    overflow: 'hidden',
+  },
+  chipMainButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   chipActive: {
     backgroundColor: '#154734',
@@ -138,7 +142,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   clearButton: {
-    marginLeft: 6,
+    marginRight: 8,
     width: 18,
     height: 18,
     borderRadius: 9,
