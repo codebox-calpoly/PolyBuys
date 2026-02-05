@@ -45,10 +45,25 @@ export function PriceRangePicker({
   }, [visible, minPrice, maxPrice]);
 
   const handleApply = () => {
-    const minVal = min ? parseFloat(min) : undefined;
-    const maxVal = max ? parseFloat(max) : undefined;
+    // Trim and treat empty/whitespace-only as undefined
+    const minTrimmed = min.trim();
+    const maxTrimmed = max.trim();
 
-    // Validation
+    // Parse values - empty strings become undefined
+    const minVal = minTrimmed ? parseFloat(minTrimmed) : undefined;
+    const maxVal = maxTrimmed ? parseFloat(maxTrimmed) : undefined;
+
+    // Validate that parsed values are finite numbers (not NaN or Infinity)
+    if (minVal !== undefined && !Number.isFinite(minVal)) {
+      setError('Please enter a valid minimum price');
+      return;
+    }
+    if (maxVal !== undefined && !Number.isFinite(maxVal)) {
+      setError('Please enter a valid maximum price');
+      return;
+    }
+
+    // Validate non-negative values
     if (minVal !== undefined && minVal < 0) {
       setError('Minimum price cannot be negative');
       return;
@@ -57,6 +72,8 @@ export function PriceRangePicker({
       setError('Maximum price cannot be negative');
       return;
     }
+
+    // Validate max >= min
     if (maxVal !== undefined && minVal !== undefined && maxVal < minVal) {
       setError('Maximum must be greater than minimum');
       return;
