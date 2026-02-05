@@ -1,11 +1,49 @@
+import { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useRouter } from 'expo-router';
+import { FilterBar, type Filters, type Category } from '../components/FilterBar';
+import { CategoryPicker } from '../components/CategoryPicker';
+import { PriceRangePicker } from '../components/PriceRangePicker';
 
 export default function HomeScreen() {
-  const listings = useQuery(api.listings.getListings);
   const router = useRouter();
+
+  // Filter state
+  const [filters, setFilters] = useState<Filters>({});
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showPricePicker, setShowPricePicker] = useState(false);
+
+  // Pass filters to query
+  const listings = useQuery(api.listings.getListings, {
+    category: filters.category,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+  });
+
+  const hasActiveFilters =
+    !!filters.category || filters.minPrice !== undefined || filters.maxPrice !== undefined;
+
+  const handleCategorySelect = (category: Category | undefined) => {
+    setFilters((prev) => ({ ...prev, category }));
+  };
+
+  const handlePriceApply = (minPrice?: number, maxPrice?: number) => {
+    setFilters((prev) => ({ ...prev, minPrice, maxPrice }));
+  };
+
+  const handleClearCategory = () => {
+    setFilters((prev) => ({ ...prev, category: undefined }));
+  };
+
+  const handleClearPrice = () => {
+    setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
+  };
+
+  const handleClearAll = () => {
+    setFilters({});
+  };
 
   if (listings === undefined) {
     return (
@@ -20,8 +58,43 @@ export default function HomeScreen() {
       <Text style={styles.title}>Welcome to PolyBuy</Text>
       <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
 
+      <FilterBar
+        filters={filters}
+        onCategoryPress={() => setShowCategoryPicker(true)}
+        onPricePress={() => setShowPricePicker(true)}
+        onClearCategory={handleClearCategory}
+        onClearPrice={handleClearPrice}
+        onClearAll={handleClearAll}
+      />
+
+      <CategoryPicker
+        visible={showCategoryPicker}
+        selectedCategory={filters.category}
+        onSelect={handleCategorySelect}
+        onClose={() => setShowCategoryPicker(false)}
+      />
+
+      <PriceRangePicker
+        visible={showPricePicker}
+        minPrice={filters.minPrice}
+        maxPrice={filters.maxPrice}
+        onApply={handlePriceApply}
+        onClose={() => setShowPricePicker(false)}
+      />
+
       {listings.length === 0 ? (
-        <Text style={styles.emptyText}>No listings yet. Start by adding one!</Text>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            {hasActiveFilters
+              ? 'No listings match your filters'
+              : 'No listings yet. Start by adding one!'}
+          </Text>
+          {hasActiveFilters && (
+            <TouchableOpacity style={styles.clearFiltersButton} onPress={handleClearAll}>
+              <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
         <FlatList
           data={listings}
@@ -58,13 +131,29 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: 16,
     color: '#999',
     textAlign: 'center',
-    marginTop: 40,
+    marginBottom: 12,
+  },
+  clearFiltersButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#154734',
+    borderRadius: 8,
+  },
+  clearFiltersText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   listContainer: {
     paddingBottom: 20,

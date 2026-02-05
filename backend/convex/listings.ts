@@ -53,16 +53,53 @@ const categoryValidator = v.union(
 // Condition validator for reuse
 const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
 
-// Get all active listings (simple version for backward compatibility)
+// Get all active listings with optional filtering
+// Sorted by newest first (deterministic ordering)
 export const getListings = query({
-  args: {},
-  handler: async (ctx) => {
-    const listings = await ctx.db
+  args: {
+    category: v.optional(categoryValidator),
+    minPrice: v.optional(v.number()),
+    maxPrice: v.optional(v.number()),
+    limit: v.optional(v.number()), // default 20
+  },
+  handler: async (ctx, args) => {
+    // Validate price filters
+    if (args.minPrice !== undefined && args.minPrice < 0) {
+      throw new Error('minPrice must be non-negative');
+    }
+    if (
+      args.maxPrice !== undefined &&
+      args.minPrice !== undefined &&
+      args.maxPrice < args.minPrice
+    ) {
+      throw new Error('maxPrice must be greater than or equal to minPrice');
+    }
+
+    // Use by_status_createdAt index for deterministic newest-first ordering
+    const query = ctx.db
       .query('listings')
-      .withIndex('by_status', (q) => q.eq('status', 'active'))
-      .order('desc')
-      .filter((q) => q.neq(q.field('isHidden'), true))
-      .collect();
+      .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
+      .order('desc');
+
+    // Apply filters
+    const listings = await query
+      .filter((q) => {
+        let conditions = q.neq(q.field('isHidden'), true);
+
+        if (args.category) {
+          conditions = q.and(conditions, q.eq(q.field('category'), args.category));
+        }
+        if (args.minPrice !== undefined) {
+          conditions = q.and(conditions, q.gte(q.field('price'), args.minPrice));
+        }
+        if (args.maxPrice !== undefined) {
+          conditions = q.and(conditions, q.lte(q.field('price'), args.maxPrice));
+        }
+
+        return conditions;
+      })
+      .take(args.limit ?? ITEMS_PER_PAGE);
+
     return listings;
   },
 });
