@@ -1,12 +1,13 @@
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import FilterBar from '../components/FilterBar';
 import ListingCard from '../components/ListingCard';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { tags } = useLocalSearchParams();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -27,8 +28,15 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to PolyBuy</Text>
-      <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Welcome to PolyBuy</Text>
+          <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
+        </View>
+        <TouchableOpacity style={styles.createButton} onPress={() => router.push('/listings/new')}>
+          <Text style={styles.createButtonText}>+ Create</Text>
+        </TouchableOpacity>
+      </View>
 
       <FilterBar selectedTags={selectedTags} onTagsChange={setSelectedTags} />
 
@@ -72,6 +80,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginBottom: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  createButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  createButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
   centerContainer: {
     flex: 1,

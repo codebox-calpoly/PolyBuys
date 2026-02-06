@@ -39,6 +39,23 @@ function validateImages(images: string[]) {
   }
 }
 
+function validateTags(tags: string[] | undefined) {
+  if (tags === undefined) return;
+
+  if (tags.length > 5) {
+    throw new Error('Maximum 5 tags allowed');
+  }
+
+  for (const tag of tags) {
+    if (tag.length > 20) {
+      throw new Error('Tags must be 20 characters or less');
+    }
+    if (tag.trim().length === 0) {
+      throw new Error('Tags cannot be empty');
+    }
+  }
+}
+
 // Get all active listings
 export const getListings = query({
   args: { tags: v.optional(v.array(v.string())) },
@@ -94,6 +111,7 @@ export const createListing = mutation({
     }
     validateTitle(args.title);
     validateImages(args.images);
+    validateTags(args.tags);
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
       ...args,
@@ -163,6 +181,7 @@ export const updateListing = mutation({
     }
 
     if (args.tags !== undefined) {
+      validateTags(args.tags);
       update.tags = args.tags;
     }
 

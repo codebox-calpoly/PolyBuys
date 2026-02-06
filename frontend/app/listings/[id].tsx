@@ -58,6 +58,15 @@ export default function ListingDetailScreen() {
         <Text style={styles.sectionTitle}>Seller Information</Text>
         <Text style={styles.sectionText}>Email: {listing.sellerEmail}</Text>
       </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => router.push(`/listings/${listing._id}/edit`)}
+        >
+          <Text style={styles.editButtonText}>Edit Listing</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -104,7 +113,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 24,
-    gap: 8,
   },
   tag: {
     backgroundColor: '#e3f2fd',
@@ -116,5 +124,20 @@ const styles = StyleSheet.create({
     color: '#1976d2',
     fontSize: 14,
     fontWeight: '500',
+  },
+  buttonContainer: {
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  editButton: {
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

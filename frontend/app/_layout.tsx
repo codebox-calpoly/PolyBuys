@@ -13,6 +13,8 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ title: 'PolyBuy' }} />
         <Stack.Screen name="listings/[id]" options={{ title: 'Listing Details' }} />
+        <Stack.Screen name="listings/new" options={{ title: 'Create Listing' }} />
+        <Stack.Screen name="listings/[id]/edit" options={{ title: 'Edit Listing' }} />
       </Stack>
     </ConvexProvider>
   );
