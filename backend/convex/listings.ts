@@ -41,13 +41,20 @@ function validateImages(images: string[]) {
 
 // Get all active listings
 export const getListings = query({
-  args: {},
-  handler: async (ctx) => {
-    const listings = await ctx.db
-      .query('listings')
-      .withIndex('by_status', (q) => q.eq('status', 'active'))
-      .order('desc')
-      .collect();
+  args: { tags: v.optional(v.array(v.string())) },
+  handler: async (ctx, args) => {
+    const query = ctx.db.query('listings').withIndex('by_status', (q) => q.eq('status', 'active'));
+
+    const listings = await query.order('desc').collect();
+
+    // Filter by tags if provided (OR logic: show listings with ANY selected tag)
+    if (args.tags && args.tags.length > 0) {
+      return listings.filter((listing) => {
+        if (!listing.tags || listing.tags.length === 0) return false;
+        return args.tags!.some((tag) => listing.tags!.includes(tag));
+      });
+    }
+
     return listings;
   },
 });
@@ -76,6 +83,7 @@ export const createListing = mutation({
     ),
     images: v.array(v.string()),
     condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -113,6 +121,7 @@ export const updateListing = mutation({
         v.literal('other')
       )
     ),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const listing = await verifyOwnership(ctx, args.id);
@@ -149,6 +158,10 @@ export const updateListing = mutation({
     }
     if (args.description !== undefined) {
       update.description = args.description;
+    }
+
+    if (args.tags !== undefined) {
+      update.tags = args.tags;
     }
 
     if (Object.keys(update).length === 0) {

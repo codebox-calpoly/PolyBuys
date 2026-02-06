@@ -25,6 +25,7 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     postedOn: v.number(),
+    tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
