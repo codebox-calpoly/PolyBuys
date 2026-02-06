@@ -92,7 +92,7 @@ export default function TagInput({
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.input, error && styles.inputError]}
-          placeholder="Add tags (e.g. 'desk', 'cs101', 'ikea')"
+          placeholder="Add tags (e.g. desk, cs101, ikea)"
           value={inputText}
           onChangeText={handleInputChange}
           onSubmitEditing={handleAddTag}
