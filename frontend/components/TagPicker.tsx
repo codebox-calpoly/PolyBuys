@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Modal } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TagPickerProps {
   visible: boolean;
@@ -17,10 +17,17 @@ export default function TagPicker({
   const [searchText, setSearchText] = useState('');
   const [inputTags, setInputTags] = useState<string[]>(selectedTags);
 
+  // Sync inputTags when modal opens or selectedTags changes
+  useEffect(() => {
+    if (visible) {
+      setInputTags(selectedTags);
+    }
+  }, [visible, selectedTags]);
+
   const handleAddTag = () => {
-    const trimmed = searchText.trim();
-    if (trimmed && !inputTags.includes(trimmed)) {
-      setInputTags([...inputTags, trimmed]);
+    const normalized = searchText.trim().toLowerCase();
+    if (normalized && !inputTags.includes(normalized)) {
+      setInputTags([...inputTags, normalized]);
       setSearchText('');
     }
   };

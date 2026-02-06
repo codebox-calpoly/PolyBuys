@@ -78,6 +78,15 @@ export const getListings = query({
   },
 });
 
+// Get current user's identity subject
+export const getCurrentUserSubject = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+});
+
 // Get a single listing by ID
 export const getListing = query({
   args: { id: v.id('listings') },

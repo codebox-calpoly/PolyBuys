@@ -10,6 +10,7 @@ export default function ListingDetailScreen() {
   const listing = useQuery(api.listings.getListing, {
     id: id as Id<'listings'>,
   });
+  const currentUserSubject = useQuery(api.listings.getCurrentUserSubject);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -59,14 +60,16 @@ export default function ListingDetailScreen() {
         <Text style={styles.sectionText}>Email: {listing.sellerEmail}</Text>
       </View>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/listings/${listing._id}/edit`)}
-        >
-          <Text style={styles.editButtonText}>Edit Listing</Text>
-        </TouchableOpacity>
-      </View>
+      {currentUserSubject && currentUserSubject === listing.sellerId && (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => router.push(`/listings/${listing._id}/edit`)}
+          >
+            <Text style={styles.editButtonText}>Edit Listing</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -119,6 +122,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+    marginRight: 6,
+    marginBottom: 4,
   },
   tagText: {
     color: '#1976d2',

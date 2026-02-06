@@ -33,19 +33,31 @@ export default function EditListingScreen() {
   const [images, setImages] = useState<string[]>(['']);
   const [tags, setTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formPopulated, setFormPopulated] = useState(false);
+  const [lastListingId, setLastListingId] = useState<string | null>(null);
 
-  // Populate form when listing loads
+  // Populate form when listing loads (only once per listing)
   useEffect(() => {
     if (listing) {
-      setTitle(listing.title || '');
-      setDescription(listing.description || '');
-      setPrice(listing.price?.toString() || '');
-      setCategory(listing.category || 'other');
-      setCondition(listing.condition || 'used');
-      setImages(listing.images && listing.images.length > 0 ? listing.images : ['']);
-      setTags(listing.tags || []);
+      // Reset form if listing ID changed
+      if (lastListingId !== listing._id) {
+        setFormPopulated(false);
+        setLastListingId(listing._id);
+      }
+
+      // Populate only if not already populated for this listing
+      if (!formPopulated) {
+        setTitle(listing.title || '');
+        setDescription(listing.description || '');
+        setPrice(listing.price?.toString() || '');
+        setCategory(listing.category || 'other');
+        setCondition(listing.condition || 'used');
+        setImages(listing.images && listing.images.length > 0 ? listing.images : ['']);
+        setTags(listing.tags || []);
+        setFormPopulated(true);
+      }
     }
-  }, [listing]);
+  }, [listing, formPopulated, lastListingId]);
 
   const handleAddImage = () => {
     setImages([...images, '']);
@@ -100,7 +112,7 @@ export default function EditListingScreen() {
         category,
         condition,
         images: validImages,
-        tags: tags.length > 0 ? tags : undefined,
+        tags,
       });
       router.replace(`/listings/${listing._id}`);
     } catch (error: unknown) {

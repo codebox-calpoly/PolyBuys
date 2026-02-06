@@ -78,6 +78,9 @@ export default function TagInput({
         ) {
           onChange([...tags, tagToAdd]);
           setInputText(parts.slice(1).join(',') || '');
+        } else if (tags.includes(tagToAdd)) {
+          setError('Tag already added');
+          setInputText(parts.slice(1).join(',') || '');
         } else if (tagToAdd.length > maxLength) {
           setError(`Tags must be ${maxLength} characters or less`);
         } else if (tags.length >= maxTags) {

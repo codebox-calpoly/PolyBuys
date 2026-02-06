@@ -48,7 +48,8 @@ export default function CreateListingScreen() {
 
   const handleSubmit = async () => {
     // Validation
-    if (!title.trim() || title.length < 5) {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || trimmedTitle.length < 5) {
       Alert.alert('Error', 'Title must be at least 5 characters');
       return;
     }
@@ -78,7 +79,7 @@ export default function CreateListingScreen() {
     setIsSubmitting(true);
     try {
       const listingId = await createListing({
-        title: title.trim(),
+        title: trimmedTitle,
         description: description.trim(),
         price: priceNum,
         sellerEmail: sellerEmail.trim(),
