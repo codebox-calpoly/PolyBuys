@@ -43,9 +43,11 @@ function validateImages(images: string[]) {
 export const getListings = query({
   args: { tags: v.optional(v.array(v.string())) },
   handler: async (ctx, args) => {
-    const query = ctx.db.query('listings').withIndex('by_status', (q) => q.eq('status', 'active'));
+    const listingsQuery = ctx.db
+      .query('listings')
+      .withIndex('by_status', (q) => q.eq('status', 'active'));
 
-    const listings = await query.order('desc').collect();
+    const listings = await listingsQuery.order('desc').collect();
 
     // Filter by tags if provided (OR logic: show listings with ANY selected tag)
     if (args.tags && args.tags.length > 0) {
