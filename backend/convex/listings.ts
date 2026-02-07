@@ -59,19 +59,6 @@ const categoryValidator = v.union(
 // Condition validator for reuse
 const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
 
-// Get all active listings (simple version for backward compatibility)
-export const getListings = query({
-  args: {},
-  handler: async (ctx) => {
-    const listings = await ctx.db
-      .query('listings')
-      .withIndex('by_status', (q) => q.eq('status', 'active'))
-      .order('desc')
-      .collect();
-    return listings;
-  },
-});
-
 // Normalize tages to lowercase and within 1-20 characters exclusive
 function normalizeTags(tags: string[]): string[] {
   return [
@@ -81,6 +68,16 @@ function normalizeTags(tags: string[]): string[] {
         .filter((tag) => tag.length >= 1 && tag.length <= 20)
     ),
   ].slice(0, 5);
+}
+
+function normalizeSearchTags(tags: string[]): string[] {
+  return [
+    ...new Set(
+      tags
+        .map((tag) => tag.trim().toLowerCase())
+        .filter((tag) => tag.length >= 1 && tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH)
+    ),
+  ];
 }
 
 // Get a single listing by ID
@@ -201,6 +198,101 @@ export const searchAndFilterListings = query({
       nextCursor,
       hasMore,
     };
+  },
+});
+
+// Get all active listings with optional tag/category/price filters
+export const getListings = query({
+  args: {
+    category: v.optional(categoryValidator),
+    minPrice: v.optional(v.number()),
+    maxPrice: v.optional(v.number()),
+    tags: v.optional(v.array(v.string())),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
+
+    let results: Doc<'listings'>[];
+    let mustFilterTagsInMemory = false;
+
+    if (normalizedTags.length > 0) {
+      const listingMap = new Map<string, Doc<'listings'>>();
+      for (const tag of normalizedTags) {
+        const tagResults = await ctx.db
+          .query('listings')
+          .withIndex('by_tag', (q) => q.eq('tags', tag as any))
+          .collect();
+        for (const listing of tagResults) {
+          listingMap.set(listing._id, listing);
+        }
+      }
+      results = Array.from(listingMap.values());
+
+      // Fallback for environments that don't support array index semantics.
+      if (results.length === 0) {
+        mustFilterTagsInMemory = true;
+        if (args.category) {
+          results = await ctx.db
+            .query('listings')
+            .withIndex('by_status_category', (q) =>
+              q.eq('status', 'active').eq('category', args.category!)
+            )
+            .collect();
+        } else {
+          results = await ctx.db
+            .query('listings')
+            .withIndex('by_status', (q) => q.eq('status', 'active'))
+            .collect();
+        }
+      }
+    } else if (args.category) {
+      results = await ctx.db
+        .query('listings')
+        .withIndex('by_status_category', (q) =>
+          q.eq('status', 'active').eq('category', args.category!)
+        )
+        .collect();
+    } else {
+      results = await ctx.db
+        .query('listings')
+        .withIndex('by_status', (q) => q.eq('status', 'active'))
+        .collect();
+    }
+
+    // Apply filters in memory
+    if (normalizedTags.length > 0) {
+      if (mustFilterTagsInMemory) {
+        results = results.filter((l) => (l.tags ?? []).some((tag) => normalizedTags.includes(tag)));
+      }
+      results = results.filter((l) => l.status === 'active');
+    }
+    if (args.category) {
+      results = results.filter((l) => l.category === args.category);
+    }
+    if (args.minPrice !== undefined) {
+      results = results.filter((l) => l.price >= args.minPrice!);
+    }
+    if (args.maxPrice !== undefined) {
+      results = results.filter((l) => l.price <= args.maxPrice!);
+    }
+
+    // Sort newest first to match previous behavior
+    results.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Apply cursor/limit pagination (if provided)
+    let startIndex = 0;
+    if (args.cursor) {
+      const cursorIndex = parseInt(args.cursor, 10);
+      if (!isNaN(cursorIndex) && cursorIndex >= 0) {
+        startIndex = cursorIndex;
+      }
+    }
+
+    const limit = args.limit && args.limit > 0 ? args.limit : undefined;
+    const endIndex = limit !== undefined ? startIndex + limit : results.length;
+    return results.slice(startIndex, endIndex);
   },
 });
 
