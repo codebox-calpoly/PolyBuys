@@ -101,7 +101,6 @@ export default function TagInput({
           onSubmitEditing={handleAddTag}
           autoCapitalize="none"
           autoCorrect={false}
-          maxLength={maxLength}
         />
         <TouchableOpacity style={styles.addButton} onPress={handleAddTag}>
           <Text style={styles.addButtonText}>Add</Text>

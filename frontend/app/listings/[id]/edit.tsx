@@ -79,7 +79,8 @@ export default function EditListingScreen() {
     if (!listing) return;
 
     // Validation
-    if (!title.trim() || title.length < 5) {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || trimmedTitle.length < 5) {
       Alert.alert('Error', 'Title must be at least 5 characters');
       return;
     }
@@ -106,7 +107,7 @@ export default function EditListingScreen() {
     try {
       await updateListing({
         id: listing._id,
-        title: title.trim(),
+        title: trimmedTitle,
         description: description.trim(),
         price: priceNum,
         category,
