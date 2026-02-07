@@ -222,7 +222,7 @@ export const getListings = query({
       for (const tag of normalizedTags) {
         const tagResults = await ctx.db
           .query('listings')
-          .withIndex('by_tag', (q) => q.eq('tags', tag as any))
+          .withIndex('by_tag', (q) => q.eq('tags', tag as unknown as Doc<'listings'>['tags']))
           .collect();
         for (const listing of tagResults) {
           listingMap.set(listing._id, listing);
