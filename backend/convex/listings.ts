@@ -10,6 +10,12 @@ export type Listing = Doc<'listings'> & {
   status: ListingStatus;
 };
 
+export const TAG_CONSTRAINTS = {
+  MAX_TAGS: 5,
+  MAX_TAG_LENGTH: 20,
+  MIN_TAG_LENGTH: 1,
+};
+
 async function verifyOwnership(
   ctx: MutationCtx,
   listingId: Id<'listings'>
@@ -73,6 +79,21 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
 }
 
 // Get all active listings
+const ITEMS_PER_PAGE = 20;
+
+// Category validator for reuse
+const categoryValidator = v.union(
+  v.literal('textbooks'),
+  v.literal('electronics'),
+  v.literal('furniture'),
+  v.literal('tickets'),
+  v.literal('other')
+);
+
+// Condition validator for reuse
+const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
+
+// Get all active listings (simple version for backward compatibility)
 export const getListings = query({
   args: { tags: v.optional(v.array(v.string())) },
   handler: async (ctx, args) => {
@@ -102,12 +123,135 @@ export const getCurrentUserSubject = query({
     return identity?.subject ?? null;
   },
 });
+// Normalize tages to lowercase and within 1-20 characters exclusive
+function normalizeTags(tags: string[]): string[] {
+  return [
+    ...new Set(
+      tags
+        .map((tag) => tag.trim().toLowerCase())
+        .filter((tag) => tag.length >= 1 && tag.length <= 20)
+    ),
+  ].slice(0, 5);
+}
 
 // Get a single listing by ID
 export const getListing = query({
   args: { id: v.id('listings') },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+/**
+ * Search and filter listings with pagination
+ * Supports full-text search, category/price/condition filters, and sorting
+ */
+export const searchAndFilterListings = query({
+  args: {
+    filters: v.optional(
+      v.object({
+        searchTerm: v.optional(v.string()),
+        category: v.optional(categoryValidator),
+        minPrice: v.optional(v.number()),
+        maxPrice: v.optional(v.number()),
+        condition: v.optional(conditionValidator),
+        sortBy: v.optional(
+          v.union(
+            v.literal('newest'),
+            v.literal('oldest'),
+            v.literal('price_asc'),
+            v.literal('price_desc')
+          )
+        ),
+      })
+    ),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const filters = args.filters ?? {};
+    const searchTerm = filters.searchTerm?.trim();
+
+    let results;
+
+    // If there's a search term, use the search index
+    if (searchTerm) {
+      const searchQuery = ctx.db.query('listings').withSearchIndex('search_listings', (q) => {
+        let sq = q.search('title', searchTerm).eq('status', 'active');
+        if (filters.category) {
+          sq = sq.eq('category', filters.category);
+        }
+        if (filters.condition) {
+          sq = sq.eq('condition', filters.condition);
+        }
+        return sq;
+      });
+
+      results = await searchQuery.collect();
+    } else {
+      // No search term - use regular query with index
+      let dbQuery;
+
+      if (filters.category) {
+        dbQuery = ctx.db
+          .query('listings')
+          .withIndex('by_status_category', (q) =>
+            q.eq('status', 'active').eq('category', filters.category!)
+          );
+      } else {
+        dbQuery = ctx.db.query('listings').withIndex('by_status', (q) => q.eq('status', 'active'));
+      }
+
+      results = await dbQuery.collect();
+
+      // Apply condition filter in memory (not in index)
+      if (filters.condition) {
+        results = results.filter((l) => l.condition === filters.condition);
+      }
+    }
+
+    // Apply price range filters in memory
+    if (filters.minPrice !== undefined) {
+      results = results.filter((l) => l.price >= filters.minPrice!);
+    }
+    if (filters.maxPrice !== undefined) {
+      results = results.filter((l) => l.price <= filters.maxPrice!);
+    }
+
+    // Apply sorting
+    const sortBy = filters.sortBy ?? 'newest';
+    switch (sortBy) {
+      case 'newest':
+        results.sort((a, b) => b.createdAt - a.createdAt);
+        break;
+      case 'oldest':
+        results.sort((a, b) => a.createdAt - b.createdAt);
+        break;
+      case 'price_asc':
+        results.sort((a, b) => a.price - b.price);
+        break;
+      case 'price_desc':
+        results.sort((a, b) => b.price - a.price);
+        break;
+    }
+
+    // Apply cursor-based pagination
+    let startIndex = 0;
+    if (args.cursor) {
+      const cursorIndex = parseInt(args.cursor, 10);
+      if (!isNaN(cursorIndex)) {
+        startIndex = cursorIndex;
+      }
+    }
+
+    const paginatedResults = results.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const hasMore = startIndex + ITEMS_PER_PAGE < results.length;
+    const nextCursor = hasMore ? String(startIndex + ITEMS_PER_PAGE) : null;
+
+    return {
+      items: paginatedResults,
+      nextCursor,
+      hasMore,
+    };
   },
 });
 
@@ -118,15 +262,10 @@ export const createListing = mutation({
     description: v.string(),
     price: v.number(),
     sellerEmail: v.string(),
-    category: v.union(
-      v.literal('textbooks'),
-      v.literal('electronics'),
-      v.literal('furniture'),
-      v.literal('tickets'),
-      v.literal('other')
-    ),
+    category: categoryValidator,
     images: v.array(v.string()),
     condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
+    condition: conditionValidator,
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -134,6 +273,24 @@ export const createListing = mutation({
     if (!identity) {
       throw new Error('You must be logged in to create a listing');
     }
+
+    if (args.tags) {
+      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
+        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
+      }
+
+      for (const tag of args.tags) {
+        const trimmed = tag.trim();
+        if (!trimmed) {
+          throw new Error('Empty tags are not allowed');
+        }
+        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
+          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
+        }
+      }
+    }
+    // Normalize before saving
+    const normalizedTags = normalizeTags(args.tags ?? []);
     validateTitle(args.title);
     validateImages(args.images);
     const normalizedTags = validateTags(args.tags);
@@ -145,6 +302,7 @@ export const createListing = mutation({
       status: 'active',
       createdAt: now,
       postedOn: now,
+      tags: normalizedTags,
     });
     return listingId;
   },
@@ -167,6 +325,8 @@ export const updateListing = mutation({
         v.literal('other')
       )
     ),
+    condition: v.optional(conditionValidator),
+    category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -175,6 +335,24 @@ export const updateListing = mutation({
     if (listing.status === 'deleted') {
       throw new Error('Cannot update a deleted listing');
     }
+
+    if (args.tags) {
+      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
+        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
+      }
+
+      for (const tag of args.tags) {
+        const trimmed = tag.trim();
+        if (!trimmed) {
+          throw new Error('Empty tags are not allowed');
+        }
+        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
+          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
+        }
+      }
+    }
+    // Normalize before saving
+    const normalizedTags = normalizeTags(args.tags ?? []);
 
     const update: Partial<Doc<'listings'>> = {};
 
@@ -204,6 +382,9 @@ export const updateListing = mutation({
     }
     if (args.description !== undefined) {
       update.description = args.description;
+    }
+    if (args.tags !== undefined) {
+      update.tags = normalizedTags;
     }
 
     if (args.tags !== undefined) {
@@ -244,14 +425,15 @@ export const deleteListing = mutation({
   },
 });
 
-// Search listings by title
+// Search listings by title (legacy - use searchAndFilterListings instead)
 export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
       .query('listings')
-      .withSearchIndex('search_title', (q) => q.search('title', args.searchTerm))
-      .filter((q) => q.eq(q.field('status'), 'active'))
+      .withSearchIndex('search_listings', (q) =>
+        q.search('title', args.searchTerm).eq('status', 'active')
+      )
       .collect();
   },
 });
