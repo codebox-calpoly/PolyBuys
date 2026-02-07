@@ -139,7 +139,13 @@ export const createListing = mutation({
     const normalizedTags = validateTags(args.tags);
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
-      ...args,
+      title: args.title,
+      description: args.description,
+      price: args.price,
+      sellerEmail: args.sellerEmail,
+      category: args.category,
+      images: args.images,
+      condition: args.condition,
       tags: normalizedTags,
       sellerId: identity.subject,
       status: 'active',
