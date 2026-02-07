@@ -25,7 +25,7 @@ import { api } from '../../backend/convex/_generated/api';
 import type { Listing } from '@polybuys/shared';
 
 export function useListings() {
-  const listings = useQuery(api.listings.getListings);
+  const listings = useQuery(api.listings.getListings, {});
 
   return {
     listings: listings ?? [],

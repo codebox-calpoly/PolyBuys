@@ -4,7 +4,7 @@ import { api } from 'convex/_generated/api';
 import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
-  const listings = useQuery(api.listings.getListings);
+  const listings = useQuery(api.listings.getListings, {});
   const router = useRouter();
 
   if (listings === undefined) {
