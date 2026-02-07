@@ -48,10 +48,6 @@ function validateImages(images: string[]) {
 function validateTags(tags: string[] | undefined): string[] | undefined {
   if (tags === undefined) return undefined;
 
-  if (tags.length > 5) {
-    throw new Error('Maximum 5 tags allowed');
-  }
-
   // Normalize and deduplicate tags
   const seen = new Set<string>();
   const normalizedTags: string[] = [];
@@ -60,19 +56,23 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
     const normalized = tag.trim().toLowerCase();
 
     if (normalized.length === 0) {
-      throw new Error('Tags cannot be empty');
+      throw new Error('Empty tags are not allowed');
     }
 
     if (normalized.length > 20) {
       throw new Error('Tags must be 20 characters or less');
     }
 
-    if (seen.has(normalized)) {
-      throw new Error('Duplicate tags are not allowed');
+    // Skip duplicates instead of throwing
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      normalizedTags.push(normalized);
     }
+  }
 
-    seen.add(normalized);
-    normalizedTags.push(normalized);
+  // Check max tags after deduplication
+  if (normalizedTags.length > 5) {
+    throw new Error('Maximum 5 tags allowed');
   }
 
   return normalizedTags;
