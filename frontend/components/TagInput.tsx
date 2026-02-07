@@ -70,21 +70,25 @@ export default function TagInput({
         .filter((p) => p);
       if (parts.length > 0) {
         const tagToAdd = parts[0].toLowerCase();
-        if (
-          tagToAdd &&
-          !tags.includes(tagToAdd) &&
-          tagToAdd.length <= maxLength &&
-          tags.length < maxTags
-        ) {
-          onChange([...tags, tagToAdd]);
-          setInputText(parts.slice(1).join(',') || '');
+        // Clear input for any processed tag (even if invalid)
+        const remainingText = parts.slice(1).join(',') || '';
+
+        if (!tagToAdd) {
+          // Empty tag after processing - just clear it
+          setInputText(remainingText);
         } else if (tags.includes(tagToAdd)) {
           setError('Tag already added');
-          setInputText(parts.slice(1).join(',') || '');
+          setInputText(remainingText);
         } else if (tagToAdd.length > maxLength) {
           setError(`Tags must be ${maxLength} characters or less`);
+          setInputText(remainingText);
         } else if (tags.length >= maxTags) {
           setError(`Maximum ${maxTags} tags allowed`);
+          setInputText(remainingText);
+        } else {
+          // Valid tag - add it
+          onChange([...tags, tagToAdd]);
+          setInputText(remainingText);
         }
       }
     }

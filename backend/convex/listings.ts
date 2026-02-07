@@ -39,21 +39,37 @@ function validateImages(images: string[]) {
   }
 }
 
-function validateTags(tags: string[] | undefined) {
-  if (tags === undefined) return;
+function validateTags(tags: string[] | undefined): string[] | undefined {
+  if (tags === undefined) return undefined;
 
   if (tags.length > 5) {
     throw new Error('Maximum 5 tags allowed');
   }
 
+  // Normalize and deduplicate tags
+  const seen = new Set<string>();
+  const normalizedTags: string[] = [];
+
   for (const tag of tags) {
-    if (tag.length > 20) {
-      throw new Error('Tags must be 20 characters or less');
-    }
-    if (tag.trim().length === 0) {
+    const normalized = tag.trim().toLowerCase();
+
+    if (normalized.length === 0) {
       throw new Error('Tags cannot be empty');
     }
+
+    if (normalized.length > 20) {
+      throw new Error('Tags must be 20 characters or less');
+    }
+
+    if (seen.has(normalized)) {
+      throw new Error('Duplicate tags are not allowed');
+    }
+
+    seen.add(normalized);
+    normalizedTags.push(normalized);
   }
+
+  return normalizedTags;
 }
 
 // Get all active listings
@@ -120,10 +136,11 @@ export const createListing = mutation({
     }
     validateTitle(args.title);
     validateImages(args.images);
-    validateTags(args.tags);
+    const normalizedTags = validateTags(args.tags);
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
       ...args,
+      tags: normalizedTags,
       sellerId: identity.subject,
       status: 'active',
       createdAt: now,
@@ -190,8 +207,8 @@ export const updateListing = mutation({
     }
 
     if (args.tags !== undefined) {
-      validateTags(args.tags);
-      update.tags = args.tags;
+      const normalizedTags = validateTags(args.tags);
+      update.tags = normalizedTags;
     }
 
     if (Object.keys(update).length === 0) {
