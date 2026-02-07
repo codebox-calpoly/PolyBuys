@@ -123,16 +123,6 @@ export const getCurrentUserSubject = query({
     return identity?.subject ?? null;
   },
 });
-// Normalize tages to lowercase and within 1-20 characters exclusive
-function normalizeTags(tags: string[]): string[] {
-  return [
-    ...new Set(
-      tags
-        .map((tag) => tag.trim().toLowerCase())
-        .filter((tag) => tag.length >= 1 && tag.length <= 20)
-    ),
-  ].slice(0, 5);
-}
 
 // Get a single listing by ID
 export const getListing = query({
@@ -264,7 +254,6 @@ export const createListing = mutation({
     sellerEmail: v.string(),
     category: categoryValidator,
     images: v.array(v.string()),
-    condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
     condition: conditionValidator,
     tags: v.optional(v.array(v.string())),
   },
@@ -274,23 +263,6 @@ export const createListing = mutation({
       throw new Error('You must be logged in to create a listing');
     }
 
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
-    }
-    // Normalize before saving
-    const normalizedTags = normalizeTags(args.tags ?? []);
     validateTitle(args.title);
     validateImages(args.images);
     const normalizedTags = validateTags(args.tags);
@@ -308,7 +280,6 @@ export const createListing = mutation({
       status: 'active',
       createdAt: now,
       postedOn: now,
-      tags: normalizedTags,
     });
     return listingId;
   },
@@ -321,16 +292,6 @@ export const updateListing = mutation({
     description: v.optional(v.string()),
     price: v.optional(v.number()),
     images: v.optional(v.array(v.string())),
-    condition: v.optional(v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'))),
-    category: v.optional(
-      v.union(
-        v.literal('textbooks'),
-        v.literal('electronics'),
-        v.literal('furniture'),
-        v.literal('tickets'),
-        v.literal('other')
-      )
-    ),
     condition: v.optional(conditionValidator),
     category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
@@ -341,24 +302,6 @@ export const updateListing = mutation({
     if (listing.status === 'deleted') {
       throw new Error('Cannot update a deleted listing');
     }
-
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
-    }
-    // Normalize before saving
-    const normalizedTags = normalizeTags(args.tags ?? []);
 
     const update: Partial<Doc<'listings'>> = {};
 
@@ -389,10 +332,6 @@ export const updateListing = mutation({
     if (args.description !== undefined) {
       update.description = args.description;
     }
-    if (args.tags !== undefined) {
-      update.tags = normalizedTags;
-    }
-
     if (args.tags !== undefined) {
       const normalizedTags = validateTags(args.tags);
       update.tags = normalizedTags;
