@@ -241,9 +241,6 @@ export const createListing = mutation({
         if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
           throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
         }
-        if (trimmed.length < TAG_CONSTRAINTS.MIN_TAG_LENGTH) {
-          throw new Error(`Tag must be at least ${TAG_CONSTRAINTS.MIN_TAG_LENGTH} characters long`);
-        }
       }
     }
 
