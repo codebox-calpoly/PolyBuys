@@ -104,6 +104,7 @@ export const searchAndFilterListings = query({
         minPrice: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
         condition: v.optional(conditionValidator),
+        tags: v.optional(v.array(v.string())),
         sortBy: v.optional(
           v.union(
             v.literal('newest'),
@@ -166,6 +167,13 @@ export const searchAndFilterListings = query({
       results = results.filter((l) => l.price <= filters.maxPrice!);
     }
 
+    if (filters.tags && filters.tags.length > 0) {
+      const normalizedFilteredTags = normalizeTags(filters.tags);
+      results = results.filter((l) =>
+        normalizedFilteredTags.some((filterTag) => l.tags?.includes(filterTag))
+      );
+    }
+
     // Apply sorting
     const sortBy = filters.sortBy ?? 'newest';
     switch (sortBy) {
@@ -221,12 +229,10 @@ export const createListing = mutation({
     if (!identity) {
       throw new Error('You must be logged in to create a listing');
     }
-
     if (args.tags) {
       if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
         throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
       }
-
       for (const tag of args.tags) {
         const trimmed = tag.trim();
         if (!trimmed) {
@@ -235,8 +241,12 @@ export const createListing = mutation({
         if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
           throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
         }
+        if (trimmed.length < TAG_CONSTRAINTS.MIN_TAG_LENGTH) {
+          throw new Error(`Tag must be at least ${TAG_CONSTRAINTS.MIN_TAG_LENGTH} characters long`);
+        }
       }
     }
+
     // Normalize before saving
     const normalizedTags = normalizeTags(args.tags ?? []);
     validateTitle(args.title);
@@ -250,6 +260,7 @@ export const createListing = mutation({
       postedOn: now,
       tags: normalizedTags,
     });
+
     return listingId;
   },
 });
