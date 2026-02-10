@@ -1,0 +1,682 @@
+// backend/convex/__tests__/reports.test.ts
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { convexTest } from 'convex-test';
+import schema from '../schema';
+import { api } from '../_generated/api';
+import * as reportsModule from '../reports';
+import * as listingsModule from '../listings';
+import * as profilesModule from '../profiles';
+import * as apiModule from '../_generated/api';
+import * as serverModule from '../_generated/server';
+
+// Import all Convex function modules so convex-test can run them
+const modules = {
+  '../reports.ts': () => Promise.resolve(reportsModule),
+  '../listings.ts': () => Promise.resolve(listingsModule),
+  '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../_generated/api.ts': () => Promise.resolve(apiModule),
+  '../_generated/server.ts': () => Promise.resolve(serverModule),
+} as any;
+
+describe('Reports mutations', () => {
+  // Helper: create a test user
+  const createTestUser = async (t: any, email: string) => {
+    return await t.run(async (ctx: any) => {
+      return await ctx.db.insert('users', {
+        email,
+        name: 'Test User',
+        createdAt: Date.now(),
+      });
+    });
+  };
+
+  // Helper: create a test listing
+  const createTestListing = async (t: any, sellerId: string) => {
+    return await t.run(async (ctx: any) => {
+      return await ctx.db.insert('listings', {
+        title: 'Test Listing',
+        description: 'A test listing',
+        price: 50,
+        sellerEmail: 'seller@calpoly.edu',
+        sellerId,
+        images: ['https://example.com/image.png'],
+        condition: 'used',
+        category: 'textbooks',
+        status: 'active',
+        createdAt: Date.now(),
+        postedOn: Date.now(),
+      });
+    });
+  };
+
+  // Helper: create a test profile
+  const createTestProfile = async (t: any, userId: string) => {
+    return await t.run(async (ctx: any) => {
+      return await ctx.db.insert('profiles', {
+        userId,
+        name: 'Test Profile',
+        email: 'profile@calpoly.edu',
+        joinDate: Date.now(),
+        major: 'Computer Science',
+        year: 2024,
+        rating: 5,
+        review_count: 0,
+      });
+    });
+  };
+
+  it('createReport succeeds with valid listing report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create user and listing
+    const userId = await createTestUser(t, 'reporter@calpoly.edu');
+    const listingId = await createTestListing(t, 'seller-id');
+
+    // Simulate authenticated user
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    // Create report
+    const reportId = await asUser.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+      notes: 'This looks like a scam',
+    });
+
+    // Verify report was created
+    const report = await t.run(async (ctx: any) => {
+      return await ctx.db.get(reportId);
+    });
+
+    expect(report).toMatchObject({
+      targetId: listingId,
+      targetType: 'listing',
+      reporterId: userId,
+      reason: 'scam',
+      notes: 'This looks like a scam',
+    });
+    expect(typeof report?.createdAt).toBe('number');
+  });
+
+  it('createReport succeeds with valid profile report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create users and profile
+    const reporterId = await createTestUser(t, 'reporter@calpoly.edu');
+    const profileId = await createTestProfile(t, 'profile-user-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    // Create report
+    const reportId = await asUser.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    // Verify report was created
+    const report = await t.run(async (ctx: any) => {
+      return await ctx.db.get(reportId);
+    });
+
+    expect(report).toMatchObject({
+      targetId: profileId,
+      targetType: 'profile',
+      reporterId,
+      reason: 'inappropriate',
+    });
+  });
+
+  it('createReport fails when user is not authenticated', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    await expect(async () => {
+      await t.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'scam',
+      });
+    }).rejects.toThrow('You must be logged in to report content');
+  });
+
+  it('createReport rejects duplicate reports from same user', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    // First report succeeds
+    await asUser.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    // Second report from same user fails
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'spam',
+      });
+    }).rejects.toThrow('You have already reported this content');
+  });
+
+  it('createReport enforces rate limiting (10 reports per day)', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    // Create 10 different listings and report them all
+    for (let i = 0; i < 10; i++) {
+      const listingId = await createTestListing(t, `seller-${i}`);
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'spam',
+      });
+    }
+
+    // 11th report should fail
+    const listingId = await createTestListing(t, 'seller-11');
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'spam',
+      });
+    }).rejects.toThrow('Report limit reached. Please try again later.');
+  });
+
+  it('createReport rejects invalid listing targetId', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: 'invalid_id_12345',
+        targetType: 'listing',
+        reason: 'scam',
+      });
+    }).rejects.toThrow('Listing not found');
+  });
+
+  it('createReport rejects invalid profile targetId', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: 'invalid_id_12345',
+        targetType: 'profile',
+        reason: 'inappropriate',
+      });
+    }).rejects.toThrow('Profile not found');
+  });
+
+  it('createReport rejects notes exceeding character limit', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    const longNotes = 'a'.repeat(501); // Exceeds 500 char limit
+
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'scam',
+        notes: longNotes,
+      });
+    }).rejects.toThrow('Notes must be 500 characters or less');
+  });
+
+  it('createReport accepts notes within character limit', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter@calpoly.edu');
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    const validNotes = 'a'.repeat(500); // Exactly 500 chars
+
+    const reportId = await asUser.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+      notes: validNotes,
+    });
+
+    const report = await t.run(async (ctx: any) => {
+      return await ctx.db.get(reportId);
+    });
+
+    expect(report?.notes).toBe(validNotes);
+  });
+
+  // Auto-hide functionality tests
+  it('listing auto-hidden after 3rd unique report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create 3 different users
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    // Report from 3 different users
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    // Check that listing is now hidden
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBe(true);
+    expect(listing?.hiddenReason).toBe('auto_moderation');
+    expect(typeof listing?.hiddenAt).toBe('number');
+  });
+
+  it('listing NOT hidden after 2 unique reports (below threshold)', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'spam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'spam',
+    });
+
+    // Check that listing is NOT hidden
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBeUndefined();
+  });
+
+  it('profile auto-hidden after 3rd unique report', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const profileId = await createTestProfile(t, 'profile-user-id');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: profileId,
+      targetType: 'profile',
+      reason: 'inappropriate',
+    });
+
+    // Check that profile is now hidden
+    const profile = await t.run(async (ctx: any) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(profile?.isHidden).toBe(true);
+    expect(profile?.hiddenReason).toBe('auto_moderation');
+    expect(typeof profile?.hiddenAt).toBe('number');
+  });
+
+  it('hidden listing excluded from getListings query', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a hidden listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Manually mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Query listings
+    const listings = await t.query(api.listings.getListings, {});
+
+    // Hidden listing should not be in the results
+    expect(listings.find((l: any) => l._id === listingId)).toBeUndefined();
+  });
+
+  it('owner can view their own hidden listing via getListing', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Owner should still be able to see it
+    const listing = await seller.query(api.listings.getListing, { id: listingId });
+    expect(listing).not.toBeNull();
+    expect(listing?.isHidden).toBe(true);
+  });
+
+  it('non-owner cannot view hidden listing via getListing', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing',
+      description: 'A test listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Mark as hidden
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Different user should get null
+    const otherUser = t.withIdentity({ name: 'Other', subject: 'other-id' });
+    const listing = await otherUser.query(api.listings.getListing, { id: listingId });
+    expect(listing).toBeNull();
+  });
+
+  it("getMyHiddenListings returns only user's hidden listings", async () => {
+    const t = convexTest(schema as any, modules);
+
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+
+    // Create 2 listings
+    const listingId1 = await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing 1',
+      description: 'First listing',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    await seller.mutation(api.listings.createListing, {
+      title: 'Test Listing 2',
+      description: 'Second listing',
+      price: 60,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'new',
+      category: 'electronics',
+    });
+
+    // Hide first listing
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId1, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Query hidden listings
+    const hiddenListings = await seller.query(api.listings.getMyHiddenListings, {});
+
+    expect(hiddenListings.length).toBe(1);
+    expect(hiddenListings[0]._id).toBe(listingId1);
+    expect(hiddenListings[0].isHidden).toBe(true);
+  });
+
+  it('hidden content excluded from searchAndFilterListings', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+
+    // Create a listing
+    const listingId = await seller.mutation(api.listings.createListing, {
+      title: 'Test Textbook',
+      description: 'A test textbook',
+      price: 50,
+      sellerEmail: 'seller@calpoly.edu',
+      images: ['https://example.com/image.png'],
+      condition: 'used',
+      category: 'textbooks',
+    });
+
+    // Hide it
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: Date.now(),
+        hiddenReason: 'auto_moderation',
+      });
+    });
+
+    // Search for it
+    const results = await t.query(api.listings.searchAndFilterListings, {
+      filters: { category: 'textbooks' },
+    });
+
+    // Should not be in results
+    expect(results.items.find((l: any) => l._id === listingId)).toBeUndefined();
+  });
+  it('auto-hide does NOT overwrite existing hidden context', async () => {
+    const t = convexTest(schema as any, modules);
+
+    // Create a listing
+    const listingId = await createTestListing(t, 'seller-id');
+
+    // Manually hide it (simulating admin action)
+    const originalHiddenAt = Date.now() - 10000;
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, {
+        isHidden: true,
+        hiddenAt: originalHiddenAt,
+        hiddenReason: 'manual_admin_action',
+      });
+    });
+
+    // Create 3 reports (triggering threshold)
+    await createTestUser(t, 'reporter1@calpoly.edu');
+    await createTestUser(t, 'reporter2@calpoly.edu');
+    await createTestUser(t, 'reporter3@calpoly.edu');
+
+    const asUser1 = t.withIdentity({
+      name: 'Reporter1',
+      subject: 'reporter1-subject',
+      email: 'reporter1@calpoly.edu',
+    });
+    await asUser1.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUser2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    const asUser3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUser3.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'scam',
+    });
+
+    // Verify listing is still hidden but metadata is UNCHANGED
+    const listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+
+    expect(listing?.isHidden).toBe(true);
+    expect(listing?.hiddenReason).toBe('manual_admin_action'); // Should NOT be 'auto_moderation'
+    expect(listing?.hiddenAt).toBe(originalHiddenAt); // Should prevent update
+  });
+});

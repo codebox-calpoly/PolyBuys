@@ -1,9 +1,9 @@
 import { httpRouter } from 'convex/server';
-import { auth } from './auth';
+// Auth import removed - using custom OTP auth in otpAuth.ts
+// import { auth } from './auth';
 
 const http = httpRouter();
 
-// Add Convex Auth HTTP routes for email verification links, etc.
-auth.addHttpRoutes(http);
+// auth.addHttpRoutes(http) removed - custom OTP auth doesn't use HTTP routes
 
 export default http;
