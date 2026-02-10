@@ -10,7 +10,6 @@ import ListingCard from '../components/ListingCard';
 import type { Filters, Category } from '../types/filters';
 
 export default function HomeScreen() {
-  const listings = useQuery(api.listings.getListings, {});
   const router = useRouter();
   const { tags } = useLocalSearchParams();
 
