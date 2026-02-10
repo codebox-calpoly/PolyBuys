@@ -140,6 +140,9 @@ export const getListings = query({
       .filter((q) => {
         let conditions = q.eq(q.field('status'), 'active');
 
+        // Exclude hidden listings
+        conditions = q.and(conditions, q.neq(q.field('isHidden'), true));
+
         if (args.category) {
           conditions = q.and(conditions, q.eq(q.field('category'), args.category));
         }
