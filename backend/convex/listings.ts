@@ -227,6 +227,21 @@ export const getListings = query({
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Validate price filters
+    if (args.minPrice !== undefined && args.minPrice < 0) {
+      throw new Error('minPrice must be non-negative');
+    }
+    if (args.maxPrice !== undefined && args.maxPrice < 0) {
+      throw new Error('maxPrice must be non-negative');
+    }
+    if (
+      args.maxPrice !== undefined &&
+      args.minPrice !== undefined &&
+      args.maxPrice < args.minPrice
+    ) {
+      throw new Error('maxPrice must be greater than or equal to minPrice');
+    }
+
     const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
 
     let results: Doc<'listings'>[];
@@ -257,8 +272,8 @@ export const getListings = query({
       results = results.filter((l) => l.price <= args.maxPrice!);
     }
 
-    // Sort newest first to match previous behavior
-    results.sort((a, b) => b.createdAt - a.createdAt);
+    // Sort newest first using _creationTime for stable ordering
+    results.sort((a, b) => b._creationTime - a._creationTime);
 
     // Apply cursor/limit pagination (if provided)
     let startIndex = 0;
@@ -458,5 +473,14 @@ export const getMyHiddenListings = query({
         q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
+  },
+});
+
+// Get current user's identity subject
+export const getCurrentUserSubject = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
   },
 });
