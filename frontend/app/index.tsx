@@ -3,10 +3,11 @@ import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { FilterBar, type Filters, type Category } from '../components/FilterBar';
+import { FilterBar } from '../components/FilterBar';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { PriceRangePicker } from '../components/PriceRangePicker';
 import ListingCard from '../components/ListingCard';
+import type { Filters, Category } from '../types/filters';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -59,13 +60,25 @@ export default function HomeScreen() {
     setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
   };
 
+  const handleTagsChange = (tags: string[]) => {
+    setSelectedTags(tags);
+    // Sync URL params with selected tags
+    if (tags.length > 0) {
+      router.setParams({ tags });
+    } else {
+      router.setParams({ tags: undefined });
+    }
+  };
+
   const handleClearTags = () => {
     setSelectedTags([]);
+    router.setParams({ tags: undefined });
   };
 
   const handleClearAll = () => {
     setFilters({});
     setSelectedTags([]);
+    router.setParams({ tags: undefined });
   };
 
   return (
@@ -85,7 +98,7 @@ export default function HomeScreen() {
         selectedTags={selectedTags}
         onCategoryPress={() => setShowCategoryPicker(true)}
         onPricePress={() => setShowPricePicker(true)}
-        onTagsChange={setSelectedTags}
+        onTagsChange={handleTagsChange}
         onClearCategory={handleClearCategory}
         onClearPrice={handleClearPrice}
         onClearTags={handleClearTags}

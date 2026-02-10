@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import TagPicker from './TagPicker';
+import { CATEGORY_LABELS } from '../types/filters';
+import type { Category, Filters } from '../types/filters';
 
-export type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
-
-export interface Filters {
-  category?: Category;
-  minPrice?: number;
-  maxPrice?: number;
-}
+// Re-export for backward compatibility
+export type { Category, Filters };
 
 interface FilterBarProps {
   filters: Filters;
@@ -21,14 +18,6 @@ interface FilterBarProps {
   onClearTags: () => void;
   onClearAll: () => void;
 }
-
-const CATEGORY_LABELS: Record<Category, string> = {
-  textbooks: 'Textbooks',
-  electronics: 'Electronics',
-  furniture: 'Furniture',
-  tickets: 'Tickets',
-  other: 'Other',
-};
 
 export function FilterBar({
   filters,
@@ -156,13 +145,10 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f0f0f0',
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    padding: 0, // Reset padding as inner elements handle spacing
     overflow: 'hidden',
   },
   chipMainButton: {

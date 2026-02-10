@@ -34,14 +34,16 @@ export function PriceRangePicker({
   const [min, setMin] = useState<string>(minPrice?.toString() ?? '');
   const [max, setMax] = useState<string>(maxPrice?.toString() ?? '');
   const [error, setError] = useState<string>('');
+  const prevVisibleRef = React.useRef(visible);
 
-  // Reset inputs when modal opens
+  // Reset inputs only when modal transitions from closed to open
   useEffect(() => {
-    if (visible) {
+    if (visible && !prevVisibleRef.current) {
       setMin(minPrice?.toString() ?? '');
       setMax(maxPrice?.toString() ?? '');
       setError('');
     }
+    prevVisibleRef.current = visible;
   }, [visible, minPrice, maxPrice]);
 
   const handleApply = () => {

@@ -11,22 +11,6 @@ describe('Convex schema', () => {
 
   it('has required listing fields', () => {
     const fields = Object.keys(listings.documentType.value);
-    expect(fields).toEqual(
-      expect.arrayContaining([
-        'title',
-        'description',
-        'price',
-        'sellerEmail',
-        'sellerId',
-        'images',
-        'condition',
-        'category',
-        'status',
-        'createdAt',
-        'postedOn',
-        'tags',
-      ])
-    );
     expect(fields).toEqual([
       'title',
       'description',
