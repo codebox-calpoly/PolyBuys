@@ -45,6 +45,40 @@ function validateImages(images: string[]) {
   }
 }
 
+function validateTags(tags: string[] | undefined): string[] | undefined {
+  if (tags === undefined) return undefined;
+
+  // Normalize and deduplicate tags
+  const seen = new Set<string>();
+  const normalizedTags: string[] = [];
+
+  for (const tag of tags) {
+    const normalized = tag.trim().toLowerCase();
+
+    if (normalized.length === 0) {
+      throw new Error('Empty tags are not allowed');
+    }
+
+    if (normalized.length > 20) {
+      throw new Error('Tags must be 20 characters or less');
+    }
+
+    // Skip duplicates instead of throwing
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      normalizedTags.push(normalized);
+    }
+  }
+
+  // Check max tags after deduplication
+  if (normalizedTags.length > 5) {
+    throw new Error('Maximum 5 tags allowed');
+  }
+
+  return normalizedTags;
+}
+
+// Get all active listings
 const ITEMS_PER_PAGE = 20;
 
 // Category validator for reuse
@@ -69,6 +103,90 @@ function normalizeTags(tags: string[]): string[] {
     ),
   ].slice(0, 5);
 }
+// Get all active listings with filtering support
+export const getListings = query({
+  args: {
+    category: v.optional(categoryValidator),
+    minPrice: v.optional(v.number()),
+    maxPrice: v.optional(v.number()),
+    limit: v.optional(v.number()), // default 20
+    tags: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    // Validate price filters
+    if (args.minPrice !== undefined && !Number.isFinite(args.minPrice)) {
+      throw new Error('minPrice must be non-negative');
+    }
+    if (args.minPrice !== undefined && args.minPrice < 0) {
+      throw new Error('minPrice must be non-negative');
+    }
+    if (args.maxPrice !== undefined && !Number.isFinite(args.maxPrice)) {
+      throw new Error('maxPrice must be non-negative');
+    }
+    if (args.maxPrice !== undefined && args.maxPrice < 0) {
+      throw new Error('maxPrice must be non-negative');
+    }
+
+    if (
+      args.maxPrice !== undefined &&
+      args.minPrice !== undefined &&
+      args.maxPrice < args.minPrice
+    ) {
+      throw new Error('maxPrice must be greater than or equal to minPrice');
+    }
+
+    // Validate and normalize limit: default 20, min 1, max 100
+    const limit =
+      args.limit !== undefined ? Math.max(1, Math.min(100, Math.floor(args.limit))) : 20;
+
+    // Use by_status index for active listings
+    const query = ctx.db
+      .query('listings')
+      .withIndex('by_status', (q) => q.eq('status', 'active'))
+      .order('desc');
+
+    // Apply filters
+    let listings = await query
+      .filter((q) => {
+        let conditions = q.eq(q.field('status'), 'active');
+
+        // Exclude hidden listings
+        conditions = q.and(conditions, q.neq(q.field('isHidden'), true));
+
+        if (args.category) {
+          conditions = q.and(conditions, q.eq(q.field('category'), args.category));
+        }
+        if (args.minPrice !== undefined) {
+          conditions = q.and(conditions, q.gte(q.field('price'), args.minPrice));
+        }
+        if (args.maxPrice !== undefined) {
+          conditions = q.and(conditions, q.lte(q.field('price'), args.maxPrice));
+        }
+
+        return conditions;
+      })
+      .take(limit);
+
+    // Filter by tags if provided (OR logic: show listings with ANY selected tag)
+    if (args.tags && args.tags.length > 0) {
+      listings = listings.filter((listing) => {
+        if (!listing.tags || listing.tags.length === 0) return false;
+        return args.tags!.some((tag) => listing.tags!.includes(tag));
+      });
+    }
+
+    return listings;
+  },
+});
+
+// Get current user's identity subject
+export const getCurrentUserSubject = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+});
 
 function normalizeSearchTags(tags: string[]): string[] {
   return [
@@ -308,33 +426,23 @@ export const createListing = mutation({
       throw new Error('You must be logged in to create a listing');
     }
 
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
-    }
-    // Normalize before saving
-    const normalizedTags = normalizeTags(args.tags ?? []);
     validateTitle(args.title);
     validateImages(args.images);
+    const normalizedTags = validateTags(args.tags);
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
-      ...args,
+      title: args.title,
+      description: args.description,
+      price: args.price,
+      sellerEmail: args.sellerEmail,
+      category: args.category,
+      images: args.images,
+      condition: args.condition,
+      tags: normalizedTags,
       sellerId: identity.subject,
       status: 'active',
       createdAt: now,
       postedOn: now,
-      tags: normalizedTags,
     });
     return listingId;
   },
@@ -357,24 +465,6 @@ export const updateListing = mutation({
     if (listing.status === 'deleted') {
       throw new Error('Cannot update a deleted listing');
     }
-
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
-    }
-    // Normalize before saving
-    const normalizedTags = normalizeTags(args.tags ?? []);
 
     const update: Partial<Doc<'listings'>> = {};
 
@@ -406,6 +496,7 @@ export const updateListing = mutation({
       update.description = args.description;
     }
     if (args.tags !== undefined) {
+      const normalizedTags = validateTags(args.tags);
       update.tags = normalizedTags;
     }
 
