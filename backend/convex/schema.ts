@@ -28,11 +28,13 @@ export default defineSchema({
     hiddenReason: v.optional(v.string()),
     createdAt: v.number(),
     postedOn: v.number(),
+    tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])
+    .index('by_tag', ['tags'])
     .searchIndex('search_listings', {
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],
@@ -71,4 +73,29 @@ export default defineSchema({
   })
     .index('by_target', ['targetId', 'targetType'])
     .index('by_reporter', ['reporterId']),
+  conversations: defineTable({
+    listingId: v.id('listings'),
+    buyerId: v.string(),
+    sellerId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    buyerLastReadAt: v.number(),
+    sellerLastReadAt: v.number(),
+  })
+    .index('by_listing_buyer_seller', ['listingId', 'buyerId'])
+    .index('by_buyer', ['buyerId', 'updatedAt'])
+    .index('by_seller', ['sellerId', 'updatedAt'])
+    .index('by_listing', ['listingId']),
+
+  messages: defineTable({
+    conversationId: v.id('conversations'),
+    listingId: v.id('listings'),
+    senderId: v.string(),
+    recipientId: v.string(),
+    body: v.string(),
+    createdAt: v.number(),
+    readAt: v.number(),
+  })
+    .index('by_conversation_createdAt', ['conversationId', 'createdAt'])
+    .index('by_conversation_recipient_readAt', ['conversationId', 'recipientId', 'readAt']),
 });
