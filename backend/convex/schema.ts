@@ -82,16 +82,6 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_email', ['email']),
 
-  reports: defineTable({
-    targetId: v.string(), // Can be listing or profile ID
-    targetType: v.union(v.literal('listing'), v.literal('profile')),
-    reporterId: v.id('users'),
-    reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
-    notes: v.optional(v.string()),
-    createdAt: v.number(),
-  })
-    .index('by_target', ['targetId', 'targetType'])
-    .index('by_reporter', ['reporterId']),
   conversations: defineTable({
     listingId: v.id('listings'),
     buyerId: v.string(),
