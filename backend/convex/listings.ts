@@ -45,6 +45,21 @@ function validateImages(images: string[]) {
   }
 }
 
+function validateTags(tags: string[]) {
+  if (tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
+    throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
+  }
+  for (const tag of tags) {
+    const trimmed = tag.trim();
+    if (!trimmed) {
+      throw new Error('Empty tags are not allowed');
+    }
+    if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
+      throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
+    }
+  }
+}
+
 const ITEMS_PER_PAGE = 20;
 
 // Category validator for reuse
@@ -78,9 +93,13 @@ function normalizeTags(tags: string[]): string[] {
     ...new Set(
       tags
         .map((tag) => tag.trim().toLowerCase())
-        .filter((tag) => tag.length >= 1 && tag.length <= 20)
+        .filter(
+          (tag) =>
+            tag.length >= TAG_CONSTRAINTS.MIN_TAG_LENGTH &&
+            tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH
+        )
     ),
-  ].slice(0, 5);
+  ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
 }
 
 // Get a single listing by ID
@@ -229,19 +248,8 @@ export const createListing = mutation({
     if (!identity) {
       throw new Error('You must be logged in to create a listing');
     }
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
+    if (args.tags !== undefined) {
+      validateTags(args.tags);
     }
 
     // Normalize before saving
@@ -280,21 +288,10 @@ export const updateListing = mutation({
       throw new Error('Cannot update a deleted listing');
     }
 
-    if (args.tags) {
-      if (args.tags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-        throw new Error(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-      }
-
-      for (const tag of args.tags) {
-        const trimmed = tag.trim();
-        if (!trimmed) {
-          throw new Error('Empty tags are not allowed');
-        }
-        if (trimmed.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-          throw new Error(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-        }
-      }
+    if (args.tags !== undefined) {
+      validateTags(args.tags);
     }
+
     // Normalize before saving
     const normalizedTags = normalizeTags(args.tags ?? []);
 
