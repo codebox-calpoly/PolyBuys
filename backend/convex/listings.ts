@@ -73,6 +73,9 @@ export const getListings = query({
     if (args.minPrice !== undefined && args.minPrice < 0) {
       throw new Error('minPrice must be non-negative');
     }
+    if (args.maxPrice !== undefined && args.maxPrice < 0) {
+      throw new Error('maxPrice must be non-negative');
+    }
     if (
       args.maxPrice !== undefined &&
       args.minPrice !== undefined &&
