@@ -246,6 +246,7 @@ export const getListings = query({
     }
 
     // Apply filters in memory
+    results = results.filter((l) => !l.isHidden);
     if (normalizedTags.length > 0) {
       results = results.filter((l) => (l.tags ?? []).some((tag) => normalizedTags.includes(tag)));
     }
