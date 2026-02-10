@@ -359,3 +359,153 @@ describe('Listings mutations', () => {
     expect(listing?.tags).toEqual([]);
   });
 });
+
+describe('getListings query with filters', () => {
+  const baseArgs = {
+    title: 'Great textbook for CSC 202',
+    description: 'Gently used, highlights in a few chapters.',
+    price: 50,
+    sellerEmail: 'test@example.com',
+    category: 'textbooks' as const,
+    images: ['https://example.com/book1.png'],
+    condition: 'used' as const,
+  };
+
+  it('returns listings newest first', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    // Create listings with slight delay simulation
+    const id1 = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'First listing created',
+      price: 10,
+    });
+    const id2 = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Second listing created',
+      price: 20,
+    });
+
+    const listings = await t.query(api.listings.getListings, {});
+
+    // Newest should be first (id2 created after id1)
+    expect(listings.length).toBeGreaterThanOrEqual(2);
+    const ids = listings.map((l: any) => l._id);
+    expect(ids.indexOf(id2)).toBeLessThan(ids.indexOf(id1));
+  });
+
+  it('filters by category', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      category: 'textbooks',
+      title: 'A Textbook Item',
+    });
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      category: 'electronics',
+      title: 'An Electronics Item',
+    });
+
+    const textbookListings = await t.query(api.listings.getListings, {
+      category: 'textbooks',
+    });
+    const electronicsListings = await t.query(api.listings.getListings, {
+      category: 'electronics',
+    });
+
+    expect(textbookListings.every((l: any) => l.category === 'textbooks')).toBe(true);
+    expect(electronicsListings.every((l: any) => l.category === 'electronics')).toBe(true);
+  });
+
+  it('filters by minPrice', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Cheap item cheap',
+      price: 10,
+    });
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Expensive item',
+      price: 100,
+    });
+
+    const filtered = await t.query(api.listings.getListings, { minPrice: 50 });
+
+    expect(filtered.every((l: any) => l.price >= 50)).toBe(true);
+  });
+
+  it('filters by maxPrice', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Cheap item pric',
+      price: 10,
+    });
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Expensive price',
+      price: 100,
+    });
+
+    const filtered = await t.query(api.listings.getListings, { maxPrice: 50 });
+
+    expect(filtered.every((l: any) => l.price <= 50)).toBe(true);
+  });
+
+  it('combines category and price filters', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      category: 'furniture',
+      title: 'Cheap furniture',
+      price: 25,
+    });
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      category: 'furniture',
+      title: 'Expensive furniture',
+      price: 200,
+    });
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      category: 'electronics',
+      title: 'Cheap electronics',
+      price: 25,
+    });
+
+    const filtered = await t.query(api.listings.getListings, {
+      category: 'furniture',
+      maxPrice: 100,
+    });
+
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].title).toBe('Cheap furniture');
+  });
+
+  it('rejects invalid minPrice', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await expect(async () => {
+      await t.query(api.listings.getListings, { minPrice: -10 });
+    }).rejects.toThrowError('minPrice must be non-negative');
+  });
+
+  it('rejects maxPrice less than minPrice', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await expect(async () => {
+      await t.query(api.listings.getListings, { minPrice: 100, maxPrice: 50 });
+    }).rejects.toThrowError('maxPrice must be greater than or equal to minPrice');
+  });
+});
