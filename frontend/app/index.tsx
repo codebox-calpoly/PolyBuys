@@ -3,13 +3,20 @@ import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import FilterBar from '../components/FilterBar';
+import { FilterBar, type Filters, type Category } from '../components/FilterBar';
+import { CategoryPicker } from '../components/CategoryPicker';
+import { PriceRangePicker } from '../components/PriceRangePicker';
 import ListingCard from '../components/ListingCard';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { tags } = useLocalSearchParams();
+
+  // Filter state
+  const [filters, setFilters] = useState<Filters>({});
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showPricePicker, setShowPricePicker] = useState(false);
 
   // Initialize selected tags from URL params
   useEffect(() => {
@@ -22,9 +29,44 @@ export default function HomeScreen() {
     }
   }, [tags]);
 
+  // Pass all filters to query
   const listings = useQuery(api.listings.getListings, {
+    category: filters.category,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
     tags: selectedTags.length > 0 ? selectedTags : undefined,
   });
+
+  const hasActiveFilters =
+    !!filters.category ||
+    filters.minPrice !== undefined ||
+    filters.maxPrice !== undefined ||
+    selectedTags.length > 0;
+
+  const handleCategorySelect = (category: Category | undefined) => {
+    setFilters((prev) => ({ ...prev, category }));
+  };
+
+  const handlePriceApply = (minPrice?: number, maxPrice?: number) => {
+    setFilters((prev) => ({ ...prev, minPrice, maxPrice }));
+  };
+
+  const handleClearCategory = () => {
+    setFilters((prev) => ({ ...prev, category: undefined }));
+  };
+
+  const handleClearPrice = () => {
+    setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
+  };
+
+  const handleClearTags = () => {
+    setSelectedTags([]);
+  };
+
+  const handleClearAll = () => {
+    setFilters({});
+    setSelectedTags([]);
+  };
 
   return (
     <View style={styles.container}>
@@ -38,7 +80,32 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <FilterBar selectedTags={selectedTags} onTagsChange={setSelectedTags} />
+      <FilterBar
+        filters={filters}
+        selectedTags={selectedTags}
+        onCategoryPress={() => setShowCategoryPicker(true)}
+        onPricePress={() => setShowPricePicker(true)}
+        onTagsChange={setSelectedTags}
+        onClearCategory={handleClearCategory}
+        onClearPrice={handleClearPrice}
+        onClearTags={handleClearTags}
+        onClearAll={handleClearAll}
+      />
+
+      <CategoryPicker
+        visible={showCategoryPicker}
+        selectedCategory={filters.category}
+        onSelect={handleCategorySelect}
+        onClose={() => setShowCategoryPicker(false)}
+      />
+
+      <PriceRangePicker
+        visible={showPricePicker}
+        minPrice={filters.minPrice}
+        maxPrice={filters.maxPrice}
+        onApply={handlePriceApply}
+        onClose={() => setShowPricePicker(false)}
+      />
 
       {listings === undefined ? (
         <View style={styles.centerContainer}>
@@ -47,10 +114,15 @@ export default function HomeScreen() {
       ) : listings.length === 0 ? (
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>
-            {selectedTags.length > 0
-              ? 'No listings found with selected tags.'
+            {hasActiveFilters
+              ? 'No listings match your filters'
               : 'No listings yet. Start by adding one!'}
           </Text>
+          {hasActiveFilters && (
+            <TouchableOpacity style={styles.clearFiltersButton} onPress={handleClearAll}>
+              <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <FlatList
@@ -109,6 +181,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  clearFiltersButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#154734',
+    borderRadius: 8,
+  },
+  clearFiltersText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   listContainer: {
     paddingBottom: 20,
