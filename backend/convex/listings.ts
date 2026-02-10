@@ -70,8 +70,14 @@ export const getListings = query({
   },
   handler: async (ctx, args) => {
     // Validate price filters
+    if (args.minPrice !== undefined && !Number.isFinite(args.minPrice)) {
+      throw new Error('minPrice must be non-negative');
+    }
     if (args.minPrice !== undefined && args.minPrice < 0) {
       throw new Error('minPrice must be non-negative');
+    }
+    if (args.maxPrice !== undefined && !Number.isFinite(args.maxPrice)) {
+      throw new Error('maxPrice must be non-negative');
     }
     if (args.maxPrice !== undefined && args.maxPrice < 0) {
       throw new Error('maxPrice must be non-negative');
@@ -84,6 +90,10 @@ export const getListings = query({
     ) {
       throw new Error('maxPrice must be greater than or equal to minPrice');
     }
+
+    // Validate and normalize limit: default 20, min 1, max 100
+    const limit =
+      args.limit !== undefined ? Math.max(1, Math.min(100, Math.floor(args.limit))) : 20;
 
     // Use by_status_createdAt index for deterministic newest-first ordering
     const query = ctx.db
@@ -108,7 +118,7 @@ export const getListings = query({
 
         return conditions;
       })
-      .take(args.limit ?? ITEMS_PER_PAGE);
+      .take(limit);
 
     return listings;
   },
