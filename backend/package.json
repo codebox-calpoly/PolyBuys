@@ -10,11 +10,13 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
-    "convex": "^1.17.2",
-    "@polybuys/shared": "*",
     "@convex-dev/auth": "^0.0.90",
-    "resend": "^4.0.0",
-    "@oslojs/crypto": "^1.0.0"
+    "@oslojs/crypto": "^1.0.1",
+    "@polybuys/shared": "*",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
+    "convex": "^1.17.2",
+    "resend": "^4.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

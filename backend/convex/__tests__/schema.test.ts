@@ -26,6 +26,7 @@ describe('Convex schema', () => {
       'hiddenReason',
       'createdAt',
       'postedOn',
+      'tags',
     ]);
   });
 
