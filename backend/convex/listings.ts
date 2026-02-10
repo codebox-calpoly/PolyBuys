@@ -67,6 +67,7 @@ export const getListings = query({
       .query('listings')
       .withIndex('by_status', (q) => q.eq('status', 'active'))
       .order('desc')
+      .filter((q) => q.neq(q.field('isHidden'), true))
       .collect();
     return listings;
   },
@@ -84,10 +85,22 @@ function normalizeTags(tags: string[]): string[] {
 }
 
 // Get a single listing by ID
+// Owners can see their own hidden listings, others cannot
 export const getListing = query({
   args: { id: v.id('listings') },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const listing = await ctx.db.get(args.id);
+    if (!listing) return null;
+
+    // If listing is hidden, only allow owner to see it
+    if (listing.isHidden) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity || identity.subject !== listing.sellerId) {
+        return null; // Hidden from non-owners
+      }
+    }
+
+    return listing;
   },
 });
 
@@ -165,6 +178,9 @@ export const searchAndFilterListings = query({
     if (filters.maxPrice !== undefined) {
       results = results.filter((l) => l.price <= filters.maxPrice!);
     }
+
+    // Filter out hidden content
+    results = results.filter((l) => l.isHidden !== true);
 
     // Apply sorting
     const sortBy = filters.sortBy ?? 'newest';
@@ -360,10 +376,31 @@ export const deleteListing = mutation({
 export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
         q.search('title', args.searchTerm).eq('status', 'active')
+      )
+      .collect();
+
+    // Filter out hidden content
+    return results.filter((l) => l.isHidden !== true);
+  },
+});
+
+// Get user's own hidden listings (for owner awareness)
+export const getMyHiddenListings = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('You must be logged in to view your hidden listings');
+    }
+
+    return await ctx.db
+      .query('listings')
+      .filter((q) =>
+        q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
   },
