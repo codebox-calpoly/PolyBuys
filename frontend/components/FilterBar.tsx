@@ -1,42 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import TagPicker from './TagPicker';
+import { CATEGORY_LABELS } from '../types/filters';
+import type { Category, Filters } from '../types/filters';
 
-export type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
-
-export interface Filters {
-  category?: Category;
-  minPrice?: number;
-  maxPrice?: number;
-}
+// Re-export for backward compatibility
+export type { Category, Filters };
 
 interface FilterBarProps {
   filters: Filters;
+  selectedTags: string[];
   onCategoryPress: () => void;
   onPricePress: () => void;
+  onTagsChange: (tags: string[]) => void;
   onClearCategory: () => void;
   onClearPrice: () => void;
+  onClearTags: () => void;
   onClearAll: () => void;
 }
 
-const CATEGORY_LABELS: Record<Category, string> = {
-  textbooks: 'Textbooks',
-  electronics: 'Electronics',
-  furniture: 'Furniture',
-  tickets: 'Tickets',
-  other: 'Other',
-};
-
 export function FilterBar({
   filters,
+  selectedTags,
   onCategoryPress,
   onPricePress,
+  onTagsChange,
   onClearCategory,
   onClearPrice,
+  onClearTags,
   onClearAll,
 }: FilterBarProps) {
+  const [tagPickerVisible, setTagPickerVisible] = useState(false);
+
   const hasCategory = !!filters.category;
   const hasPrice = filters.minPrice !== undefined || filters.maxPrice !== undefined;
-  const hasAnyFilter = hasCategory || hasPrice;
+  const hasTags = selectedTags.length > 0;
+  const hasAnyFilter = hasCategory || hasPrice || hasTags;
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
@@ -49,6 +48,10 @@ export function FilterBar({
       return `Under $${filters.maxPrice}`;
     }
     return 'Price';
+  };
+
+  const handleTagFilterPress = () => {
+    setTagPickerVisible(true);
   };
 
   return (
@@ -94,6 +97,24 @@ export function FilterBar({
           )}
         </View>
 
+        {/* Tags Filter Chip */}
+        <View style={[styles.chip, hasTags && styles.chipActive]}>
+          <TouchableOpacity style={styles.chipMainButton} onPress={handleTagFilterPress}>
+            <Text style={[styles.chipText, hasTags && styles.chipTextActive]}>
+              {hasTags ? `Tags (${selectedTags.length})` : 'Tags'}
+            </Text>
+          </TouchableOpacity>
+          {hasTags && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={onClearTags}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.clearButtonText}>×</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Clear All Button */}
         {hasAnyFilter && (
           <TouchableOpacity style={styles.clearAllButton} onPress={onClearAll}>
@@ -101,6 +122,13 @@ export function FilterBar({
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      <TagPicker
+        visible={tagPickerVisible}
+        selectedTags={selectedTags}
+        onSelectTags={onTagsChange}
+        onClose={() => setTagPickerVisible(false)}
+      />
     </View>
   );
 }
@@ -117,13 +145,10 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f0f0f0',
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    padding: 0, // Reset padding as inner elements handle spacing
     overflow: 'hidden',
   },
   chipMainButton: {

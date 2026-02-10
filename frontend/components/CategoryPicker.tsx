@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
-import type { Category } from './FilterBar';
+import { CATEGORIES } from '../types/filters';
+import type { Category } from '../types/filters';
 
 interface CategoryPickerProps {
   visible: boolean;
@@ -8,15 +9,6 @@ interface CategoryPickerProps {
   onSelect: (category: Category | undefined) => void;
   onClose: () => void;
 }
-
-const CATEGORIES: { value: Category | undefined; label: string }[] = [
-  { value: undefined, label: 'All Categories' },
-  { value: 'textbooks', label: 'Textbooks' },
-  { value: 'electronics', label: 'Electronics' },
-  { value: 'furniture', label: 'Furniture' },
-  { value: 'tickets', label: 'Tickets' },
-  { value: 'other', label: 'Other' },
-];
 
 export function CategoryPicker({
   visible,

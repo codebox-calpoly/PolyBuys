@@ -27,6 +27,8 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ title: 'PolyBuys' }} />
         <Stack.Screen name="listings/[id]" options={{ title: 'Listing Details' }} />
+        <Stack.Screen name="listings/new" options={{ title: 'Create Listing' }} />
+        <Stack.Screen name="listings/[id]/edit" options={{ title: 'Edit Listing' }} />
         <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerShown: false }} />
       </Stack>
     </ConvexAuthProvider>
