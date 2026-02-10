@@ -54,6 +54,15 @@ export default defineSchema({
   users: defineTable({
     email: v.string(),
     name: v.union(v.string(), v.null()),
+    emailVerified: v.optional(v.boolean()),
+    createdAt: v.number(),
+  }).index('by_email', ['email']),
+
+  otpCodes: defineTable({
+    email: v.string(),
+    codeHash: v.string(), // Never store plain OTP
+    expiresAt: v.number(),
+    attempts: v.number(), // Track failed attempts
     createdAt: v.number(),
   }).index('by_email', ['email']),
 
