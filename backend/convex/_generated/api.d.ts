@@ -14,8 +14,8 @@ import type * as crypto from "../crypto.js";
 import type * as email from "../email.js";
 import type * as http from "../http.js";
 import type * as listings from "../listings.js";
-import type * as otpAuth from "../otpAuth.js";
 import type * as messages from "../messages.js";
+import type * as otpAuth from "../otpAuth.js";
 import type * as profiles from "../profiles.js";
 import type * as users from "../users.js";
 
@@ -32,8 +32,8 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   http: typeof http;
   listings: typeof listings;
-  otpAuth: typeof otpAuth;
   messages: typeof messages;
+  otpAuth: typeof otpAuth;
   profiles: typeof profiles;
   users: typeof users;
 }>;

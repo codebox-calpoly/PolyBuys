@@ -216,22 +216,7 @@ export const getListings = query({
 
     let results: Doc<'listings'>[];
 
-    if (normalizedTags.length > 0) {
-      const listingMap = new Map<string, Doc<'listings'>>();
-      for (const tag of normalizedTags) {
-        const tagResults = await ctx.db
-          .query('listings')
-          .withIndex('by_tag', (q) => {
-            // @ts-expect-error Convex allows array-index element matching (tag is a string).
-            return q.eq('tags', tag);
-          })
-          .collect();
-        for (const listing of tagResults) {
-          listingMap.set(listing._id, listing);
-        }
-      }
-      results = Array.from(listingMap.values());
-    } else if (args.category) {
+    if (args.category) {
       results = await ctx.db
         .query('listings')
         .withIndex('by_status_category', (q) =>
@@ -247,7 +232,7 @@ export const getListings = query({
 
     // Apply filters in memory
     if (normalizedTags.length > 0) {
-      results = results.filter((l) => l.status === 'active');
+      results = results.filter((l) => (l.tags ?? []).some((tag) => normalizedTags.includes(tag)));
     }
     if (args.category) {
       results = results.filter((l) => l.category === args.category);

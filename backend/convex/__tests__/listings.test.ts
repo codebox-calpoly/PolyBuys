@@ -361,9 +361,7 @@ describe('Listings mutations', () => {
 });
 
 describe('Listings queries', () => {
-  it.skip('getListings filters by tags and combines with category/price', async () => {
-    // Skipped: convex-test does not currently model array index element matching for tags.
-    // This test is intended for integration against a real Convex backend.
+  it('getListings filters by tags and combines with category/price', async () => {
     const t = convexTest(schema as any, modules);
     const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
 
