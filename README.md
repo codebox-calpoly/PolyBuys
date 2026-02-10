@@ -43,7 +43,6 @@ PolyBuys/
 - [Lorinc Heutchy](https://www.linkedin.com/in/lorinc-heutchy) - Developer
 - [Haixin Huang](https://www.linkedin.com/in/haixin-huang-116799200) - Developer
 - [Domenic Federico](www.linkedin.com/in/domenic-federico-0b85b8298) - Developer
-- [Omar Garcia](https://www.linkedin.com/) - Developer
 
 ## Getting Started
 

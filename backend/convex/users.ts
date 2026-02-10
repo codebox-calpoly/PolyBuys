@@ -114,6 +114,7 @@ export const getOrCreateUser = mutation({
     const profileId = await ctx.db.insert('users', {
       email,
       name: authUser.name || null,
+      emailVerified: false,
       createdAt: Date.now(),
     });
 
