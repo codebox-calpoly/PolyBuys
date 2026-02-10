@@ -23,6 +23,9 @@ export default defineSchema({
       v.literal('inactive'),
       v.literal('deleted')
     ),
+    isHidden: v.optional(v.boolean()),
+    hiddenAt: v.optional(v.number()),
+    hiddenReason: v.optional(v.string()),
     createdAt: v.number(),
     postedOn: v.number(),
     tags: v.optional(v.array(v.string())),
@@ -48,6 +51,9 @@ export default defineSchema({
     year: v.number(),
     rating: v.number(),
     review_count: v.number(),
+    isHidden: v.optional(v.boolean()),
+    hiddenAt: v.optional(v.number()),
+    hiddenReason: v.optional(v.string()),
   })
     .index('by_name', ['name'])
     .index('by_userId', ['userId']),
@@ -58,6 +64,16 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_email', ['email']),
 
+  reports: defineTable({
+    targetId: v.string(), // Can be listing or profile ID
+    targetType: v.union(v.literal('listing'), v.literal('profile')),
+    reporterId: v.id('users'),
+    reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_target', ['targetId', 'targetType'])
+    .index('by_reporter', ['reporterId']),
   otpCodes: defineTable({
     email: v.string(),
     codeHash: v.string(), // Never store plain OTP
