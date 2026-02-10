@@ -93,90 +93,15 @@ const categoryValidator = v.union(
 // Condition validator for reuse
 const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
 
-// Get all active listings with filtering support
-export const getListings = query({
-  args: {
-    category: v.optional(categoryValidator),
-    minPrice: v.optional(v.number()),
-    maxPrice: v.optional(v.number()),
-    limit: v.optional(v.number()), // default 20
-    tags: v.optional(v.array(v.string())),
-  },
-  handler: async (ctx, args) => {
-    // Validate price filters
-    if (args.minPrice !== undefined && !Number.isFinite(args.minPrice)) {
-      throw new Error('minPrice must be non-negative');
-    }
-    if (args.minPrice !== undefined && args.minPrice < 0) {
-      throw new Error('minPrice must be non-negative');
-    }
-    if (args.maxPrice !== undefined && !Number.isFinite(args.maxPrice)) {
-      throw new Error('maxPrice must be non-negative');
-    }
-    if (args.maxPrice !== undefined && args.maxPrice < 0) {
-      throw new Error('maxPrice must be non-negative');
-    }
-
-    if (
-      args.maxPrice !== undefined &&
-      args.minPrice !== undefined &&
-      args.maxPrice < args.minPrice
-    ) {
-      throw new Error('maxPrice must be greater than or equal to minPrice');
-    }
-
-    // Validate and normalize limit: default 20, min 1, max 100
-    const limit =
-      args.limit !== undefined ? Math.max(1, Math.min(100, Math.floor(args.limit))) : 20;
-
-    // Use by_status index for active listings
-    const query = ctx.db
-      .query('listings')
-      .withIndex('by_status', (q) => q.eq('status', 'active'))
-      .order('desc');
-
-    // Apply filters
-    let listings = await query
-      .filter((q) => {
-        let conditions = q.eq(q.field('status'), 'active');
-
-        // Exclude hidden listings
-        conditions = q.and(conditions, q.neq(q.field('isHidden'), true));
-
-        if (args.category) {
-          conditions = q.and(conditions, q.eq(q.field('category'), args.category));
-        }
-        if (args.minPrice !== undefined) {
-          conditions = q.and(conditions, q.gte(q.field('price'), args.minPrice));
-        }
-        if (args.maxPrice !== undefined) {
-          conditions = q.and(conditions, q.lte(q.field('price'), args.maxPrice));
-        }
-
-        return conditions;
-      })
-      .take(limit);
-
-    // Filter by tags if provided (OR logic: show listings with ANY selected tag)
-    if (args.tags && args.tags.length > 0) {
-      listings = listings.filter((listing) => {
-        if (!listing.tags || listing.tags.length === 0) return false;
-        return args.tags!.some((tag) => listing.tags!.includes(tag));
-      });
-    }
-
-    return listings;
-  },
-});
-
-// Get current user's identity subject
-export const getCurrentUserSubject = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    return identity?.subject ?? null;
-  },
-});
+function normalizeSearchTags(tags: string[]): string[] {
+  return [
+    ...new Set(
+      tags
+        .map((tag) => tag.trim().toLowerCase())
+        .filter((tag) => tag.length >= 1 && tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH)
+    ),
+  ];
+}
 
 // Get a single listing by ID
 // Owners can see their own hidden listings, others cannot
@@ -311,6 +236,80 @@ export const searchAndFilterListings = query({
       nextCursor,
       hasMore,
     };
+  },
+});
+
+// Get all active listings with optional tag/category/price filters
+export const getListings = query({
+  args: {
+    category: v.optional(categoryValidator),
+    minPrice: v.optional(v.number()),
+    maxPrice: v.optional(v.number()),
+    tags: v.optional(v.array(v.string())),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Validate price filters
+    if (args.minPrice !== undefined && args.minPrice < 0) {
+      throw new Error('minPrice must be non-negative');
+    }
+    if (args.maxPrice !== undefined && args.maxPrice < 0) {
+      throw new Error('maxPrice must be non-negative');
+    }
+    if (
+      args.maxPrice !== undefined &&
+      args.minPrice !== undefined &&
+      args.maxPrice < args.minPrice
+    ) {
+      throw new Error('maxPrice must be greater than or equal to minPrice');
+    }
+
+    const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
+
+    let results: Doc<'listings'>[];
+
+    if (args.category) {
+      results = await ctx.db
+        .query('listings')
+        .withIndex('by_status_category', (q) =>
+          q.eq('status', 'active').eq('category', args.category!)
+        )
+        .collect();
+    } else {
+      results = await ctx.db
+        .query('listings')
+        .withIndex('by_status', (q) => q.eq('status', 'active'))
+        .collect();
+    }
+
+    // Apply filters in memory
+    results = results.filter((l) => !l.isHidden);
+    if (normalizedTags.length > 0) {
+      results = results.filter((l) => (l.tags ?? []).some((tag) => normalizedTags.includes(tag)));
+    }
+    if (args.minPrice !== undefined) {
+      results = results.filter((l) => l.price >= args.minPrice!);
+    }
+    if (args.maxPrice !== undefined) {
+      results = results.filter((l) => l.price <= args.maxPrice!);
+    }
+
+    // Sort newest first using _creationTime for stable ordering
+    results.sort((a, b) => b._creationTime - a._creationTime);
+
+    // Apply cursor/limit pagination (if provided)
+    let startIndex = 0;
+    if (args.cursor) {
+      const cursorIndex = parseInt(args.cursor, 10);
+      if (!isNaN(cursorIndex) && cursorIndex >= 0) {
+        startIndex = cursorIndex;
+      }
+    }
+
+    const limit = args.limit && args.limit > 0 ? args.limit : undefined;
+    const endIndex = limit !== undefined ? startIndex + limit : results.length;
+    return results.slice(startIndex, endIndex);
   },
 });
 
@@ -470,5 +469,14 @@ export const getMyHiddenListings = query({
         q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
+  },
+});
+
+// Get current user's identity subject
+export const getCurrentUserSubject = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
   },
 });

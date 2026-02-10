@@ -18,19 +18,19 @@ const modules = {
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
 
-describe('Listings mutations', () => {
-  // Helper: base valid args for createListing
-  const baseArgs = {
-    title: 'Great textbook for CSC 202',
-    description: 'Gently used, highlights in a few chapters.',
-    price: 50,
-    sellerEmail: 'test@example.com',
-    category: 'textbooks' as const,
-    images: ['https://example.com/book1.png'],
-    condition: 'used' as const,
-    tags: ['csc202'],
-  };
+// Helper: base valid args for createListing
+const baseArgs = {
+  title: 'Great textbook for CSC 202',
+  description: 'Gently used, highlights in a few chapters.',
+  price: 50,
+  sellerEmail: 'test@example.com',
+  category: 'textbooks' as const,
+  images: ['https://example.com/book1.png'],
+  condition: 'used' as const,
+  tags: ['csc202'],
+};
 
+describe('Listings mutations', () => {
   it('createListing succeeds with valid data', async () => {
     const t = convexTest(schema as any, modules);
 
@@ -360,17 +360,7 @@ describe('Listings mutations', () => {
   });
 });
 
-describe('getListings query with filters', () => {
-  const baseArgs = {
-    title: 'Great textbook for CSC 202',
-    description: 'Gently used, highlights in a few chapters.',
-    price: 50,
-    sellerEmail: 'test@example.com',
-    category: 'textbooks' as const,
-    images: ['https://example.com/book1.png'],
-    condition: 'used' as const,
-  };
-
+describe('Listings queries', () => {
   it('returns listings newest first', async () => {
     const t = convexTest(schema as any, modules);
     const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
@@ -507,5 +497,75 @@ describe('getListings query with filters', () => {
     await expect(async () => {
       await t.query(api.listings.getListings, { minPrice: 100, maxPrice: 50 });
     }).rejects.toThrowError('maxPrice must be greater than or equal to minPrice');
+  });
+
+  it('filters by tags and combines with category/price', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({ name: 'Alice', subject: 'alice-id' });
+
+    const deskId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Wood Desk',
+      price: 80,
+      category: 'furniture',
+      tags: ['desk', 'wood'],
+    });
+
+    const chairId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Wood Chair',
+      price: 120,
+      category: 'furniture',
+      tags: ['chair', 'wood'],
+    });
+
+    const laptopId = await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Gaming Laptop',
+      price: 900,
+      category: 'electronics',
+      tags: ['laptop', 'gaming'],
+    });
+
+    await asUser.mutation(api.listings.createListing, {
+      ...baseArgs,
+      title: 'CSC101 Book',
+      price: 50,
+      category: 'textbooks',
+      tags: ['csc101'],
+    });
+
+    const ids = (listings: Array<{ _id: string }>) => listings.map((listing) => listing._id).sort();
+
+    const singleTag = await t.query(api.listings.getListings, { tags: ['desk'] });
+    expect(ids(singleTag)).toEqual([deskId]);
+
+    const multipleTags = await t.query(api.listings.getListings, { tags: ['desk', 'gaming'] });
+    expect(ids(multipleTags)).toEqual([deskId, laptopId].sort());
+
+    const tagAndCategory = await t.query(api.listings.getListings, {
+      tags: ['wood'],
+      category: 'furniture',
+    });
+    expect(ids(tagAndCategory)).toEqual([deskId, chairId].sort());
+
+    const tagAndPrice = await t.query(api.listings.getListings, {
+      tags: ['wood'],
+      maxPrice: 100,
+    });
+    expect(ids(tagAndPrice)).toEqual([deskId]);
+
+    const tagCategoryPrice = await t.query(api.listings.getListings, {
+      tags: ['wood'],
+      category: 'furniture',
+      maxPrice: 100,
+    });
+    expect(ids(tagCategoryPrice)).toEqual([deskId]);
+
+    const caseInsensitive = await t.query(api.listings.getListings, { tags: ['DeSk'] });
+    expect(ids(caseInsensitive)).toEqual([deskId]);
+
+    const noMatches = await t.query(api.listings.getListings, { tags: ['nonexistent'] });
+    expect(noMatches).toEqual([]);
   });
 });
