@@ -10,6 +10,7 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
+    "@auth/core": "^0.37.4",
     "@convex-dev/auth": "^0.0.90",
     "@oslojs/crypto": "^1.0.1",
     "@polybuys/shared": "*",
