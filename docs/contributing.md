@@ -244,6 +244,7 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 **Backend** (`backend/.env.local`):
 
 - `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
+- `CONVEX_SELF_HOSTED_ACTIONS_URL` - Self-hosted Convex actions URL: `https://actions.polybuys.com`
 - `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (get from tech leads)
 - `AUTH_RESEND_KEY` - Resend API key for sending verification emails (get from tech leads)
 
