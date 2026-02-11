@@ -6,19 +6,14 @@ module.exports = {
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/packages/shared',
   },
-  testPathIgnorePatterns: [],
-  // Use ts-jest to transform TypeScript files
+  testPathIgnorePatterns: ['/node_modules/'],
+
   transform: {
-    '^.+\\.tsx?$': [
-      'ts-jest',
-      {
-        tsconfig: {
-          // Tell ts-jest to parse JSX/TypeScript syntax
-          jsx: 'react',
-          esModuleInterop: true,
-          allowSyntheticDefaultImports: true,
-        },
-      },
-    ],
+    '^.+\\.(t|j)sx?$': 'babel-jest',
   },
+
+  // ✅ Transform ESM deps that ship untranspiled in node_modules
+  transformIgnorePatterns: ['/node_modules/(?!convex-test/)'],
+
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
 };

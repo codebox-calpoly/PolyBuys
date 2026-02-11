@@ -2,14 +2,22 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.ts'],
   collectCoverageFrom: ['**/*.ts', '!**/__tests__/**', '!**/_generated/**'],
+
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/../packages/shared',
-    '^./_generated/server$': '<rootDir>/convex/__mocks__/server.js',
+    '^.+/_generated/server$': '<rootDir>/backend/convex/__mocks__/server.js',
   },
+
   testPathIgnorePatterns: [],
-  // Use ts-jest to transform TypeScript files
+
+  // ⭐ Treat both TS and JS as ESM
+  extensionsToTreatAsEsm: ['.ts', '.js'],
+
+  // ⭐ Allow convex-test to be transformed
+  transformIgnorePatterns: ['node_modules/(?!convex-test)'],
+
   transform: {
-    '^.+\\.tsx?$': [
+    '^.+\\.[tj]sx?$': [
       'ts-jest',
       {
         tsconfig: {
@@ -18,6 +26,7 @@ module.exports = {
           isolatedModules: true,
           types: ['jest', 'node'],
         },
+        useESM: true,
       },
     ],
   },

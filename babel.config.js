@@ -3,10 +3,14 @@ module.exports = {
     [
       '@babel/preset-env',
       {
-        targets: {
-          node: 'current',
-        },
+        targets: { node: 'current' },
         modules: 'commonjs',
+      },
+    ],
+    [
+      '@babel/preset-typescript',
+      {
+        allowDeclareFields: true,
       },
     ],
   ],
