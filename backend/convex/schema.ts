@@ -7,6 +7,7 @@ export default defineSchema({
     description: v.string(),
     price: v.number(),
     sellerId: v.string(), // Auth identity subject
+    sellerEmail: v.optional(v.string()),
     images: v.array(v.string()),
     condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
     category: v.union(
