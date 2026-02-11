@@ -41,6 +41,7 @@ Ask tech leads for:
 
 ```bash
 CONVEX_SELF_HOSTED_URL='https://api.polybuys.com'
+CONVEX_SELF_HOSTED_ACTIONS_URL='https://actions.polybuys.com'
 CONVEX_SELF_HOSTED_ADMIN_KEY='<admin-key>'
 ```
 
