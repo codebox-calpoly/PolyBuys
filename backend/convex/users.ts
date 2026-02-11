@@ -18,7 +18,7 @@ function toPublicUser(user: Doc<'users'> | null) {
     _creationTime: user._creationTime,
     email,
     name: user.name ?? null,
-    emailVerified: user.emailVerified ?? Boolean(user.emailVerificationTime),
+    emailVerified: user.emailVerified ?? false,
     createdAt: user.createdAt ?? user._creationTime,
   };
 }
@@ -60,9 +60,9 @@ export const updateUserProfile = mutation({
 
     await ctx.db.patch(userId, {
       email: normalizedUser.email,
-      name: args.name,
+      name: args.name ?? undefined,
       createdAt: authUser.createdAt ?? authUser._creationTime,
-      emailVerified: authUser.emailVerified ?? Boolean(authUser.emailVerificationTime),
+      emailVerified: authUser.emailVerified ?? false,
     });
 
     const updatedUser = await ctx.db.get(userId);
@@ -96,8 +96,8 @@ export const getOrCreateUser = mutation({
     await ctx.db.patch(userId, {
       email: normalizedUser.email,
       createdAt: authUser.createdAt ?? authUser._creationTime,
-      emailVerified: authUser.emailVerified ?? Boolean(authUser.emailVerificationTime),
-      name: authUser.name ?? null,
+      emailVerified: authUser.emailVerified ?? false,
+      name: authUser.name ?? undefined,
     });
 
     const updatedUser = await ctx.db.get(userId);

@@ -93,15 +93,14 @@ describe('Users queries and mutations', () => {
       expect(currentUser).toBeNull();
     });
 
-    it('uses emailVerificationTime as fallback for emailVerified', async () => {
+    it('uses emailVerified field', async () => {
       const t = createConvexTest();
 
-      const verificationTime = Date.now();
       const userId = await t.run(async (ctx) => {
         return await ctx.db.insert('users', {
           email: 'alice@calpoly.edu',
           name: 'Alice Smith',
-          emailVerificationTime: verificationTime,
+          emailVerified: true,
           createdAt: Date.now(),
         });
       });
@@ -264,8 +263,7 @@ describe('Users queries and mutations', () => {
           email: 'ALICE@calpoly.edu',
           name: 'Alice',
           createdAt,
-          emailVerificationTime: Date.now(),
-          // emailVerified not set, so it will fall back to emailVerificationTime
+          emailVerified: true,
         });
       });
 
@@ -279,7 +277,7 @@ describe('Users queries and mutations', () => {
 
       expect(user.email).toBe('alice@calpoly.edu');
       expect(user.name).toBe('Alice');
-      expect(user.emailVerified).toBe(true); // Uses emailVerificationTime
+      expect(user.emailVerified).toBe(true);
       expect(user.createdAt).toBe(createdAt);
     });
 
