@@ -42,10 +42,15 @@ export default function HomeScreen() {
   useEffect(() => {
     if (tags) {
       const tagArray = Array.isArray(tags) ? tags : [tags];
-      setSelectedTags(tagArray);
+      setSelectedTags((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(tagArray)) {
+          return prev;
+        }
+        return tagArray;
+      });
     } else {
       // Reset tags when navigating without tag params
-      setSelectedTags([]);
+      setSelectedTags((prev) => (prev.length === 0 ? prev : []));
     }
   }, [tags]);
 
