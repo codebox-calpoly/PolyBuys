@@ -10,7 +10,7 @@ import {
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FilterBar } from '../components/FilterBar';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { PriceRangePicker } from '../components/PriceRangePicker';
@@ -38,6 +38,13 @@ export default function HomeScreen() {
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // Filter versioning to prevent stale results
+  const filterVersionRef = useRef(0);
+  const currentFilterVersionRef = useRef(0);
+
+  // Track processed cursors to avoid duplicate appends
+  const processedCursorsRef = useRef(new Set<string>());
+
   // Initialize selected tags from URL params
   useEffect(() => {
     if (tags) {
@@ -54,6 +61,9 @@ export default function HomeScreen() {
     }
   }, [tags]);
 
+  // Capture current filter version for this query
+  const queryFilterVersion = currentFilterVersionRef.current;
+
   // Query for listings with current cursor
   const listingsResult = useQuery(api.listings.getListings, {
     category: filters.category,
@@ -65,24 +75,41 @@ export default function HomeScreen() {
 
   // Update listings when query results change
   useEffect(() => {
-    if (listingsResult) {
-      if (cursor === null) {
-        // First page - replace all listings
-        setAllListings(listingsResult.page);
-      } else {
-        // Subsequent pages - append to existing listings
-        setAllListings((prev) => [...prev, ...listingsResult.page]);
+    if (listingsResult && queryFilterVersion === filterVersionRef.current) {
+      // Create a cursor identifier - use 'initial' for first page
+      const cursorId = cursor || 'initial';
+
+      // Only process if we haven't already processed this cursor
+      if (!processedCursorsRef.current.has(cursorId)) {
+        if (cursor === null) {
+          // First page - replace all listings
+          setAllListings(listingsResult.page);
+        } else {
+          // Subsequent pages - append to existing listings
+          setAllListings((prev) => [...prev, ...listingsResult.page]);
+        }
+        setIsDone(listingsResult.isDone);
+        setIsLoadingMore(false);
+
+        // Mark this cursor as processed
+        processedCursorsRef.current.add(cursorId);
       }
-      setIsDone(listingsResult.isDone);
-      setIsLoadingMore(false);
     }
-  }, [listingsResult, cursor]);
+  }, [listingsResult]);
 
   // Reset pagination when filters change
   useEffect(() => {
+    // Increment filter version to invalidate in-flight queries
+    filterVersionRef.current += 1;
+    currentFilterVersionRef.current = filterVersionRef.current;
+
+    // Reset pagination state
     setCursor(null);
     setAllListings([]);
     setIsDone(false);
+
+    // Clear processed cursors for new filter
+    processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
   const listings = allListings;

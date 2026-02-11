@@ -35,9 +35,13 @@ export default function CreateListingScreen() {
   // Redirect unauthenticated users to login
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-        { text: 'OK', onPress: () => router.replace('/auth/login') },
-      ]);
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to create a listing',
+        [{ text: 'OK', onPress: () => {} }],
+        { cancelable: false }
+      );
+      router.replace('/auth/login');
     }
   }, [isLoading, isAuthenticated, router]);
 
@@ -51,9 +55,14 @@ export default function CreateListingScreen() {
     );
   }
 
-  // Don't render form if not authenticated (will redirect)
+  // Show redirecting state if not authenticated
   if (!isAuthenticated) {
-    return null;
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Redirecting to login...</Text>
+      </View>
+    );
   }
 
   const handleAddImage = () => {

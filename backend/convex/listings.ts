@@ -370,10 +370,14 @@ export const searchAndFilterListings = query({
     const hasMore = endIndex < filtered.length;
     const nextCursor = hasMore ? String(endIndex) : null;
 
+    // If the source query was truncated at MAX_COLLECT, there may be more matching items
+    const wasTruncated = allResults.length === MAX_COLLECT;
+    const isDone = wasTruncated ? false : !hasMore;
+
     return {
       page,
-      continueCursor: nextCursor,
-      isDone: !hasMore,
+      continueCursor: wasTruncated && !hasMore ? String(endIndex) : nextCursor,
+      isDone,
     };
   },
 });
@@ -469,10 +473,14 @@ export const getListings = query({
     const hasMore = endIndex < filtered.length;
     const nextCursor = hasMore ? String(endIndex) : null;
 
+    // If the source query was truncated at MAX_COLLECT, there may be more matching items
+    const wasTruncated = allResults.length === MAX_COLLECT;
+    const isDone = wasTruncated ? false : !hasMore;
+
     return {
       page,
-      continueCursor: nextCursor,
-      isDone: !hasMore,
+      continueCursor: wasTruncated && !hasMore ? String(endIndex) : nextCursor,
+      isDone,
     };
   },
 });

@@ -56,6 +56,3 @@ jobs:
 
       - name: Build all workspaces
         run: npm run build --if-present
-
-      - name: Verify frontend build
-        run: npm run build --workspace=frontend
