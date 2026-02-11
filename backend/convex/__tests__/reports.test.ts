@@ -39,7 +39,6 @@ describe('Reports mutations', () => {
         title: 'Test Listing',
         description: 'A test listing',
         price: 50,
-        sellerEmail: 'seller@calpoly.edu',
         sellerId,
         images: ['https://example.com/image.png'],
         condition: 'used',
@@ -70,8 +69,7 @@ describe('Reports mutations', () => {
   it('createReport succeeds with valid listing report', async () => {
     const t = convexTest(schema as any, modules);
 
-    // Create user and listing
-    const userId = await createTestUser(t, 'reporter@calpoly.edu');
+    // Create listing
     const listingId = await createTestListing(t, 'seller-id');
 
     // Simulate authenticated user
@@ -97,7 +95,7 @@ describe('Reports mutations', () => {
     expect(report).toMatchObject({
       targetId: listingId,
       targetType: 'listing',
-      reporterId: userId,
+      reporterId: 'reporter-subject',
       reason: 'scam',
       notes: 'This looks like a scam',
     });
@@ -107,8 +105,7 @@ describe('Reports mutations', () => {
   it('createReport succeeds with valid profile report', async () => {
     const t = convexTest(schema as any, modules);
 
-    // Create users and profile
-    const reporterId = await createTestUser(t, 'reporter@calpoly.edu');
+    // Create profile
     const profileId = await createTestProfile(t, 'profile-user-id');
 
     const asUser = t.withIdentity({
@@ -132,7 +129,7 @@ describe('Reports mutations', () => {
     expect(report).toMatchObject({
       targetId: profileId,
       targetType: 'profile',
-      reporterId,
+      reporterId: 'reporter-subject',
       reason: 'inappropriate',
     });
   });
@@ -453,12 +450,15 @@ describe('Reports mutations', () => {
     const t = convexTest(schema as any, modules);
 
     // Create a hidden listing
-    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const seller = t.withIdentity({
+      name: 'Seller',
+      subject: 'seller-id',
+      email: 'seller@calpoly.edu',
+    });
     const listingId = await seller.mutation(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'used',
       category: 'textbooks',
@@ -474,22 +474,27 @@ describe('Reports mutations', () => {
     });
 
     // Query listings
-    const listings = await t.query(api.listings.getListings, {});
+    const listings = await t.query(api.listings.getListings, {
+      paginationOpts: { numItems: 100, cursor: null },
+    });
 
     // Hidden listing should not be in the results
-    expect(listings.find((l: any) => l._id === listingId)).toBeUndefined();
+    expect(listings.page.find((l: any) => l._id === listingId)).toBeUndefined();
   });
 
   it('owner can view their own hidden listing via getListing', async () => {
     const t = convexTest(schema as any, modules);
 
     // Create a listing
-    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const seller = t.withIdentity({
+      name: 'Seller',
+      subject: 'seller-id',
+      email: 'seller@calpoly.edu',
+    });
     const listingId = await seller.mutation(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'used',
       category: 'textbooks',
@@ -514,12 +519,15 @@ describe('Reports mutations', () => {
     const t = convexTest(schema as any, modules);
 
     // Create a listing
-    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const seller = t.withIdentity({
+      name: 'Seller',
+      subject: 'seller-id',
+      email: 'seller@calpoly.edu',
+    });
     const listingId = await seller.mutation(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'used',
       category: 'textbooks',
@@ -535,7 +543,11 @@ describe('Reports mutations', () => {
     });
 
     // Different user should get null
-    const otherUser = t.withIdentity({ name: 'Other', subject: 'other-id' });
+    const otherUser = t.withIdentity({
+      name: 'Other',
+      subject: 'other-id',
+      email: 'other@calpoly.edu',
+    });
     const listing = await otherUser.query(api.listings.getListing, { id: listingId });
     expect(listing).toBeNull();
   });
@@ -543,14 +555,17 @@ describe('Reports mutations', () => {
   it("getMyHiddenListings returns only user's hidden listings", async () => {
     const t = convexTest(schema as any, modules);
 
-    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const seller = t.withIdentity({
+      name: 'Seller',
+      subject: 'seller-id',
+      email: 'seller@calpoly.edu',
+    });
 
     // Create 2 listings
     const listingId1 = await seller.mutation(api.listings.createListing, {
       title: 'Test Listing 1',
       description: 'First listing',
       price: 50,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'used',
       category: 'textbooks',
@@ -560,7 +575,6 @@ describe('Reports mutations', () => {
       title: 'Test Listing 2',
       description: 'Second listing',
       price: 60,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'new',
       category: 'electronics',
@@ -586,14 +600,17 @@ describe('Reports mutations', () => {
   it('hidden content excluded from searchAndFilterListings', async () => {
     const t = convexTest(schema as any, modules);
 
-    const seller = t.withIdentity({ name: 'Seller', subject: 'seller-id' });
+    const seller = t.withIdentity({
+      name: 'Seller',
+      subject: 'seller-id',
+      email: 'seller@calpoly.edu',
+    });
 
     // Create a listing
     const listingId = await seller.mutation(api.listings.createListing, {
       title: 'Test Textbook',
       description: 'A test textbook',
       price: 50,
-      sellerEmail: 'seller@calpoly.edu',
       images: ['https://example.com/image.png'],
       condition: 'used',
       category: 'textbooks',
@@ -611,10 +628,11 @@ describe('Reports mutations', () => {
     // Search for it
     const results = await t.query(api.listings.searchAndFilterListings, {
       filters: { category: 'textbooks' },
+      paginationOpts: { numItems: 100, cursor: null },
     });
 
     // Should not be in results
-    expect(results.items.find((l: any) => l._id === listingId)).toBeUndefined();
+    expect(results.page.find((l: any) => l._id === listingId)).toBeUndefined();
   });
   it('auto-hide does NOT overwrite existing hidden context', async () => {
     const t = convexTest(schema as any, modules);

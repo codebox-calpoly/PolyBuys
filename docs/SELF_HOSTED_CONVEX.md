@@ -74,11 +74,18 @@ All standard Convex CLI commands work with self-hosted:
 ```bash
 cd backend
 
-# Run a function
-npx convex run listings:getListings
+# Run a query function with arguments
+npx convex run listings:getListings '{"paginationOpts":{"numItems":20,"cursor":null}}'
 
-# Create data
-npx convex run listings:createListing '{"title":"Test","description":"Testing","price":25,"sellerEmail":"test@calpoly.edu","category":"other"}'
+# Run with filters
+npx convex run listings:getListings '{"category":"textbooks","paginationOpts":{"numItems":20,"cursor":null}}'
+
+# Search and filter listings
+npx convex run listings:searchAndFilterListings '{"filters":{"category":"textbooks"},"paginationOpts":{"numItems":20,"cursor":null}}'
+
+# Create data (requires authentication - use Convex dashboard or authenticated client instead)
+# Example payload structure:
+# {"title":"Test Book","description":"Great condition","price":25,"category":"textbooks","condition":"used","images":["https://example.com/image.jpg"]}
 
 # Import data
 npx convex import --table listings data.jsonl

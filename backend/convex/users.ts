@@ -1,6 +1,27 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { query, mutation } from './_generated/server';
+import type { Doc } from './_generated/dataModel';
 import { v, ConvexError } from 'convex/values';
+
+function toPublicUser(user: Doc<'users'> | null) {
+  if (!user) {
+    return null;
+  }
+
+  const email = user.email?.toLowerCase().trim();
+  if (!email) {
+    return null;
+  }
+
+  return {
+    _id: user._id,
+    _creationTime: user._creationTime,
+    email,
+    name: user.name ?? null,
+    emailVerified: user.emailVerified ?? Boolean(user.emailVerificationTime),
+    createdAt: user.createdAt ?? user._creationTime,
+  };
+}
 
 /**
  * Get the current authenticated user's profile from our users table
@@ -13,35 +34,8 @@ export const getCurrentUser = query({
       return null;
     }
 
-    // Get the auth user record
     const authUser = await ctx.db.get(userId);
-    if (!authUser || !authUser.email) {
-      return null;
-    }
-
-    // Find user profile by email
-    const email = authUser.email.toLowerCase().trim();
-    const userProfile = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    return userProfile;
-  },
-});
-
-/**
- * Check if an email already exists
- */
-export const checkEmailExists = query({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    const existingUser = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', args.email.toLowerCase().trim()))
-      .first();
-
-    return existingUser !== null;
+    return toPublicUser(authUser);
   },
 });
 
@@ -59,25 +53,25 @@ export const updateUserProfile = mutation({
     }
 
     const authUser = await ctx.db.get(userId);
-    if (!authUser || !authUser.email) {
+    const normalizedUser = toPublicUser(authUser);
+    if (!authUser || !normalizedUser) {
       throw new ConvexError('User not found');
     }
 
-    const email = authUser.email.toLowerCase().trim();
-    const userProfile = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    if (!userProfile) {
-      throw new ConvexError('User profile not found');
-    }
-
-    await ctx.db.patch(userProfile._id, {
+    await ctx.db.patch(userId, {
+      email: normalizedUser.email,
       name: args.name,
+      createdAt: authUser.createdAt ?? authUser._creationTime,
+      emailVerified: authUser.emailVerified ?? Boolean(authUser.emailVerificationTime),
     });
 
-    return await ctx.db.get(userProfile._id);
+    const updatedUser = await ctx.db.get(userId);
+    const updatedNormalizedUser = toPublicUser(updatedUser);
+    if (!updatedNormalizedUser) {
+      throw new ConvexError('User not found');
+    }
+
+    return updatedNormalizedUser;
   },
 });
 
@@ -94,30 +88,24 @@ export const getOrCreateUser = mutation({
     }
 
     const authUser = await ctx.db.get(userId);
-    if (!authUser || !authUser.email) {
+    const normalizedUser = toPublicUser(authUser);
+    if (!authUser || !normalizedUser) {
       throw new ConvexError('Auth user not found');
     }
 
-    const email = authUser.email.toLowerCase().trim();
-
-    // Check if user profile already exists
-    const existingProfile = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    if (existingProfile) {
-      return existingProfile;
-    }
-
-    // Create new user profile
-    const profileId = await ctx.db.insert('users', {
-      email,
-      name: authUser.name || null,
-      emailVerified: false,
-      createdAt: Date.now(),
+    await ctx.db.patch(userId, {
+      email: normalizedUser.email,
+      createdAt: authUser.createdAt ?? authUser._creationTime,
+      emailVerified: authUser.emailVerified ?? Boolean(authUser.emailVerificationTime),
+      name: authUser.name ?? null,
     });
 
-    return await ctx.db.get(profileId);
+    const updatedUser = await ctx.db.get(userId);
+    const updatedNormalizedUser = toPublicUser(updatedUser);
+    if (!updatedNormalizedUser) {
+      throw new ConvexError('Auth user not found');
+    }
+
+    return updatedNormalizedUser;
   },
 });

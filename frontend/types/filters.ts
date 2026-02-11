@@ -1,4 +1,7 @@
-export type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
+import type { ListingCategory } from '@polybuys/shared';
+
+// Re-export ListingCategory as Category for frontend convenience
+export type Category = ListingCategory;
 
 export interface Filters {
   category?: Category;

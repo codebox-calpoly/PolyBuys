@@ -2,8 +2,15 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.ts'],
-  collectCoverageFrom: ['**/utils/**/*.ts', '**/types/**/*.ts'],
-  coveragePathIgnorePatterns: ['/node_modules/', '/_generated/'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  collectCoverageFrom: [
+    'backend/convex/**/*.ts',
+    'packages/shared/**/*.ts',
+    '!**/__tests__/**',
+    '!**/_generated/**',
+    '!**/node_modules/**',
+  ],
+  coveragePathIgnorePatterns: ['/node_modules/', '/_generated/', '/__tests__/'],
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/packages/shared',
   },

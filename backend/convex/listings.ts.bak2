@@ -1,4 +1,4 @@
-import { v, ConvexError } from 'convex/values';
+import { v } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -16,53 +16,32 @@ export const TAG_CONSTRAINTS = {
   MIN_TAG_LENGTH: 1,
 };
 
-export const PAYLOAD_BOUNDS = {
-  TITLE_MIN: 5,
-  TITLE_MAX: 100,
-  DESCRIPTION_MAX: 5000,
-  IMAGES_MIN: 1,
-  IMAGES_MAX: 8,
-  PRICE_MAX: 1_000_000,
-};
-
 async function verifyOwnership(
   ctx: MutationCtx,
   listingId: Id<'listings'>
 ): Promise<Doc<'listings'>> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    throw new ConvexError('You must be logged in to perform this action');
+    throw new Error('You must be logged in to perform this action');
   }
   const listing = await ctx.db.get(listingId);
   if (!listing) {
-    throw new ConvexError('Listing not found');
+    throw new Error('Listing not found');
   }
   if (listing.sellerId !== identity.subject) {
-    throw new ConvexError('You are not the owner of this listing');
+    throw new Error('You are not the owner of this listing');
   }
   return listing;
 }
 function validateTitle(title: string) {
-  if (title.length < PAYLOAD_BOUNDS.TITLE_MIN || title.length > PAYLOAD_BOUNDS.TITLE_MAX) {
-    throw new ConvexError(
-      `Title must be ${PAYLOAD_BOUNDS.TITLE_MIN}-${PAYLOAD_BOUNDS.TITLE_MAX} characters`
-    );
-  }
-}
-
-function validateDescription(description: string) {
-  if (description.length > PAYLOAD_BOUNDS.DESCRIPTION_MAX) {
-    throw new ConvexError(
-      `Description must be ${PAYLOAD_BOUNDS.DESCRIPTION_MAX} characters or less`
-    );
+  if (title.length < 5 || title.length > 100) {
+    throw new Error('Title must be 5-100 characters');
   }
 }
 
 function validateImages(images: string[]) {
-  if (images.length < PAYLOAD_BOUNDS.IMAGES_MIN || images.length > PAYLOAD_BOUNDS.IMAGES_MAX) {
-    throw new ConvexError(
-      `Must have ${PAYLOAD_BOUNDS.IMAGES_MIN}-${PAYLOAD_BOUNDS.IMAGES_MAX} images`
-    );
+  if (images.length < 1 || images.length > 8) {
+    throw new Error('Must have 1-8 images');
   }
 }
 
@@ -77,11 +56,11 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
     const normalized = tag.trim().toLowerCase();
 
     if (normalized.length === 0) {
-      throw new ConvexError('Empty tags are not allowed');
+      throw new Error('Empty tags are not allowed');
     }
 
-    if (normalized.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-      throw new ConvexError(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
+    if (normalized.length > 20) {
+      throw new Error('Tags must be 20 characters or less');
     }
 
     // Skip duplicates instead of throwing
@@ -92,8 +71,8 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
   }
 
   // Check max tags after deduplication
-  if (normalizedTags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-    throw new ConvexError(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
+  if (normalizedTags.length > 5) {
+    throw new Error('Maximum 5 tags allowed');
   }
 
   return normalizedTags;
@@ -177,7 +156,7 @@ export const searchAndFilterListings = query({
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
     if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
-      throw new ConvexError('numItems must be between 1 and 100');
+      throw new Error('numItems must be between 1 and 100');
     }
 
     const filters = args.filters ?? {};
@@ -248,9 +227,7 @@ export const searchAndFilterListings = query({
     const hasCondition = !!filters.condition;
     const needsPostFiltering =
       filters.maxPrice !== undefined ||
-      (filters.minPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc') ||
-      // Condition filter needs post-filtering when using price-based indexes (which don't include condition)
-      (filters.condition !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc'));
+      (filters.minPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc');
 
     let query;
 
@@ -340,8 +317,8 @@ export const searchAndFilterListings = query({
 
     // Need post-filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
-    const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
-
+    const  MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
+    
     const allResults = await query
       .filter((q) => q.neq(q.field('isHidden'), true))
       .take(MAX_COLLECT);
@@ -393,22 +370,22 @@ export const getListings = query({
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
     if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
-      throw new ConvexError('numItems must be between 1 and 100');
+      throw new Error('numItems must be between 1 and 100');
     }
 
     // Validate price filters
     if (args.minPrice !== undefined && args.minPrice < 0) {
-      throw new ConvexError('minPrice must be non-negative');
+      throw new Error('minPrice must be non-negative');
     }
     if (args.maxPrice !== undefined && args.maxPrice < 0) {
-      throw new ConvexError('maxPrice must be non-negative');
+      throw new Error('maxPrice must be non-negative');
     }
     if (
       args.maxPrice !== undefined &&
       args.minPrice !== undefined &&
       args.maxPrice < args.minPrice
     ) {
-      throw new ConvexError('maxPrice must be greater than or equal to minPrice');
+      throw new Error('maxPrice must be greater than or equal to minPrice');
     }
 
     const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
@@ -447,7 +424,7 @@ export const getListings = query({
     // Need tags/price filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
     const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
-
+    
     const allResults = await query
       .filter((q) => q.neq(q.field('isHidden'), true))
       .take(MAX_COLLECT);
@@ -491,20 +468,16 @@ export const createListing = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new ConvexError('You must be logged in to create a listing');
+      throw new Error('You must be logged in to create a listing');
     }
     if (!identity.email) {
-      throw new ConvexError('Authenticated user email is required to create a listing');
+      throw new Error('Authenticated user email is required to create a listing');
     }
 
     validateTitle(args.title);
-    validateDescription(args.description);
     validateImages(args.images);
     if (args.price < 0) {
-      throw new ConvexError('Price must be non-negative');
-    }
-    if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
-      throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
+      throw new Error('Price must be non-negative');
     }
     const normalizedTags = validateTags(args.tags);
     const now = Date.now();
@@ -541,7 +514,7 @@ export const updateListing = mutation({
     const listing = await verifyOwnership(ctx, args.id);
 
     if (listing.status === 'deleted') {
-      throw new ConvexError('Cannot update a deleted listing');
+      throw new Error('Cannot update a deleted listing');
     }
 
     const update: Partial<Doc<'listings'>> = {};
@@ -549,11 +522,6 @@ export const updateListing = mutation({
     if (args.title !== undefined) {
       validateTitle(args.title);
       update.title = args.title;
-    }
-
-    if (args.description !== undefined) {
-      validateDescription(args.description);
-      update.description = args.description;
     }
 
     if (args.images !== undefined) {
@@ -571,12 +539,12 @@ export const updateListing = mutation({
 
     if (args.price !== undefined) {
       if (args.price < 0) {
-        throw new ConvexError('Price must be non-negative');
-      }
-      if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
-        throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
+        throw new Error('Price must be non-negative');
       }
       update.price = args.price;
+    }
+    if (args.description !== undefined) {
+      update.description = args.description;
     }
     if (args.tags !== undefined) {
       const normalizedTags = validateTags(args.tags);
@@ -584,7 +552,7 @@ export const updateListing = mutation({
     }
 
     if (Object.keys(update).length === 0) {
-      throw new ConvexError('No valid fields to update');
+      throw new Error('No valid fields to update');
     }
 
     await ctx.db.patch(args.id, update);
@@ -638,7 +606,7 @@ export const getMyHiddenListings = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new ConvexError('You must be logged in to view your hidden listings');
+      throw new Error('You must be logged in to view your hidden listings');
     }
 
     return await ctx.db

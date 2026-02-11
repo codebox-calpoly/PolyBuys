@@ -27,6 +27,7 @@ PolyBuys/
 - Quick start & daily commands: [QUICK_START.md](QUICK_START.md)
 - Contribution process and workflow: [docs/contributing.md](docs/contributing.md)
 - Self-hosted Convex setup: [docs/SELF_HOSTED_CONVEX.md](docs/SELF_HOSTED_CONVEX.md)
+- Schema migration guide: [docs/SCHEMA_MIGRATION.md](docs/SCHEMA_MIGRATION.md)
 - Backend specifics: [backend/convex/README.md](backend/convex/README.md)
 - Issue/PR templates: [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE) and [.github/pull_request_template.md](.github/pull_request_template.md)
 - Architecture decisions: [docs/adr/](docs/adr/)

@@ -1,0 +1,125 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { convexTest } from 'convex-test';
+import schema from '../schema';
+import type { Id } from '../_generated/dataModel';
+
+// Import all Convex function modules
+import * as listingsModule from '../listings';
+import * as profilesModule from '../profiles';
+import * as usersModule from '../users';
+import * as messagesModule from '../messages';
+import * as reportsModule from '../reports';
+import * as apiModule from '../_generated/api';
+import * as serverModule from '../_generated/server';
+
+// Module configuration for convex-test
+export const modules = {
+  '../listings.ts': () => Promise.resolve(listingsModule),
+  '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../users.ts': () => Promise.resolve(usersModule),
+  '../messages.ts': () => Promise.resolve(messagesModule),
+  '../reports.ts': () => Promise.resolve(reportsModule),
+  '../_generated/api.ts': () => Promise.resolve(apiModule),
+  '../_generated/server.ts': () => Promise.resolve(serverModule),
+} as any;
+
+export interface TestUser {
+  id: Id<'users'>;
+  email: string;
+  name: string;
+  identity: {
+    name: string;
+    subject: string;
+    email: string;
+  };
+}
+
+/**
+ * Creates a test user in the database and returns user info with identity
+ */
+export async function createTestUser(t: any, email: string, name: string): Promise<TestUser> {
+  const userId = await t.run(async (ctx: any) => {
+    return await ctx.db.insert('users', {
+      email: email.toLowerCase(),
+      name,
+      emailVerified: true,
+      createdAt: Date.now(),
+    });
+  });
+
+  return {
+    id: userId,
+    email: email.toLowerCase(),
+    name,
+    identity: {
+      name,
+      subject: userId,
+      email,
+    },
+  };
+}
+
+/**
+ * Creates a test listing in the database
+ */
+export async function createTestListing(
+  t: any,
+  sellerId: Id<'users'>,
+  overrides?: Partial<{
+    title: string;
+    description: string;
+    price: number;
+    category: 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
+    images: string[];
+    condition: 'new' | 'used' | 'refurbished';
+    tags: string[];
+    status: 'active' | 'sold' | 'inactive' | 'deleted';
+  }>
+): Promise<Id<'listings'>> {
+  return await t.run(async (ctx: any) => {
+    return await ctx.db.insert('listings', {
+      sellerId,
+      title: overrides?.title ?? 'Test Listing',
+      description: overrides?.description ?? 'Test description',
+      price: overrides?.price ?? 100,
+      category: overrides?.category ?? 'textbooks',
+      images: overrides?.images ?? ['https://example.com/image.jpg'],
+      condition: overrides?.condition ?? 'new',
+      tags: overrides?.tags,
+      status: overrides?.status ?? 'active',
+      createdAt: Date.now(),
+      postedOn: Date.now(),
+    });
+  });
+}
+
+/**
+ * Creates a test conversation between buyer and seller
+ */
+export async function createTestConversation(
+  t: any,
+  listingId: Id<'listings'>,
+  buyerId: Id<'users'>,
+  sellerId: Id<'users'>
+): Promise<Id<'conversations'>> {
+  return await t.run(async (ctx: any) => {
+    const now = Date.now();
+    return await ctx.db.insert('conversations', {
+      listingId,
+      buyerId,
+      sellerId,
+      createdAt: now,
+      updatedAt: now,
+      buyerLastReadAt: now,
+      sellerLastReadAt: now,
+    });
+  });
+}
+
+/**
+ * Creates a Convex test instance with schema and modules
+ */
+export function createConvexTest() {
+  return convexTest(schema as any, modules);
+}

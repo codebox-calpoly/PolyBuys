@@ -55,11 +55,6 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Seller Information</Text>
-        <Text style={styles.sectionText}>Email: {listing.sellerEmail}</Text>
-      </View>
-
       {currentUserSubject && currentUserSubject === listing.sellerId && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -96,21 +91,6 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 24,
     lineHeight: 24,
-  },
-  section: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  sectionText: {
-    fontSize: 14,
-    color: '#666',
   },
   tagContainer: {
     flexDirection: 'row',

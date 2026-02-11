@@ -6,29 +6,55 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import TagInput from '../../components/TagInput';
+import { useAuth } from '../../hooks/useAuth';
 
 type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
 type Condition = 'new' | 'used' | 'refurbished';
 
 export default function CreateListingScreen() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const createListing = useMutation(api.listings.createListing);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [sellerEmail, setSellerEmail] = useState('');
   const [category, setCategory] = useState<Category>('other');
   const [condition, setCondition] = useState<Condition>('used');
   const [images, setImages] = useState<string[]>(['']);
   const [tags, setTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+        { text: 'OK', onPress: () => router.replace('/auth/login') },
+      ]);
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Don't render form if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const handleAddImage = () => {
     setImages([...images, '']);
@@ -62,10 +88,6 @@ export default function CreateListingScreen() {
       Alert.alert('Error', 'Please enter a valid price');
       return;
     }
-    if (!sellerEmail.trim() || !sellerEmail.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email');
-      return;
-    }
     const validImages = images.filter((img) => img.trim().length > 0);
     if (validImages.length === 0) {
       Alert.alert('Error', 'At least one image URL is required');
@@ -82,7 +104,6 @@ export default function CreateListingScreen() {
         title: trimmedTitle,
         description: description.trim(),
         price: priceNum,
-        sellerEmail: sellerEmail.trim(),
         category,
         condition,
         images: validImages,
@@ -132,18 +153,6 @@ export default function CreateListingScreen() {
           onChangeText={setPrice}
           placeholder="0.00"
           keyboardType="decimal-pad"
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Seller Email *</Text>
-        <TextInput
-          style={styles.input}
-          value={sellerEmail}
-          onChangeText={setSellerEmail}
-          placeholder="your@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
         />
       </View>
 
@@ -239,6 +248,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     padding: 20,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   title: {
     fontSize: 24,

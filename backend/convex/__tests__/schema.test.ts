@@ -15,7 +15,6 @@ describe('Convex schema', () => {
       'title',
       'description',
       'price',
-      'sellerEmail',
       'sellerId',
       'images',
       'condition',

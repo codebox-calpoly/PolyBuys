@@ -1,16 +1,29 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FilterBar } from '../components/FilterBar';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { PriceRangePicker } from '../components/PriceRangePicker';
 import ListingCard from '../components/ListingCard';
 import type { Filters, Category } from '../types/filters';
+import { useAuth } from '../hooks/useAuth';
+import type { Doc } from 'convex/_generated/dataModel';
+
+const PAGE_SIZE = 20; // Load 20 items per page
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const { tags } = useLocalSearchParams();
 
   // Filter state
@@ -18,6 +31,12 @@ export default function HomeScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
+
+  // Pagination state
+  const [allListings, setAllListings] = useState<Doc<'listings'>[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [isDone, setIsDone] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Initialize selected tags from URL params
   useEffect(() => {
@@ -30,13 +49,38 @@ export default function HomeScreen() {
     }
   }, [tags]);
 
-  // Pass all filters to query
-  const listings = useQuery(api.listings.getListings, {
+  // Query for listings with current cursor
+  const listingsResult = useQuery(api.listings.getListings, {
     category: filters.category,
     minPrice: filters.minPrice,
     maxPrice: filters.maxPrice,
     tags: selectedTags.length > 0 ? selectedTags : undefined,
+    paginationOpts: { numItems: PAGE_SIZE, cursor },
   });
+
+  // Update listings when query results change
+  useEffect(() => {
+    if (listingsResult) {
+      if (cursor === null) {
+        // First page - replace all listings
+        setAllListings(listingsResult.page);
+      } else {
+        // Subsequent pages - append to existing listings
+        setAllListings((prev) => [...prev, ...listingsResult.page]);
+      }
+      setIsDone(listingsResult.isDone);
+      setIsLoadingMore(false);
+    }
+  }, [listingsResult, cursor]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCursor(null);
+    setAllListings([]);
+    setIsDone(false);
+  }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
+
+  const listings = allListings;
 
   const hasActiveFilters =
     !!filters.category ||
@@ -81,6 +125,24 @@ export default function HomeScreen() {
     router.setParams({ tags: undefined });
   };
 
+  const handleLoadMore = useCallback(() => {
+    if (!isDone && !isLoadingMore && listingsResult?.continueCursor) {
+      setIsLoadingMore(true);
+      setCursor(listingsResult.continueCursor);
+    }
+  }, [isDone, isLoadingMore, listingsResult?.continueCursor]);
+
+  const handleCreateListing = () => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/auth/login') },
+      ]);
+      return;
+    }
+    router.push('/listings/new');
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -88,7 +150,11 @@ export default function HomeScreen() {
           <Text style={styles.title}>Welcome to PolyBuy</Text>
           <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
         </View>
-        <TouchableOpacity style={styles.createButton} onPress={() => router.push('/listings/new')}>
+        <TouchableOpacity
+          style={styles.createButton}
+          onPress={handleCreateListing}
+          disabled={isLoading}
+        >
           <Text style={styles.createButtonText}>+ Create</Text>
         </TouchableOpacity>
       </View>
@@ -120,11 +186,11 @@ export default function HomeScreen() {
         onClose={() => setShowPricePicker(false)}
       />
 
-      {listings === undefined ? (
+      {listingsResult === undefined && cursor === null ? (
         <View style={styles.centerContainer}>
           <Text>Loading...</Text>
         </View>
-      ) : listings.length === 0 ? (
+      ) : !listings || listings.length === 0 ? (
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>
             {hasActiveFilters
@@ -143,6 +209,16 @@ export default function HomeScreen() {
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => <ListingCard listing={item} />}
           contentContainerStyle={styles.listContainer}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color="#154734" />
+                <Text style={styles.footerText}>Loading more...</Text>
+              </View>
+            ) : null
+          }
         />
       )}
     </View>
@@ -209,5 +285,15 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 20,
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
   },
 });

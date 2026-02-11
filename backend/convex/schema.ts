@@ -6,8 +6,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     price: v.number(),
-    sellerEmail: v.string(),
-    sellerId: v.string(),
+    sellerId: v.string(), // Auth identity subject
     images: v.array(v.string()),
     condition: v.union(v.literal('new'), v.literal('used'), v.literal('refurbished')),
     category: v.union(
@@ -34,6 +33,16 @@ export default defineSchema({
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])
+    .index('by_status_category_createdAt', ['status', 'category', 'createdAt'])
+    .index('by_status_price', ['status', 'price'])
+    .index('by_status_category_price', ['status', 'category', 'price'])
+    .index('by_status_condition_createdAt', ['status', 'condition', 'createdAt'])
+    .index('by_status_category_condition_createdAt', [
+      'status',
+      'category',
+      'condition',
+      'createdAt',
+    ])
     .index('by_tag', ['tags'])
     .searchIndex('search_listings', {
       searchField: 'title',
@@ -41,7 +50,7 @@ export default defineSchema({
     }),
 
   profiles: defineTable({
-    userId: v.string(),
+    userId: v.string(), // Auth identity subject
     name: v.string(),
     email: v.string(),
     bio: v.optional(v.string()),
@@ -58,34 +67,84 @@ export default defineSchema({
     .index('by_name', ['name'])
     .index('by_userId', ['userId']),
   users: defineTable({
-    email: v.string(),
-    name: v.union(v.string(), v.null()),
+    // Convex Auth-compatible fields
+    name: v.optional(v.union(v.string(), v.null())),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+
+    // App-specific fields
     emailVerified: v.optional(v.boolean()),
-    createdAt: v.number(),
-  }).index('by_email', ['email']),
+    createdAt: v.optional(v.number()),
+  })
+    .index('phone', ['phone'])
+    .index('by_email', ['email']),
+
+  authSessions: defineTable({
+    userId: v.id('users'),
+    expirationTime: v.number(),
+  }).index('userId', ['userId']),
+
+  authAccounts: defineTable({
+    userId: v.id('users'),
+    provider: v.string(),
+    providerAccountId: v.string(),
+    secret: v.optional(v.string()),
+    emailVerified: v.optional(v.string()),
+    phoneVerified: v.optional(v.string()),
+  })
+    .index('userIdAndProvider', ['userId', 'provider'])
+    .index('providerAndAccountId', ['provider', 'providerAccountId']),
+
+  authRefreshTokens: defineTable({
+    sessionId: v.id('authSessions'),
+    expirationTime: v.number(),
+    firstUsedTime: v.optional(v.number()),
+    parentRefreshTokenId: v.optional(v.id('authRefreshTokens')),
+  })
+    .index('sessionId', ['sessionId'])
+    .index('sessionIdAndParentRefreshTokenId', ['sessionId', 'parentRefreshTokenId']),
+
+  authVerificationCodes: defineTable({
+    accountId: v.id('authAccounts'),
+    provider: v.string(),
+    code: v.string(),
+    expirationTime: v.number(),
+    verifier: v.optional(v.string()),
+    emailVerified: v.optional(v.string()),
+    phoneVerified: v.optional(v.string()),
+  })
+    .index('accountId', ['accountId'])
+    .index('code', ['code']),
+
+  authVerifiers: defineTable({
+    sessionId: v.optional(v.id('authSessions')),
+    signature: v.optional(v.string()),
+  }).index('signature', ['signature']),
+
+  authRateLimits: defineTable({
+    identifier: v.string(),
+    lastAttemptTime: v.number(),
+    attemptsLeft: v.number(),
+  }).index('identifier', ['identifier']),
 
   reports: defineTable({
     targetId: v.string(), // Can be listing or profile ID
     targetType: v.union(v.literal('listing'), v.literal('profile')),
-    reporterId: v.id('users'),
+    reporterId: v.string(), // Auth identity subject
     reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
     notes: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index('by_target', ['targetId', 'targetType'])
     .index('by_reporter', ['reporterId']),
-  otpCodes: defineTable({
-    email: v.string(),
-    codeHash: v.string(), // Never store plain OTP
-    expiresAt: v.number(),
-    attempts: v.number(), // Track failed attempts
-    createdAt: v.number(),
-  }).index('by_email', ['email']),
-
   conversations: defineTable({
     listingId: v.id('listings'),
-    buyerId: v.string(),
-    sellerId: v.string(),
+    buyerId: v.string(), // Auth identity subject
+    sellerId: v.string(), // Auth identity subject
     createdAt: v.number(),
     updatedAt: v.number(),
     buyerLastReadAt: v.number(),
@@ -99,8 +158,8 @@ export default defineSchema({
   messages: defineTable({
     conversationId: v.id('conversations'),
     listingId: v.id('listings'),
-    senderId: v.string(),
-    recipientId: v.string(),
+    senderId: v.string(), // Auth identity subject
+    recipientId: v.string(), // Auth identity subject
     body: v.string(),
     createdAt: v.number(),
     readAt: v.number(),
