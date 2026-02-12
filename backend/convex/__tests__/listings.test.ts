@@ -286,6 +286,22 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('Cannot update a deleted listing');
   });
 
+  it('updateListingStatus cannot change status of a deleted listing', async () => {
+    const t = convexTest(schema as any, modules);
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.deleteListing, { id: listingId });
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.updateListingStatus, {
+        id: listingId,
+        status: 'active',
+      });
+    }).rejects.toThrowError('Cannot change status of a deleted listing');
+  });
+
   it('updateListing, normalizes tags to be trimmed and in lowercase', async () => {
     const t = convexTest(schema as any, modules);
     const asOwner = t.withIdentity(ownerIdentity);
