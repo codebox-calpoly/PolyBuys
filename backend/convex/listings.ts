@@ -42,12 +42,17 @@ async function verifyOwnership(
   }
   return listing;
 }
-function validateTitle(title: string) {
-  if (title.length < PAYLOAD_BOUNDS.TITLE_MIN || title.length > PAYLOAD_BOUNDS.TITLE_MAX) {
+function validateTitle(title: string): string {
+  const trimmedTitle = title.trim();
+  if (
+    trimmedTitle.length < PAYLOAD_BOUNDS.TITLE_MIN ||
+    trimmedTitle.length > PAYLOAD_BOUNDS.TITLE_MAX
+  ) {
     throw new ConvexError(
       `Title must be ${PAYLOAD_BOUNDS.TITLE_MIN}-${PAYLOAD_BOUNDS.TITLE_MAX} characters`
     );
   }
+  return trimmedTitle;
 }
 
 function validateDescription(description: string) {
@@ -503,7 +508,7 @@ export const createListing = mutation({
       throw new ConvexError('Authenticated user email is required to create a listing');
     }
 
-    validateTitle(args.title);
+    const validatedTitle = validateTitle(args.title);
     validateDescription(args.description);
     validateImages(args.images);
     if (args.price < 0) {
@@ -516,7 +521,7 @@ export const createListing = mutation({
     const now = Date.now();
 
     const listingId = await ctx.db.insert('listings', {
-      title: args.title,
+      title: validatedTitle,
       description: args.description,
       price: args.price,
       category: args.category,
@@ -553,8 +558,8 @@ export const updateListing = mutation({
     const update: Partial<Doc<'listings'>> = {};
 
     if (args.title !== undefined) {
-      validateTitle(args.title);
-      update.title = args.title;
+      const validatedTitle = validateTitle(args.title);
+      update.title = validatedTitle;
     }
 
     if (args.description !== undefined) {

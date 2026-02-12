@@ -11,9 +11,13 @@ export default defineSchema({
     phone: v.optional(v.string()),
     emailVerified: v.optional(v.boolean()),
     createdAt: v.optional(v.number()),
+    image: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
   })
     .index('phone', ['phone'])
-    .index('by_email', ['email']),
+    .index('email', ['email']),
 
   listings: defineTable({
     title: v.string(),
