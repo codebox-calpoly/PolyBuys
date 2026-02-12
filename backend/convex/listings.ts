@@ -236,8 +236,10 @@ export const searchAndFilterListings = query({
       }
 
       // Manual pagination for search results
-      const cursor = args.paginationOpts.cursor ? parseInt(args.paginationOpts.cursor, 10) : 0;
-      const startIndex = isNaN(cursor) ? 0 : cursor;
+      const parsed = args.paginationOpts.cursor
+        ? Number.parseInt(args.paginationOpts.cursor, 10)
+        : 0;
+      const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
       const paginatedResults = results.slice(startIndex, startIndex + args.paginationOpts.numItems);
       const hasMore = startIndex + args.paginationOpts.numItems < results.length;
       const nextCursor = hasMore ? String(startIndex + args.paginationOpts.numItems) : null;
@@ -375,8 +377,8 @@ export const searchAndFilterListings = query({
 
     // Manual pagination on filtered results
     const requestedItems = args.paginationOpts.numItems;
-    const cursor = args.paginationOpts.cursor ? parseInt(args.paginationOpts.cursor, 10) : 0;
-    const startIndex = isNaN(cursor) ? 0 : cursor;
+    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
+    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
     const endIndex = startIndex + requestedItems;
     const page = filtered.slice(startIndex, endIndex);
     const hasMore = endIndex < filtered.length;
@@ -477,8 +479,8 @@ export const getListings = query({
 
     // Manual pagination on filtered results
     const requestedItems = args.paginationOpts.numItems;
-    const cursor = args.paginationOpts.cursor ? parseInt(args.paginationOpts.cursor, 10) : 0;
-    const startIndex = isNaN(cursor) ? 0 : cursor;
+    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
+    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
     const endIndex = startIndex + requestedItems;
     const page = filtered.slice(startIndex, endIndex);
     const hasMore = endIndex < filtered.length;
