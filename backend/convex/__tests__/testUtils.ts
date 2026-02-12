@@ -61,6 +61,35 @@ export async function createTestUser(t: any, email: string, name: string): Promi
 }
 
 /**
+ * Creates a test profile in the database
+ */
+export async function createTestProfile(
+  t: any,
+  userId: string,
+  overrides?: Partial<{
+    name: string;
+    email: string;
+    bio: string;
+    major: string;
+    year: number;
+  }>
+): Promise<Id<'profiles'>> {
+  return await t.run(async (ctx: any) => {
+    return await ctx.db.insert('profiles', {
+      userId,
+      name: overrides?.name ?? 'Test User',
+      email: overrides?.email ?? 'test@calpoly.edu',
+      bio: overrides?.bio,
+      major: overrides?.major ?? 'Computer Science',
+      year: overrides?.year ?? 2025,
+      joinDate: Date.now(),
+      rating: 0,
+      review_count: 0,
+    });
+  });
+}
+
+/**
  * Creates a test listing in the database
  */
 export async function createTestListing(

@@ -6,11 +6,13 @@ import { convexTest } from 'convex-test';
 import schema from '../schema';
 import { api } from '../_generated/api';
 import * as listingsModule from '../listings';
+import * as profilesModule from '../profiles';
 import * as apiModule from '../_generated/api';
 import * as serverModule from '../_generated/server';
 
 const modules = {
   '../listings.ts': () => Promise.resolve(listingsModule),
+  '../profiles.ts': () => Promise.resolve(profilesModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
@@ -27,9 +29,32 @@ const baseArgs = {
 
 const aliceIdentity = { name: 'Alice', subject: 'alice-id', email: 'alice@calpoly.edu' };
 
+/**
+ * Helper to create a test instance with profile for Alice
+ */
+async function setupTestWithProfile() {
+  const t = convexTest(schema as any, modules);
+
+  // Create profile for Alice
+  await t.run(async (ctx: any) => {
+    await ctx.db.insert('profiles', {
+      userId: aliceIdentity.subject,
+      name: aliceIdentity.name,
+      email: aliceIdentity.email,
+      major: 'Computer Science',
+      year: 2025,
+      joinDate: Date.now(),
+      rating: 0,
+      review_count: 0,
+    });
+  });
+
+  return t;
+}
+
 describe('Filtered pagination correctness', () => {
   it('searchAndFilterListings with condition filter returns only matching condition', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create listings with different conditions
@@ -64,7 +89,7 @@ describe('Filtered pagination correctness', () => {
   });
 
   it('searchAndFilterListings with condition in price_desc sort enforces filter', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
 
     await asUser.mutation(api.listings.createListing, {
@@ -91,7 +116,7 @@ describe('Filtered pagination correctness', () => {
   });
 
   it('getListings pagination cursor advances correctly with tag filtering', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create multiple listings with same tag
@@ -146,7 +171,7 @@ describe('Filtered pagination correctness', () => {
   });
 
   it('searchAndFilterListings pagination with maxPrice does not skip results', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create listings at various prices

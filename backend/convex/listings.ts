@@ -513,8 +513,14 @@ export const createListing = mutation({
     if (!identity) {
       throw new ConvexError('You must be logged in to create a listing');
     }
-    if (!identity.email) {
-      throw new ConvexError('Authenticated user email is required to create a listing');
+
+    // Verify user has completed profile setup before allowing listing creation
+    const userProfile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .unique();
+    if (!userProfile) {
+      throw new ConvexError('You must complete your profile setup before creating a listing');
     }
 
     const validatedTitle = validateTitle(args.title);

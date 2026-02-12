@@ -6,6 +6,7 @@ import { convexTest } from 'convex-test';
 import schema from '../schema';
 import { api } from '../_generated/api';
 import * as listingsModule from '../listings';
+import * as profilesModule from '../profiles';
 import * as apiModule from '../_generated/api';
 import * as serverModule from '../_generated/server';
 
@@ -14,6 +15,7 @@ import * as serverModule from '../_generated/server';
 // Wrap modules in functions to match the expected format
 const modules = {
   '../listings.ts': () => Promise.resolve(listingsModule),
+  '../profiles.ts': () => Promise.resolve(profilesModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
@@ -36,9 +38,54 @@ const otherIdentity = { name: 'Other', subject: 'other-id', email: 'other@calpol
 // Helper for pagination opts in tests
 const defaultPaginationOpts = { numItems: 100, cursor: null };
 
+/**
+ * Helper to create a test instance with profiles for common test identities
+ */
+async function setupTestWithProfiles() {
+  const t = convexTest(schema as any, modules);
+
+  // Create profiles for all common test identities
+  await t.run(async (ctx: any) => {
+    await ctx.db.insert('profiles', {
+      userId: aliceIdentity.subject,
+      name: aliceIdentity.name,
+      email: aliceIdentity.email,
+      major: 'Computer Science',
+      year: 2025,
+      joinDate: Date.now(),
+      rating: 0,
+      review_count: 0,
+    });
+
+    await ctx.db.insert('profiles', {
+      userId: ownerIdentity.subject,
+      name: ownerIdentity.name,
+      email: ownerIdentity.email,
+      major: 'Computer Science',
+      year: 2025,
+      joinDate: Date.now(),
+      rating: 0,
+      review_count: 0,
+    });
+
+    await ctx.db.insert('profiles', {
+      userId: otherIdentity.subject,
+      name: otherIdentity.name,
+      email: otherIdentity.email,
+      major: 'Computer Science',
+      year: 2025,
+      joinDate: Date.now(),
+      rating: 0,
+      review_count: 0,
+    });
+  });
+
+  return t;
+}
+
 describe('Listings mutations', () => {
   it('createListing succeeds with valid data', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     // Simulate an authenticated user
     const asUser = t.withIdentity(aliceIdentity);
@@ -67,7 +114,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when title is too short', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -79,7 +126,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when images array is empty', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -91,7 +138,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when images array is too long', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     const tooManyImages = Array.from({ length: 9 }, (_, i) => `https://example.com/img${i}.png`);
@@ -105,7 +152,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing normalizes tags to be trimmed and in lowercase', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     const unnormalized = '   fOUrTH EditION ';
@@ -124,7 +171,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing removes duplicate tags', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     const listingId = await asUser.mutation(api.listings.createListing, {
@@ -141,7 +188,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when tags array is too long', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -153,7 +200,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when tag is empty', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -165,7 +212,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when tag is >20 characters long', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -177,7 +224,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing succeeds with no tags', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     const listingId = await asUser.mutation(api.listings.createListing, {
@@ -194,7 +241,7 @@ describe('Listings mutations', () => {
   });
 
   it('createListing fails when price is negative', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
@@ -205,17 +252,21 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('Price must be non-negative');
   });
 
-  it('createListing fails when authenticated user email is missing', async () => {
-    const t = convexTest(schema as any, modules);
-    const asUserWithoutEmail = t.withIdentity({ name: 'NoEmail', subject: 'no-email-id' });
+  it('createListing fails when user has not completed profile setup', async () => {
+    const t = await setupTestWithProfiles();
+    const asUserWithoutProfile = t.withIdentity({
+      name: 'NoProfile',
+      subject: 'no-profile-id',
+      email: 'noprfile@calpoly.edu',
+    });
 
     await expect(async () => {
-      await asUserWithoutEmail.mutation(api.listings.createListing, baseArgs);
-    }).rejects.toThrowError('Authenticated user email is required to create a listing');
+      await asUserWithoutProfile.mutation(api.listings.createListing, baseArgs);
+    }).rejects.toThrowError('You must complete your profile setup before creating a listing');
   });
 
   it('updateListing allows the owner to update fields', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     // Create listing as owner
@@ -240,7 +291,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing rejects updates from non-owner', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     const asOwner = t.withIdentity(ownerIdentity);
     const asOtherUser = t.withIdentity(otherIdentity);
@@ -256,7 +307,7 @@ describe('Listings mutations', () => {
   });
 
   it('deleteListing performs a soft delete by setting status to deleted', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -271,7 +322,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing cannot update a deleted listing', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -287,7 +338,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListingStatus cannot change status of a deleted listing', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -303,7 +354,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing, normalizes tags to be trimmed and in lowercase', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const unnormalized = '   fOUrTH EditION ';
@@ -326,7 +377,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing removes duplicate tags', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -344,7 +395,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing fails when tags array is too long', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -358,7 +409,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing fails when tag is empty', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -372,7 +423,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing fails when tag is >20 characters long', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     await expect(async () => {
@@ -384,7 +435,7 @@ describe('Listings mutations', () => {
   });
 
   it('updateListing succeeds with no tags', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
     const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
@@ -404,7 +455,7 @@ describe('Listings mutations', () => {
 
 describe('Listings queries', () => {
   it('returns listings newest first', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create listings with slight delay simulation
@@ -431,7 +482,7 @@ describe('Listings queries', () => {
   });
 
   it('filters by category', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await asUser.mutation(api.listings.createListing, {
@@ -459,7 +510,7 @@ describe('Listings queries', () => {
   });
 
   it('filters by minPrice', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await asUser.mutation(api.listings.createListing, {
@@ -482,7 +533,7 @@ describe('Listings queries', () => {
   });
 
   it('filters by maxPrice', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await asUser.mutation(api.listings.createListing, {
@@ -505,7 +556,7 @@ describe('Listings queries', () => {
   });
 
   it('combines category and price filters', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     await asUser.mutation(api.listings.createListing, {
@@ -538,7 +589,7 @@ describe('Listings queries', () => {
   });
 
   it('rejects invalid minPrice', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.getListings, {
@@ -549,7 +600,7 @@ describe('Listings queries', () => {
   });
 
   it('rejects maxPrice less than minPrice', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.getListings, {
@@ -561,7 +612,7 @@ describe('Listings queries', () => {
   });
 
   it('filters by tags and combines with category/price', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
     const deskId = await asUser.mutation(api.listings.createListing, {
@@ -647,7 +698,7 @@ describe('Listings queries', () => {
   });
 
   it('non-owner cannot view sold, inactive, or deleted listings via getListing', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const owner = t.withIdentity(ownerIdentity);
     const nonOwner = t.withIdentity(otherIdentity);
 
@@ -675,7 +726,7 @@ describe('Listings queries', () => {
   });
 
   it('owner can view own sold, inactive, and deleted listings via getListing', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
     const owner = t.withIdentity(ownerIdentity);
 
     const soldId = await owner.mutation(api.listings.createListing, {
@@ -708,7 +759,7 @@ describe('Listings queries', () => {
 
 describe('Pagination bounds validation', () => {
   it('getListings rejects numItems > 100', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.getListings, {
@@ -718,7 +769,7 @@ describe('Pagination bounds validation', () => {
   });
 
   it('getListings rejects numItems < 1', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.getListings, {
@@ -728,7 +779,7 @@ describe('Pagination bounds validation', () => {
   });
 
   it('getListings accepts numItems = 1', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     const result = await t.query(api.listings.getListings, {
       paginationOpts: { numItems: 1, cursor: null },
@@ -739,7 +790,7 @@ describe('Pagination bounds validation', () => {
   });
 
   it('getListings accepts numItems = 100', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     const result = await t.query(api.listings.getListings, {
       paginationOpts: { numItems: 100, cursor: null },
@@ -750,7 +801,7 @@ describe('Pagination bounds validation', () => {
   });
 
   it('searchAndFilterListings rejects numItems > 100', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.searchAndFilterListings, {
@@ -760,7 +811,7 @@ describe('Pagination bounds validation', () => {
   });
 
   it('searchAndFilterListings rejects numItems < 1', async () => {
-    const t = convexTest(schema as any, modules);
+    const t = await setupTestWithProfiles();
 
     await expect(async () => {
       await t.query(api.listings.searchAndFilterListings, {

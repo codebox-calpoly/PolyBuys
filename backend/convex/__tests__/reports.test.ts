@@ -449,6 +449,9 @@ describe('Reports mutations', () => {
   it('hidden listing excluded from getListings query', async () => {
     const t = convexTest(schema as any, modules);
 
+    // Create profile for seller
+    await createTestProfile(t, 'seller-id');
+
     // Create a hidden listing
     const seller = t.withIdentity({
       name: 'Seller',
@@ -485,6 +488,9 @@ describe('Reports mutations', () => {
   it('owner can view their own hidden listing via getListing', async () => {
     const t = convexTest(schema as any, modules);
 
+    // Create profile for seller
+    await createTestProfile(t, 'seller-id');
+
     // Create a listing
     const seller = t.withIdentity({
       name: 'Seller',
@@ -517,6 +523,9 @@ describe('Reports mutations', () => {
 
   it('non-owner cannot view hidden listing via getListing', async () => {
     const t = convexTest(schema as any, modules);
+
+    // Create profile for seller
+    await createTestProfile(t, 'seller-id');
 
     // Create a listing
     const seller = t.withIdentity({
@@ -554,6 +563,9 @@ describe('Reports mutations', () => {
 
   it("getMyHiddenListings returns only user's hidden listings", async () => {
     const t = convexTest(schema as any, modules);
+
+    // Create profile for seller
+    await createTestProfile(t, 'seller-id');
 
     const seller = t.withIdentity({
       name: 'Seller',
@@ -599,6 +611,9 @@ describe('Reports mutations', () => {
 
   it('hidden content excluded from searchAndFilterListings', async () => {
     const t = convexTest(schema as any, modules);
+
+    // Create profile for seller
+    await createTestProfile(t, 'seller-id');
 
     const seller = t.withIdentity({
       name: 'Seller',
