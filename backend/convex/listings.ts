@@ -204,8 +204,9 @@ export const searchAndFilterListings = query({
         return sq;
       });
 
+      const MAX_SEARCH_COLLECT = 1000;
       // For search queries, we must collect since search indexes don't support paginate()
-      let results = await searchQuery.collect();
+      let results = await searchQuery.take(MAX_SEARCH_COLLECT);
 
       // Apply price range filters in memory (search indexes don't support range queries)
       if (filters.minPrice !== undefined) {
@@ -252,7 +253,8 @@ export const searchAndFilterListings = query({
     const hasCategory = !!filters.category;
     const hasCondition = !!filters.condition;
     const needsPostFiltering =
-      filters.maxPrice !== undefined ||
+      // maxPrice needs post-filtering for non-price-sorted queries (can use db-level filter for price-sorted)
+      (filters.maxPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc') ||
       (filters.minPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc') ||
       // Condition filter needs post-filtering when using price-based indexes (which don't include condition)
       (filters.condition !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc'));
@@ -332,9 +334,14 @@ export const searchAndFilterListings = query({
 
     // If no post-filtering needed, use direct pagination (most efficient)
     if (!needsPostFiltering) {
-      const paginationResult = await query
-        .filter((q) => q.neq(q.field('isHidden'), true))
-        .paginate(args.paginationOpts);
+      let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
+
+      // Apply maxPrice filter at database level for price-sorted queries
+      if (filters.maxPrice !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc')) {
+        dbQuery = dbQuery.filter((q) => q.lte(q.field('price'), filters.maxPrice!));
+      }
+
+      const paginationResult = await dbQuery.paginate(args.paginationOpts);
 
       return {
         page: paginationResult.page,
@@ -630,16 +637,18 @@ export const deleteListing = mutation({
   },
 });
 
-// Search listings by title (legacy - use searchAndFilterListings instead)
+// Search listings by title
+// @deprecated Use searchAndFilterListings instead for better filtering and pagination support
 export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
+    const MAX_SEARCH_COLLECT = 1000;
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
         q.search('title', args.searchTerm).eq('status', 'active')
       )
-      .collect();
+      .take(MAX_SEARCH_COLLECT);
 
     // Filter out hidden content
     return results.filter((l) => l.isHidden !== true);
