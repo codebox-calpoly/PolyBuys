@@ -14,8 +14,6 @@
     "@convex-dev/auth": "^0.0.90",
     "@oslojs/crypto": "^1.0.1",
     "@polybuys/shared": "*",
-    "@types/bcryptjs": "^2.4.6",
-    "bcryptjs": "^3.0.3",
     "convex": "^1.17.2",
     "resend": "^4.8.0"
   },

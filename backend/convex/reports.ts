@@ -25,23 +25,9 @@ export const createReport = mutation({
       throw new ConvexError('You must be logged in to report content');
     }
 
-    // 2. Validate and normalize email
-    if (!identity.email) {
-      throw new ConvexError('User email missing');
-    }
-    const email = identity.email.toLowerCase().trim();
+    const reporterId = identity.subject;
 
-    // 3. Get the user from the users table
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first();
-
-    if (!user) {
-      throw new ConvexError('User not found');
-    }
-
-    // 4. Validate notes length if provided
+    // 2. Validate notes length if provided
     if (args.notes && args.notes.length > MAX_NOTES_LENGTH) {
       throw new ConvexError(`Notes must be ${MAX_NOTES_LENGTH} characters or less`);
     }
@@ -77,7 +63,7 @@ export const createReport = mutation({
       .withIndex('by_target', (q) =>
         q.eq('targetId', args.targetId).eq('targetType', args.targetType)
       )
-      .filter((q) => q.eq(q.field('reporterId'), user._id))
+      .filter((q) => q.eq(q.field('reporterId'), reporterId))
       .first();
 
     if (existingReport) {
@@ -88,7 +74,7 @@ export const createReport = mutation({
     const oneDayAgo = Date.now() - ONE_DAY_MS;
     const recentReports = await ctx.db
       .query('reports')
-      .withIndex('by_reporter', (q) => q.eq('reporterId', user._id))
+      .withIndex('by_reporter', (q) => q.eq('reporterId', reporterId))
       .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
       .collect();
 
@@ -100,7 +86,7 @@ export const createReport = mutation({
     const reportId = await ctx.db.insert('reports', {
       targetId: args.targetId,
       targetType: args.targetType,
-      reporterId: user._id,
+      reporterId: reporterId,
       reason: args.reason,
       notes: args.notes,
       createdAt: Date.now(),

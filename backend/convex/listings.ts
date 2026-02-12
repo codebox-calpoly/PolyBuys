@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { v, ConvexError } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -16,32 +16,58 @@ export const TAG_CONSTRAINTS = {
   MIN_TAG_LENGTH: 1,
 };
 
+export const PAYLOAD_BOUNDS = {
+  TITLE_MIN: 5,
+  TITLE_MAX: 100,
+  DESCRIPTION_MAX: 5000,
+  IMAGES_MIN: 1,
+  IMAGES_MAX: 8,
+  PRICE_MAX: 1_000_000,
+};
+
 async function verifyOwnership(
   ctx: MutationCtx,
   listingId: Id<'listings'>
 ): Promise<Doc<'listings'>> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    throw new Error('You must be logged in to perform this action');
+    throw new ConvexError('You must be logged in to perform this action');
   }
   const listing = await ctx.db.get(listingId);
   if (!listing) {
-    throw new Error('Listing not found');
+    throw new ConvexError('Listing not found');
   }
   if (listing.sellerId !== identity.subject) {
-    throw new Error('You are not the owner of this listing');
+    throw new ConvexError('You are not the owner of this listing');
   }
   return listing;
 }
-function validateTitle(title: string) {
-  if (title.length < 5 || title.length > 100) {
-    throw new Error('Title must be 5-100 characters');
+function validateTitle(title: string): string {
+  const trimmedTitle = title.trim();
+  if (
+    trimmedTitle.length < PAYLOAD_BOUNDS.TITLE_MIN ||
+    trimmedTitle.length > PAYLOAD_BOUNDS.TITLE_MAX
+  ) {
+    throw new ConvexError(
+      `Title must be ${PAYLOAD_BOUNDS.TITLE_MIN}-${PAYLOAD_BOUNDS.TITLE_MAX} characters`
+    );
+  }
+  return trimmedTitle;
+}
+
+function validateDescription(description: string) {
+  if (description.length > PAYLOAD_BOUNDS.DESCRIPTION_MAX) {
+    throw new ConvexError(
+      `Description must be ${PAYLOAD_BOUNDS.DESCRIPTION_MAX} characters or less`
+    );
   }
 }
 
 function validateImages(images: string[]) {
-  if (images.length < 1 || images.length > 8) {
-    throw new Error('Must have 1-8 images');
+  if (images.length < PAYLOAD_BOUNDS.IMAGES_MIN || images.length > PAYLOAD_BOUNDS.IMAGES_MAX) {
+    throw new ConvexError(
+      `Must have ${PAYLOAD_BOUNDS.IMAGES_MIN}-${PAYLOAD_BOUNDS.IMAGES_MAX} images`
+    );
   }
 }
 
@@ -56,11 +82,11 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
     const normalized = tag.trim().toLowerCase();
 
     if (normalized.length === 0) {
-      throw new Error('Empty tags are not allowed');
+      throw new ConvexError('Empty tags are not allowed');
     }
 
-    if (normalized.length > 20) {
-      throw new Error('Tags must be 20 characters or less');
+    if (normalized.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
+      throw new ConvexError(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
     }
 
     // Skip duplicates instead of throwing
@@ -71,15 +97,12 @@ function validateTags(tags: string[] | undefined): string[] | undefined {
   }
 
   // Check max tags after deduplication
-  if (normalizedTags.length > 5) {
-    throw new Error('Maximum 5 tags allowed');
+  if (normalizedTags.length > TAG_CONSTRAINTS.MAX_TAGS) {
+    throw new ConvexError(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
   }
 
   return normalizedTags;
 }
-
-// Get all active listings
-const ITEMS_PER_PAGE = 20;
 
 // Category validator for reuse
 const categoryValidator = v.union(
@@ -111,12 +134,17 @@ export const getListing = query({
     const listing = await ctx.db.get(args.id);
     if (!listing) return null;
 
-    // If listing is hidden, only allow owner to see it
-    if (listing.isHidden) {
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity || identity.subject !== listing.sellerId) {
-        return null; // Hidden from non-owners
-      }
+    const identity = await ctx.auth.getUserIdentity();
+    const isOwner = !!identity && identity.subject === listing.sellerId;
+
+    // Public visibility policy: only active listings are visible to non-owners.
+    if (!isOwner && listing.status !== 'active') {
+      return null;
+    }
+
+    // Hidden listings are only visible to their owner.
+    if (!isOwner && listing.isHidden) {
+      return null;
     }
 
     return listing;
@@ -146,15 +174,24 @@ export const searchAndFilterListings = query({
         ),
       })
     ),
-    cursor: v.optional(v.string()),
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
   },
   handler: async (ctx, args) => {
+    // Validate pagination bounds to prevent DoS
+    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
+      throw new ConvexError('numItems must be between 1 and 100');
+    }
+
     const filters = args.filters ?? {};
     const searchTerm = filters.searchTerm?.trim();
+    const sortBy = filters.sortBy ?? 'newest';
 
-    let results;
-
-    // If there's a search term, use the search index
+    // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
+    // This is acceptable because search results are typically limited by search relevance.
+    // Production mitigation: Monitor search result sizes, consider limiting search to specific categories.
     if (searchTerm) {
       const searchQuery = ctx.db.query('listings').withSearchIndex('search_listings', (q) => {
         let sq = q.search('title', searchTerm).eq('status', 'active');
@@ -167,74 +204,193 @@ export const searchAndFilterListings = query({
         return sq;
       });
 
-      results = await searchQuery.collect();
-    } else {
-      // No search term - use regular query with index
-      let dbQuery;
+      const MAX_SEARCH_COLLECT = 1000;
+      // For search queries, we must collect since search indexes don't support paginate()
+      let results = await searchQuery.take(MAX_SEARCH_COLLECT);
 
-      if (filters.category) {
-        dbQuery = ctx.db
-          .query('listings')
-          .withIndex('by_status_category', (q) =>
-            q.eq('status', 'active').eq('category', filters.category!)
-          );
+      // Apply price range filters in memory (search indexes don't support range queries)
+      if (filters.minPrice !== undefined) {
+        results = results.filter((l) => l.price >= filters.minPrice!);
+      }
+      if (filters.maxPrice !== undefined) {
+        results = results.filter((l) => l.price <= filters.maxPrice!);
+      }
+
+      // Filter out hidden content
+      results = results.filter((l) => l.isHidden !== true);
+
+      // Apply sorting
+      switch (sortBy) {
+        case 'newest':
+          results.sort((a, b) => b.createdAt - a.createdAt);
+          break;
+        case 'oldest':
+          results.sort((a, b) => a.createdAt - b.createdAt);
+          break;
+        case 'price_asc':
+          results.sort((a, b) => a.price - b.price);
+          break;
+        case 'price_desc':
+          results.sort((a, b) => b.price - a.price);
+          break;
+      }
+
+      // Manual pagination for search results
+      const parsed = args.paginationOpts.cursor
+        ? Number.parseInt(args.paginationOpts.cursor, 10)
+        : 0;
+      const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+      const paginatedResults = results.slice(startIndex, startIndex + args.paginationOpts.numItems);
+      const hasMore = startIndex + args.paginationOpts.numItems < results.length;
+      const nextCursor = hasMore ? String(startIndex + args.paginationOpts.numItems) : null;
+
+      return {
+        page: paginatedResults,
+        continueCursor: nextCursor,
+        isDone: !hasMore,
+      };
+    }
+
+    // No search term - use optimized index-based queries with database-level sorting and pagination
+    const hasCategory = !!filters.category;
+    const hasCondition = !!filters.condition;
+    const needsPostFiltering =
+      // maxPrice needs post-filtering for non-price-sorted queries (can use db-level filter for price-sorted)
+      (filters.maxPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc') ||
+      (filters.minPrice !== undefined && sortBy !== 'price_asc' && sortBy !== 'price_desc') ||
+      // Condition filter needs post-filtering when using price-based indexes (which don't include condition)
+      (filters.condition !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc'));
+
+    let query;
+
+    // Choose the best index based on filters and sort order
+    if (sortBy === 'price_asc' || sortBy === 'price_desc') {
+      // Use price-based indexes for price sorting
+      if (hasCategory) {
+        if (filters.minPrice !== undefined) {
+          query = ctx.db
+            .query('listings')
+            .withIndex('by_status_category_price', (q) =>
+              q
+                .eq('status', 'active')
+                .eq('category', filters.category!)
+                .gte('price', filters.minPrice!)
+            )
+            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
+        } else {
+          query = ctx.db
+            .query('listings')
+            .withIndex('by_status_category_price', (q) =>
+              q.eq('status', 'active').eq('category', filters.category!)
+            )
+            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
+        }
       } else {
-        dbQuery = ctx.db.query('listings').withIndex('by_status', (q) => q.eq('status', 'active'));
+        if (filters.minPrice !== undefined) {
+          query = ctx.db
+            .query('listings')
+            .withIndex('by_status_price', (q) =>
+              q.eq('status', 'active').gte('price', filters.minPrice!)
+            )
+            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
+        } else {
+          query = ctx.db
+            .query('listings')
+            .withIndex('by_status_price', (q) => q.eq('status', 'active'))
+            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
+        }
+      }
+    } else {
+      // Use createdAt-based indexes for date sorting (newest/oldest)
+      if (hasCategory && hasCondition) {
+        query = ctx.db
+          .query('listings')
+          .withIndex('by_status_category_condition_createdAt', (q) =>
+            q
+              .eq('status', 'active')
+              .eq('category', filters.category!)
+              .eq('condition', filters.condition!)
+          )
+          .order(sortBy === 'oldest' ? 'asc' : 'desc');
+      } else if (hasCondition) {
+        query = ctx.db
+          .query('listings')
+          .withIndex('by_status_condition_createdAt', (q) =>
+            q.eq('status', 'active').eq('condition', filters.condition!)
+          )
+          .order(sortBy === 'oldest' ? 'asc' : 'desc');
+      } else if (hasCategory) {
+        query = ctx.db
+          .query('listings')
+          .withIndex('by_status_category_createdAt', (q) =>
+            q.eq('status', 'active').eq('category', filters.category!)
+          )
+          .order(sortBy === 'oldest' ? 'asc' : 'desc');
+      } else {
+        query = ctx.db
+          .query('listings')
+          .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
+          .order(sortBy === 'oldest' ? 'asc' : 'desc');
+      }
+    }
+
+    // If no post-filtering needed, use direct pagination (most efficient)
+    if (!needsPostFiltering) {
+      let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
+
+      // Apply maxPrice filter at database level for price-sorted queries
+      if (filters.maxPrice !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc')) {
+        dbQuery = dbQuery.filter((q) => q.lte(q.field('price'), filters.maxPrice!));
       }
 
-      results = await dbQuery.collect();
+      const paginationResult = await dbQuery.paginate(args.paginationOpts);
 
-      // Apply condition filter in memory (not in index)
-      if (filters.condition) {
-        results = results.filter((l) => l.condition === filters.condition);
-      }
+      return {
+        page: paginationResult.page,
+        continueCursor: paginationResult.continueCursor,
+        isDone: paginationResult.isDone,
+      };
     }
 
-    // Apply price range filters in memory
-    if (filters.minPrice !== undefined) {
-      results = results.filter((l) => l.price >= filters.minPrice!);
-    }
-    if (filters.maxPrice !== undefined) {
-      results = results.filter((l) => l.price <= filters.maxPrice!);
-    }
+    // Need post-filtering: collect with limit, filter, then paginate in-memory
+    // This is necessary because filters can't be expressed in indexes
+    const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
 
-    // Filter out hidden content
-    results = results.filter((l) => l.isHidden !== true);
+    const allResults = await query
+      .filter((q) => q.neq(q.field('isHidden'), true))
+      .take(MAX_COLLECT);
 
-    // Apply sorting
-    const sortBy = filters.sortBy ?? 'newest';
-    switch (sortBy) {
-      case 'newest':
-        results.sort((a, b) => b.createdAt - a.createdAt);
-        break;
-      case 'oldest':
-        results.sort((a, b) => a.createdAt - b.createdAt);
-        break;
-      case 'price_asc':
-        results.sort((a, b) => a.price - b.price);
-        break;
-      case 'price_desc':
-        results.sort((a, b) => b.price - a.price);
-        break;
-    }
+    // Apply remaining filters
+    const filtered = allResults.filter((l) => {
+      if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
+      if (
+        sortBy !== 'price_asc' &&
+        sortBy !== 'price_desc' &&
+        filters.minPrice !== undefined &&
+        l.price < filters.minPrice
+      )
+        return false;
+      // Apply condition filter if not enforced by index
+      if (filters.condition && l.condition !== filters.condition) return false;
+      return true;
+    });
 
-    // Apply cursor-based pagination
-    let startIndex = 0;
-    if (args.cursor) {
-      const cursorIndex = parseInt(args.cursor, 10);
-      if (!isNaN(cursorIndex)) {
-        startIndex = cursorIndex;
-      }
-    }
+    // Manual pagination on filtered results
+    const requestedItems = args.paginationOpts.numItems;
+    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
+    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+    const endIndex = startIndex + requestedItems;
+    const page = filtered.slice(startIndex, endIndex);
+    const hasMore = endIndex < filtered.length;
+    const nextCursor = hasMore ? String(endIndex) : null;
 
-    const paginatedResults = results.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-    const hasMore = startIndex + ITEMS_PER_PAGE < results.length;
-    const nextCursor = hasMore ? String(startIndex + ITEMS_PER_PAGE) : null;
+    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
+    const isDone = !hasMore;
 
     return {
-      items: paginatedResults,
-      nextCursor,
-      hasMore,
+      page,
+      continueCursor: nextCursor,
+      isDone,
     };
   },
 });
@@ -246,70 +402,98 @@ export const getListings = query({
     minPrice: v.optional(v.number()),
     maxPrice: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
-    limit: v.optional(v.number()),
-    cursor: v.optional(v.string()),
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
   },
   handler: async (ctx, args) => {
+    // Validate pagination bounds to prevent DoS
+    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
+      throw new ConvexError('numItems must be between 1 and 100');
+    }
+
     // Validate price filters
     if (args.minPrice !== undefined && args.minPrice < 0) {
-      throw new Error('minPrice must be non-negative');
+      throw new ConvexError('minPrice must be non-negative');
     }
     if (args.maxPrice !== undefined && args.maxPrice < 0) {
-      throw new Error('maxPrice must be non-negative');
+      throw new ConvexError('maxPrice must be non-negative');
     }
     if (
       args.maxPrice !== undefined &&
       args.minPrice !== undefined &&
       args.maxPrice < args.minPrice
     ) {
-      throw new Error('maxPrice must be greater than or equal to minPrice');
+      throw new ConvexError('maxPrice must be greater than or equal to minPrice');
     }
 
     const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
+    const hasTags = normalizedTags.length > 0;
+    const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
 
-    let results: Doc<'listings'>[];
-
+    // Use database indexes with proper ordering
+    let query;
     if (args.category) {
-      results = await ctx.db
+      query = ctx.db
         .query('listings')
-        .withIndex('by_status_category', (q) =>
+        .withIndex('by_status_category_createdAt', (q) =>
           q.eq('status', 'active').eq('category', args.category!)
         )
-        .collect();
+        .order('desc');
     } else {
-      results = await ctx.db
+      query = ctx.db
         .query('listings')
-        .withIndex('by_status', (q) => q.eq('status', 'active'))
-        .collect();
+        .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
+        .order('desc');
     }
 
-    // Apply filters in memory
-    results = results.filter((l) => !l.isHidden);
-    if (normalizedTags.length > 0) {
-      results = results.filter((l) => (l.tags ?? []).some((tag) => normalizedTags.includes(tag)));
-    }
-    if (args.minPrice !== undefined) {
-      results = results.filter((l) => l.price >= args.minPrice!);
-    }
-    if (args.maxPrice !== undefined) {
-      results = results.filter((l) => l.price <= args.maxPrice!);
+    // If no tags/price filters, use direct pagination (most efficient)
+    if (!hasTags && !hasPriceFilters) {
+      const paginationResult = await query
+        .filter((q) => q.neq(q.field('isHidden'), true))
+        .paginate(args.paginationOpts);
+
+      return {
+        page: paginationResult.page,
+        continueCursor: paginationResult.continueCursor,
+        isDone: paginationResult.isDone,
+      };
     }
 
-    // Sort newest first using _creationTime for stable ordering
-    results.sort((a, b) => b._creationTime - a._creationTime);
+    // Need tags/price filtering: collect with limit, filter, then paginate in-memory
+    // This is necessary because filters can't be expressed in indexes
+    const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
 
-    // Apply cursor/limit pagination (if provided)
-    let startIndex = 0;
-    if (args.cursor) {
-      const cursorIndex = parseInt(args.cursor, 10);
-      if (!isNaN(cursorIndex) && cursorIndex >= 0) {
-        startIndex = cursorIndex;
-      }
-    }
+    const allResults = await query
+      .filter((q) => q.neq(q.field('isHidden'), true))
+      .take(MAX_COLLECT);
 
-    const limit = args.limit && args.limit > 0 ? args.limit : undefined;
-    const endIndex = limit !== undefined ? startIndex + limit : results.length;
-    return results.slice(startIndex, endIndex);
+    // Apply tag and price filters
+    const filtered = allResults.filter((l) => {
+      if (hasTags && !(l.tags ?? []).some((tag) => normalizedTags.includes(tag))) return false;
+      if (args.minPrice !== undefined && l.price < args.minPrice) return false;
+      if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
+      return true;
+    });
+
+    // Manual pagination on filtered results
+    const requestedItems = args.paginationOpts.numItems;
+    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
+    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+    const endIndex = startIndex + requestedItems;
+    const page = filtered.slice(startIndex, endIndex);
+    const hasMore = endIndex < filtered.length;
+    const nextCursor = hasMore ? String(endIndex) : null;
+
+    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
+    const isDone = !hasMore;
+
+    return {
+      page,
+      continueCursor: nextCursor,
+      isDone,
+    };
   },
 });
 
@@ -319,7 +503,6 @@ export const createListing = mutation({
     title: v.string(),
     description: v.string(),
     price: v.number(),
-    sellerEmail: v.string(),
     category: categoryValidator,
     images: v.array(v.string()),
     condition: conditionValidator,
@@ -328,18 +511,34 @@ export const createListing = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error('You must be logged in to create a listing');
+      throw new ConvexError('You must be logged in to create a listing');
     }
 
-    validateTitle(args.title);
+    // Verify user has completed profile setup before allowing listing creation
+    const userProfile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .unique();
+    if (!userProfile) {
+      throw new ConvexError('You must complete your profile setup before creating a listing');
+    }
+
+    const validatedTitle = validateTitle(args.title);
+    validateDescription(args.description);
     validateImages(args.images);
+    if (args.price < 0) {
+      throw new ConvexError('Price must be non-negative');
+    }
+    if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
+      throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
+    }
     const normalizedTags = validateTags(args.tags);
     const now = Date.now();
+
     const listingId = await ctx.db.insert('listings', {
-      title: args.title,
+      title: validatedTitle,
       description: args.description,
       price: args.price,
-      sellerEmail: args.sellerEmail,
       category: args.category,
       images: args.images,
       condition: args.condition,
@@ -368,14 +567,19 @@ export const updateListing = mutation({
     const listing = await verifyOwnership(ctx, args.id);
 
     if (listing.status === 'deleted') {
-      throw new Error('Cannot update a deleted listing');
+      throw new ConvexError('Cannot update a deleted listing');
     }
 
     const update: Partial<Doc<'listings'>> = {};
 
     if (args.title !== undefined) {
-      validateTitle(args.title);
-      update.title = args.title;
+      const validatedTitle = validateTitle(args.title);
+      update.title = validatedTitle;
+    }
+
+    if (args.description !== undefined) {
+      validateDescription(args.description);
+      update.description = args.description;
     }
 
     if (args.images !== undefined) {
@@ -393,12 +597,12 @@ export const updateListing = mutation({
 
     if (args.price !== undefined) {
       if (args.price < 0) {
-        throw new Error('Price must be non-negative');
+        throw new ConvexError('Price must be non-negative');
+      }
+      if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
+        throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
       }
       update.price = args.price;
-    }
-    if (args.description !== undefined) {
-      update.description = args.description;
     }
     if (args.tags !== undefined) {
       const normalizedTags = validateTags(args.tags);
@@ -406,7 +610,7 @@ export const updateListing = mutation({
     }
 
     if (Object.keys(update).length === 0) {
-      throw new Error('No valid fields to update');
+      throw new ConvexError('No valid fields to update');
     }
 
     await ctx.db.patch(args.id, update);
@@ -420,7 +624,10 @@ export const updateListingStatus = mutation({
     status: v.union(v.literal('active'), v.literal('sold'), v.literal('inactive')),
   },
   handler: async (ctx, args) => {
-    await verifyOwnership(ctx, args.id);
+    const listing = await verifyOwnership(ctx, args.id);
+    if (listing.status === 'deleted') {
+      throw new ConvexError('Cannot change status of a deleted listing');
+    }
     await ctx.db.patch(args.id, { status: args.status });
   },
 });
@@ -438,16 +645,18 @@ export const deleteListing = mutation({
   },
 });
 
-// Search listings by title (legacy - use searchAndFilterListings instead)
+// Search listings by title
+// @deprecated Use searchAndFilterListings instead for better filtering and pagination support
 export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
+    const MAX_SEARCH_COLLECT = 1000;
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
         q.search('title', args.searchTerm).eq('status', 'active')
       )
-      .collect();
+      .take(MAX_SEARCH_COLLECT);
 
     // Filter out hidden content
     return results.filter((l) => l.isHidden !== true);
@@ -460,7 +669,7 @@ export const getMyHiddenListings = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error('You must be logged in to view your hidden listings');
+      throw new ConvexError('You must be logged in to view your hidden listings');
     }
 
     return await ctx.db
