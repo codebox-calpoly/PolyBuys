@@ -5,7 +5,7 @@ module.exports = {
 
   moduleNameMapper: {
     '^@polybuys/shared$': '<rootDir>/../packages/shared',
-    '^.+/_generated/server$': '<rootDir>/backend/convex/__mocks__/server.js',
+    '^.+/_generated/server$': '<rootDir>/convex/__mocks__/server.js',
   },
 
   testPathIgnorePatterns: [],

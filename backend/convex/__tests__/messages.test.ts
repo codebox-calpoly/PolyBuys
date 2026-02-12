@@ -1,87 +1,103 @@
 import { listUserConversationsHandler } from '../messages';
 
+function buildCtx({
+  userId,
+  participantRows,
+  docsById,
+}: {
+  userId: string | null;
+  participantRows?: any[];
+  docsById?: Record<string, any>;
+}) {
+  return {
+    auth: {
+      getUserIdentity: async () => (userId ? { subject: userId } : null),
+    },
+    db: {
+      get: async (id: string) => docsById?.[id] ?? null,
+      query: (table: any) => {
+        if (table === 'conversationParticipants') {
+          return {
+            withIndex: (_index: string, filterBuilder: any) => {
+              const state: { requestedUserId?: string; cursor?: number } = {};
+              filterBuilder({
+                eq: (_field: string, value: string) => {
+                  state.requestedUserId = value;
+                  return {
+                    lt: (_ltField: string, ltValue: number) => {
+                      state.cursor = ltValue;
+                      return null;
+                    },
+                  };
+                },
+              });
+
+              const filtered = (participantRows ?? [])
+                .filter((row: any) => row.userId === state.requestedUserId)
+                .filter(
+                  (row: any) => state.cursor === undefined || row.lastActivityAt < state.cursor
+                )
+                .sort((a: any, b: any) => b.lastActivityAt - a.lastActivityAt);
+
+              return {
+                order: () => ({
+                  take: async (count: number) => filtered.slice(0, count),
+                }),
+              };
+            },
+          };
+        }
+
+        throw new Error(`Unexpected query table: ${table}`);
+      },
+    },
+  };
+}
+
 describe('listUserConversations', () => {
   it('returns empty list for user with no conversations', async () => {
-    // 1. Mock ctx with empty database
-    const ctx = {
-      auth: {
-        getUserIdentity: async () => ({ subject: 'user_123' }),
-      },
-      db: {
-        query: () => ({
-          collect: async () => [], // No conversations
-        }),
-      },
-    };
+    const ctx = buildCtx({
+      userId: 'user_123',
+      participantRows: [],
+    });
 
-    // 2. Call the handler
     const result = await listUserConversationsHandler(ctx, {});
 
-    // 3. Assert
     expect(result.conversations).toEqual([]);
+    expect(result.nextCursor).toBeNull();
   });
 
-  it('filters out conversations where user is not a participant', async () => {
+  it('returns only conversations for the authenticated user', async () => {
     const userId = 'user_123';
-
-    // Mock conversations - only one includes our userId
-    const mockConversations = [
-      {
-        _id: 'conv_1',
-        buyerId: 'user_456',
-        sellerId: 'user_789',
-        participantIds: ['user_456', 'user_789'],
-        lastMessageAt: 1000,
-        createdAt: 1000,
-        listingId: 'listing_1',
-      },
-      {
-        _id: 'conv_2',
-        buyerId: userId,
-        sellerId: 'user_999',
-        participantIds: [userId, 'user_999'],
-        lastMessageAt: 2000,
-        createdAt: 1500,
-        listingId: 'listing_2',
-      },
-    ];
-
-    const ctx = {
-      auth: {
-        getUserIdentity: async () => ({ subject: userId }),
-      },
-      db: {
-        query: (table: any) => {
-          if (table === 'conversations') {
-            return {
-              collect: async () => mockConversations,
-            };
-          }
-          // For messages queries
-          return {
-            withIndex: () => ({
-              order: () => ({ first: async () => null }),
-              collect: async () => [],
-            }),
-          };
+    const ctx = buildCtx({
+      userId,
+      participantRows: [
+        { conversationId: 'conv_2', userId, lastActivityAt: 2000, unreadCount: 0 },
+        { conversationId: 'conv_1', userId: 'other_user', lastActivityAt: 3000 },
+      ],
+      docsById: {
+        conv_2: {
+          _id: 'conv_2',
+          buyerId: userId,
+          sellerId: 'user_999',
+          lastMessageAt: 2000,
+          createdAt: 1500,
+          listingId: 'listing_2',
         },
       },
-    };
+    });
 
     const result = await listUserConversationsHandler(ctx, {});
 
-    // Should only return conv_2 (where userId is a participant)
     expect(result.conversations).toHaveLength(1);
     expect(result.conversations[0].conversationId).toBe('conv_2');
   });
 
   it('throws Unauthorized when no auth identity', async () => {
-    const ctx = {
-      auth: {
-        getUserIdentity: async () => null, // Not authenticated
-      },
-      db: { query: () => ({ collect: async () => [] }) },
-    };
+    const ctx = buildCtx({
+      userId: null,
+      participantRows: [],
+    });
 
     await expect(listUserConversationsHandler(ctx, {})).rejects.toThrow('Unauthorized');
   });
@@ -89,47 +105,31 @@ describe('listUserConversations', () => {
   it('calculates unread count correctly', async () => {
     const userId = 'user_123';
 
-    const mockConversations = [
-      {
-        _id: 'conv_1',
-        buyerId: userId,
-        sellerId: 'user_999',
-        participantIds: [userId, 'user_999'],
-        lastMessageAt: 2000,
-        createdAt: 1500,
-        listingId: 'listing_2',
-      },
-    ];
-
-    const mockMessages = [
-      { senderId: 'user_999', body: 'Hi there', read: false }, // unread, from other
-      { senderId: 'user_999', body: 'How are you?', read: true }, // read
-      { senderId: userId, body: 'Good!', read: false }, // unread but from me (don't count)
-    ];
-
-    const ctx = {
-      auth: {
-        getUserIdentity: async () => ({ subject: userId }),
-      },
-      db: {
-        query: (table: any) => {
-          if (table === 'conversations') {
-            return { collect: async () => mockConversations };
-          }
-          // For messages
-          return {
-            withIndex: () => ({
-              order: () => ({ first: async () => mockMessages[0] }), // lastMsg
-              collect: async () => mockMessages,
-            }),
-          };
+    const ctx = buildCtx({
+      userId,
+      participantRows: [{ conversationId: 'conv_1', userId, lastActivityAt: 2000, unreadCount: 1 }],
+      docsById: {
+        conv_1: {
+          _id: 'conv_1',
+          buyerId: userId,
+          sellerId: 'user_999',
+          lastMessageAt: 2000,
+          lastMessageId: 'msg_1',
+          createdAt: 1500,
+          listingId: 'listing_2',
+        },
+        msg_1: {
+          _id: 'msg_1',
+          senderId: 'user_999',
+          body: 'Hi there',
+          read: false,
+          createdAt: 2000,
         },
       },
-    };
+    });
 
     const result = await listUserConversationsHandler(ctx, {});
 
-    // Only 1 unread (first message: from user_999, read: false)
     expect(result.conversations[0].unreadCount).toBe(1);
   });
 });

@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as __mocks___server from "../__mocks__/server.js";
 import type * as listings from "../listings.js";
+import type * as messages from "../messages.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +19,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "__mocks__/server": typeof __mocks___server;
   listings: typeof listings;
+  messages: typeof messages;
 }>;
 
 /**

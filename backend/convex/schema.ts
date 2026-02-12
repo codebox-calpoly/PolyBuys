@@ -53,6 +53,16 @@ export default defineSchema({
     createdAt: v.number(),
     read: v.boolean(),
   }).index('by_conversation', ['conversationId', 'createdAt']),
+  conversationParticipants: defineTable({
+    conversationId: v.id('conversations'),
+    userId: v.string(),
+    lastActivityAt: v.number(),
+    unreadCount: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user_lastActivityAt', ['userId', 'lastActivityAt'])
+    .index('by_conversationId', ['conversationId']),
   users: defineTable({
     // auth reference
     clerkId: v.string(), // from your auth provider (Clerk/Auth0/etc)

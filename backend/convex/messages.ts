@@ -43,6 +43,37 @@ export const sendMessage = mutation({
       lastMessageId: messageId,
       updatedAt: now,
     });
+
+    // Keep participant lookup rows in sync for server-side indexed conversation queries.
+    const participantRows = await ctx.db
+      .query('conversationParticipants')
+      .withIndex('by_conversationId', (q: any) => q.eq('conversationId', args.conversationId))
+      .collect();
+
+    const participantRowByUserId = new Map(participantRows.map((row: any) => [row.userId, row]));
+
+    for (const participantId of conversation.participantIds) {
+      const existingRow = participantRowByUserId.get(participantId);
+      if (existingRow) {
+        await ctx.db.patch(existingRow._id, {
+          lastActivityAt: now,
+          unreadCount:
+            participantId === senderId
+              ? (existingRow.unreadCount ?? 0)
+              : (existingRow.unreadCount ?? 0) + 1,
+          updatedAt: now,
+        });
+      } else {
+        await ctx.db.insert('conversationParticipants', {
+          conversationId: args.conversationId,
+          userId: participantId,
+          lastActivityAt: now,
+          unreadCount: participantId === senderId ? 0 : 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
   },
 });
 
@@ -55,48 +86,59 @@ export const listUserConversationsHandler = async (ctx: any, args: any) => {
   }
   const userId = identity.subject;
 
-  // Step 2: Query conversations, filter by participant
+  // Step 2: Query participant rows by indexed userId + activity timestamp.
   const limit = args.limit || 20;
-  const allConversations = await ctx.db.query('conversations').collect();
-  let conversations = allConversations
-    .filter((conv: any) => conv.participantIds.includes(userId))
-    .sort((a: any, b: any) => (b.lastMessageAt || b.createdAt) - (a.lastMessageAt || a.createdAt));
-
-  // Apply cursor filtering if provided
+  let cursorValue: number | undefined;
   if (args.cursor) {
-    const cursorValue = parseInt(args.cursor, 10);
-    conversations = conversations.filter(
-      (conv: any) => (conv.lastMessageAt || conv.createdAt) < cursorValue
-    );
+    const parsedCursor = Number.parseInt(args.cursor, 10);
+    if (!Number.isNaN(parsedCursor)) {
+      cursorValue = parsedCursor;
+    }
   }
-
-  // Fetch limit + 1 to detect if there are more results
-  conversations = conversations.slice(0, limit + 1);
+  const participantRows = await ctx.db
+    .query('conversationParticipants')
+    .withIndex('by_user_lastActivityAt', (q: any) =>
+      cursorValue === undefined
+        ? q.eq('userId', userId)
+        : q.eq('userId', userId).lt('lastActivityAt', cursorValue)
+    )
+    .order('desc')
+    .take(limit + 1);
 
   // Step 3: For each conversation (up to limit):
   const conversationList = [];
-  const displayedConversations = conversations.slice(0, limit);
+  const displayedParticipantRows = participantRows.slice(0, limit);
+  const displayedConversations = (
+    await Promise.all(
+      displayedParticipantRows.map(async (participantRow: any) => ({
+        participantRow,
+        conversation: await ctx.db.get(participantRow.conversationId),
+      }))
+    )
+  ).filter((row: any) => row.conversation !== null);
 
-  for (const conv of displayedConversations) {
+  const lastMessageByConversationId = new Map();
+  await Promise.all(
+    displayedConversations.map(async ({ conversation }: any) => {
+      if (!conversation.lastMessageId) {
+        return;
+      }
+      const lastMessage = await ctx.db.get(conversation.lastMessageId);
+      if (lastMessage) {
+        lastMessageByConversationId.set(conversation._id, lastMessage);
+      }
+    })
+  );
+
+  for (const { participantRow, conversation: conv } of displayedConversations) {
     //   - Calculate otherUserId
     const otherUserId = userId === conv.buyerId ? conv.sellerId : conv.buyerId;
 
     //   - Get lastMessagePreview
-    const lastMsg = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation', (q: any) => q.eq('conversationId', conv._id))
-      .order('desc')
-      .first();
+    const lastMsg = lastMessageByConversationId.get(conv._id);
 
     //   - Calculate unreadCount
-    const allMessages = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation', (q: any) => q.eq('conversationId', conv._id))
-      .collect();
-
-    const unreadCount = allMessages.filter(
-      (msg: any) => msg.senderId !== userId && !msg.read
-    ).length;
+    const unreadCount = participantRow.unreadCount ?? 0;
 
     //   - Build response object
     conversationList.push({
@@ -112,9 +154,9 @@ export const listUserConversationsHandler = async (ctx: any, args: any) => {
 
   // Step 4: Determine nextCursor
   let nextCursor = null;
-  if (conversations.length > limit && displayedConversations.length > 0) {
-    const lastConv = displayedConversations[displayedConversations.length - 1];
-    nextCursor = String(lastConv.lastMessageAt || lastConv.createdAt);
+  if (participantRows.length > limit && displayedParticipantRows.length > 0) {
+    const lastParticipantRow = displayedParticipantRows[displayedParticipantRows.length - 1];
+    nextCursor = String(lastParticipantRow.lastActivityAt);
   }
 
   return {
