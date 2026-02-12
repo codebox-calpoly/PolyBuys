@@ -370,13 +370,12 @@ export const searchAndFilterListings = query({
     const hasMore = endIndex < filtered.length;
     const nextCursor = hasMore ? String(endIndex) : null;
 
-    // If the source query was truncated at MAX_COLLECT, there may be more matching items
-    const wasTruncated = allResults.length === MAX_COLLECT;
-    const isDone = wasTruncated ? false : !hasMore;
+    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
+    const isDone = !hasMore;
 
     return {
       page,
-      continueCursor: wasTruncated && !hasMore ? String(endIndex) : nextCursor,
+      continueCursor: nextCursor,
       isDone,
     };
   },
@@ -473,13 +472,12 @@ export const getListings = query({
     const hasMore = endIndex < filtered.length;
     const nextCursor = hasMore ? String(endIndex) : null;
 
-    // If the source query was truncated at MAX_COLLECT, there may be more matching items
-    const wasTruncated = allResults.length === MAX_COLLECT;
-    const isDone = wasTruncated ? false : !hasMore;
+    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
+    const isDone = !hasMore;
 
     return {
       page,
-      continueCursor: wasTruncated && !hasMore ? String(endIndex) : nextCursor,
+      continueCursor: nextCursor,
       isDone,
     };
   },
@@ -606,7 +604,10 @@ export const updateListingStatus = mutation({
     status: v.union(v.literal('active'), v.literal('sold'), v.literal('inactive')),
   },
   handler: async (ctx, args) => {
-    await verifyOwnership(ctx, args.id);
+    const listing = await verifyOwnership(ctx, args.id);
+    if (listing.status === 'deleted') {
+      throw new ConvexError('Cannot change status of a deleted listing');
+    }
     await ctx.db.patch(args.id, { status: args.status });
   },
 });

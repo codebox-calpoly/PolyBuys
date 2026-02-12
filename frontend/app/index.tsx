@@ -95,9 +95,7 @@ export default function HomeScreen() {
         processedCursorsRef.current.add(cursorId);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Note: cursor and queryFilterVersion are intentionally omitted to prevent duplicate appends
-  }, [listingsResult]);
+  }, [listingsResult, cursor, queryFilterVersion]);
 
   // Reset pagination when filters change
   useEffect(() => {
