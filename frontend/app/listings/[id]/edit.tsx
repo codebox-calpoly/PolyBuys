@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useAction } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import TagInput from '../../../components/TagInput';
@@ -23,7 +23,7 @@ export default function EditListingScreen() {
   const listing = useQuery(api.listings.getListing, {
     id: id as Id<'listings'>,
   });
-  const updateListing = useMutation(api.listings.updateListing);
+  const updateListing = useAction(api.listings.updateListing);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

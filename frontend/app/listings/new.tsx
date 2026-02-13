@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { useMutation } from 'convex/react';
+import { useAction } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import TagInput from '../../components/TagInput';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,7 +21,7 @@ type Condition = 'new' | 'used' | 'refurbished';
 export default function CreateListingScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const createListing = useMutation(api.listings.createListing);
+  const createListing = useAction(api.listings.createListing);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
