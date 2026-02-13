@@ -11,6 +11,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useAction } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { api } from 'convex/_generated/api';
 import TagInput from '../../components/TagInput';
 import { useAuth } from '../../hooks/useAuth';
@@ -120,7 +121,12 @@ export default function CreateListingScreen() {
       });
       router.replace(`/listings/${listingId}`);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create listing';
+      const errorMessage =
+        error instanceof ConvexError
+          ? (error.data as string)
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create listing';
       Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
