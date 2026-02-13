@@ -7,12 +7,33 @@ import schema from '../schema';
 import { api } from '../_generated/api';
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
+import * as usersModule from '../users';
+import * as messagesModule from '../messages';
+import * as moderationModule from '../moderation';
 import * as apiModule from '../_generated/api';
 import * as serverModule from '../_generated/server';
+
+const originalFetch = global.fetch;
+
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      results: [{ flagged: false, categories: {}, category_scores: {} }],
+    }),
+  }) as any;
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
 
 const modules = {
   '../listings.ts': () => Promise.resolve(listingsModule),
   '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../users.ts': () => Promise.resolve(usersModule),
+  '../messages.ts': () => Promise.resolve(messagesModule),
+  '../moderation.ts': () => Promise.resolve(moderationModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
@@ -58,19 +79,19 @@ describe('Filtered pagination correctness', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create listings with different conditions
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'New Book',
       condition: 'new',
       price: 100,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Used Book',
       condition: 'used',
       price: 50,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Refurbished Book',
       condition: 'refurbished',
@@ -92,13 +113,13 @@ describe('Filtered pagination correctness', () => {
     const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Expensive New',
       condition: 'new',
       price: 200,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Expensive Used',
       condition: 'used',
@@ -121,7 +142,7 @@ describe('Filtered pagination correctness', () => {
 
     // Create multiple listings with same tag
     for (let i = 0; i < 5; i++) {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         title: `Tagged Listing ${i}`,
         tags: ['test-tag'],
@@ -130,7 +151,7 @@ describe('Filtered pagination correctness', () => {
 
     // Create listings without the tag
     for (let i = 0; i < 5; i++) {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         title: `Untagged Listing ${i}`,
         tags: ['other-tag'],
@@ -176,7 +197,7 @@ describe('Filtered pagination correctness', () => {
 
     // Create listings at various prices
     for (let i = 1; i <= 10; i++) {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         title: `Listing ${i}`,
         price: i * 10,

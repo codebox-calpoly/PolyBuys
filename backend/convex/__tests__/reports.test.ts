@@ -8,14 +8,35 @@ import { api } from '../_generated/api';
 import * as reportsModule from '../reports';
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
+import * as usersModule from '../users';
+import * as messagesModule from '../messages';
+import * as moderationModule from '../moderation';
 import * as apiModule from '../_generated/api';
 import * as serverModule from '../_generated/server';
+
+const originalFetch = global.fetch;
+
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      results: [{ flagged: false, categories: {}, category_scores: {} }],
+    }),
+  }) as any;
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
 
 // Import all Convex function modules so convex-test can run them
 const modules = {
   '../reports.ts': () => Promise.resolve(reportsModule),
   '../listings.ts': () => Promise.resolve(listingsModule),
   '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../users.ts': () => Promise.resolve(usersModule),
+  '../messages.ts': () => Promise.resolve(messagesModule),
+  '../moderation.ts': () => Promise.resolve(moderationModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
@@ -458,7 +479,7 @@ describe('Reports mutations', () => {
       subject: 'seller-id',
       email: 'seller@calpoly.edu',
     });
-    const listingId = await seller.mutation(api.listings.createListing, {
+    const listingId = await seller.action(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
@@ -497,7 +518,7 @@ describe('Reports mutations', () => {
       subject: 'seller-id',
       email: 'seller@calpoly.edu',
     });
-    const listingId = await seller.mutation(api.listings.createListing, {
+    const listingId = await seller.action(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
@@ -533,7 +554,7 @@ describe('Reports mutations', () => {
       subject: 'seller-id',
       email: 'seller@calpoly.edu',
     });
-    const listingId = await seller.mutation(api.listings.createListing, {
+    const listingId = await seller.action(api.listings.createListing, {
       title: 'Test Listing',
       description: 'A test listing',
       price: 50,
@@ -574,7 +595,7 @@ describe('Reports mutations', () => {
     });
 
     // Create 2 listings
-    const listingId1 = await seller.mutation(api.listings.createListing, {
+    const listingId1 = await seller.action(api.listings.createListing, {
       title: 'Test Listing 1',
       description: 'First listing',
       price: 50,
@@ -583,7 +604,7 @@ describe('Reports mutations', () => {
       category: 'textbooks',
     });
 
-    await seller.mutation(api.listings.createListing, {
+    await seller.action(api.listings.createListing, {
       title: 'Test Listing 2',
       description: 'Second listing',
       price: 60,
@@ -622,7 +643,7 @@ describe('Reports mutations', () => {
     });
 
     // Create a listing
-    const listingId = await seller.mutation(api.listings.createListing, {
+    const listingId = await seller.action(api.listings.createListing, {
       title: 'Test Textbook',
       description: 'A test textbook',
       price: 50,

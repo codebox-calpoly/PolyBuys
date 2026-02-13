@@ -7,6 +7,9 @@ import schema from '../schema';
 import { api } from '../_generated/api';
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
+import * as usersModule from '../users';
+import * as messagesModule from '../messages';
+import * as moderationModule from '../moderation';
 import * as apiModule from '../_generated/api';
 import * as serverModule from '../_generated/server';
 
@@ -16,9 +19,27 @@ import * as serverModule from '../_generated/server';
 const modules = {
   '../listings.ts': () => Promise.resolve(listingsModule),
   '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../users.ts': () => Promise.resolve(usersModule),
+  '../messages.ts': () => Promise.resolve(messagesModule),
+  '../moderation.ts': () => Promise.resolve(moderationModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
   '../_generated/server.ts': () => Promise.resolve(serverModule),
 } as any;
+
+// Mock global fetch for OpenAI Moderation API calls
+const originalFetch = global.fetch;
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      results: [{ flagged: false, categories: {}, category_scores: {} }],
+    }),
+  }) as any;
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
 
 // Helper: base valid args for createListing
 const baseArgs = {
@@ -90,11 +111,11 @@ describe('Listings mutations', () => {
     // Simulate an authenticated user
     const asUser = t.withIdentity(aliceIdentity);
 
-    const listingId = await asUser.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asUser.action(api.listings.createListing, baseArgs);
 
     // Look up the listing directly in the mock DB
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toMatchObject({
@@ -118,7 +139,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         title: 'Hey', // 3 chars, too short
       });
@@ -130,7 +151,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         images: [],
       });
@@ -144,7 +165,7 @@ describe('Listings mutations', () => {
     const tooManyImages = Array.from({ length: 9 }, (_, i) => `https://example.com/img${i}.png`);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         images: tooManyImages,
       });
@@ -157,13 +178,13 @@ describe('Listings mutations', () => {
 
     const unnormalized = '   fOUrTH EditION ';
 
-    const listingId = await asUser.mutation(api.listings.createListing, {
+    const listingId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       tags: [unnormalized],
     });
 
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toBeDefined();
@@ -174,13 +195,13 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    const listingId = await asUser.mutation(api.listings.createListing, {
+    const listingId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
     });
 
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toBeDefined();
@@ -192,7 +213,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
       });
@@ -204,7 +225,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         tags: [' '],
       });
@@ -216,7 +237,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         tags: ['supercalifragilisticexpialidocious'],
       });
@@ -227,13 +248,13 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    const listingId = await asUser.mutation(api.listings.createListing, {
+    const listingId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       tags: [],
     });
 
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toBeDefined();
@@ -245,7 +266,7 @@ describe('Listings mutations', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     await expect(async () => {
-      await asUser.mutation(api.listings.createListing, {
+      await asUser.action(api.listings.createListing, {
         ...baseArgs,
         price: -1,
       });
@@ -261,7 +282,7 @@ describe('Listings mutations', () => {
     });
 
     await expect(async () => {
-      await asUserWithoutProfile.mutation(api.listings.createListing, baseArgs);
+      await asUserWithoutProfile.action(api.listings.createListing, baseArgs);
     }).rejects.toThrowError('You must complete your profile setup before creating a listing');
   });
 
@@ -270,17 +291,17 @@ describe('Listings mutations', () => {
     const asOwner = t.withIdentity(ownerIdentity);
 
     // Create listing as owner
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     // Update the title and price
-    await asOwner.mutation(api.listings.updateListing, {
+    await asOwner.action(api.listings.updateListing, {
       id: listingId,
       title: 'Updated listing title',
       price: 75,
     });
 
     const updated = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(updated).toMatchObject({
@@ -296,10 +317,10 @@ describe('Listings mutations', () => {
     const asOwner = t.withIdentity(ownerIdentity);
     const asOtherUser = t.withIdentity(otherIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await expect(async () => {
-      await asOtherUser.mutation(api.listings.updateListing, {
+      await asOtherUser.action(api.listings.updateListing, {
         id: listingId,
         title: 'Hacked title',
       });
@@ -310,12 +331,12 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await asOwner.mutation(api.listings.deleteListing, { id: listingId });
 
     const deleted = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(deleted?.status).toBe('deleted');
@@ -325,12 +346,12 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await asOwner.mutation(api.listings.deleteListing, { id: listingId });
 
     await expect(async () => {
-      await asOwner.mutation(api.listings.updateListing, {
+      await asOwner.action(api.listings.updateListing, {
         id: listingId,
         title: 'New title after delete',
       });
@@ -341,7 +362,7 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await asOwner.mutation(api.listings.deleteListing, { id: listingId });
 
@@ -359,18 +380,18 @@ describe('Listings mutations', () => {
 
     const unnormalized = '   fOUrTH EditION ';
 
-    const listingId = await asOwner.mutation(api.listings.createListing, {
+    const listingId = await asOwner.action(api.listings.createListing, {
       ...baseArgs,
       tags: [unnormalized],
     });
 
-    await asOwner.mutation(api.listings.updateListing, {
+    await asOwner.action(api.listings.updateListing, {
       id: listingId,
       tags: ['   fOurTH EdiTIOn  '],
     });
 
     const updated = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
     expect(updated).toBeDefined();
     expect(updated?.tags).toEqual(['fourth edition']);
@@ -380,14 +401,14 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
-    await asOwner.mutation(api.listings.updateListing, {
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+    await asOwner.action(api.listings.updateListing, {
       id: listingId,
       tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
     });
 
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toBeDefined();
@@ -398,10 +419,10 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await expect(async () => {
-      await asOwner.mutation(api.listings.updateListing, {
+      await asOwner.action(api.listings.updateListing, {
         id: listingId,
         tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
       });
@@ -412,10 +433,10 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
 
     await expect(async () => {
-      await asOwner.mutation(api.listings.updateListing, {
+      await asOwner.action(api.listings.updateListing, {
         id: listingId,
         tags: [' '],
       });
@@ -427,7 +448,7 @@ describe('Listings mutations', () => {
     const asOwner = t.withIdentity(ownerIdentity);
 
     await expect(async () => {
-      await asOwner.mutation(api.listings.createListing, {
+      await asOwner.action(api.listings.createListing, {
         ...baseArgs,
         tags: ['supercalifragilisticexpialidocious'],
       });
@@ -438,14 +459,14 @@ describe('Listings mutations', () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
 
-    const listingId = await asOwner.mutation(api.listings.createListing, baseArgs);
-    await asOwner.mutation(api.listings.updateListing, {
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+    await asOwner.action(api.listings.updateListing, {
       id: listingId,
       tags: [],
     });
 
     const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId);
+      return await ctx.db.get(listingId as any);
     });
 
     expect(listing).toBeDefined();
@@ -459,12 +480,12 @@ describe('Listings queries', () => {
     const asUser = t.withIdentity(aliceIdentity);
 
     // Create listings with slight delay simulation
-    const id1 = await asUser.mutation(api.listings.createListing, {
+    const id1 = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'First listing created',
       price: 10,
     });
-    const id2 = await asUser.mutation(api.listings.createListing, {
+    const id2 = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Second listing created',
       price: 20,
@@ -485,12 +506,12 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       category: 'textbooks',
       title: 'A Textbook Item',
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       category: 'electronics',
       title: 'An Electronics Item',
@@ -513,12 +534,12 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Cheap item cheap',
       price: 10,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Expensive item',
       price: 100,
@@ -536,12 +557,12 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Cheap item pric',
       price: 10,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Expensive price',
       price: 100,
@@ -559,19 +580,19 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       category: 'furniture',
       title: 'Cheap furniture',
       price: 25,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       category: 'furniture',
       title: 'Expensive furniture',
       price: 200,
     });
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       category: 'electronics',
       title: 'Cheap electronics',
@@ -615,7 +636,7 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);
 
-    const deskId = await asUser.mutation(api.listings.createListing, {
+    const deskId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Wood Desk',
       price: 80,
@@ -623,7 +644,7 @@ describe('Listings queries', () => {
       tags: ['desk', 'wood'],
     });
 
-    const chairId = await asUser.mutation(api.listings.createListing, {
+    const chairId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Wood Chair',
       price: 120,
@@ -631,7 +652,7 @@ describe('Listings queries', () => {
       tags: ['chair', 'wood'],
     });
 
-    const laptopId = await asUser.mutation(api.listings.createListing, {
+    const laptopId = await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Gaming Laptop',
       price: 900,
@@ -639,7 +660,7 @@ describe('Listings queries', () => {
       tags: ['laptop', 'gaming'],
     });
 
-    await asUser.mutation(api.listings.createListing, {
+    await asUser.action(api.listings.createListing, {
       ...baseArgs,
       title: 'CSC101 Book',
       price: 50,
@@ -702,19 +723,19 @@ describe('Listings queries', () => {
     const owner = t.withIdentity(ownerIdentity);
     const nonOwner = t.withIdentity(otherIdentity);
 
-    const soldId = await owner.mutation(api.listings.createListing, {
+    const soldId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Sold Listing',
     });
     await owner.mutation(api.listings.updateListingStatus, { id: soldId, status: 'sold' });
 
-    const inactiveId = await owner.mutation(api.listings.createListing, {
+    const inactiveId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Inactive Listing',
     });
     await owner.mutation(api.listings.updateListingStatus, { id: inactiveId, status: 'inactive' });
 
-    const deletedId = await owner.mutation(api.listings.createListing, {
+    const deletedId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Deleted Listing',
     });
@@ -729,19 +750,19 @@ describe('Listings queries', () => {
     const t = await setupTestWithProfiles();
     const owner = t.withIdentity(ownerIdentity);
 
-    const soldId = await owner.mutation(api.listings.createListing, {
+    const soldId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Owner Sold Listing',
     });
     await owner.mutation(api.listings.updateListingStatus, { id: soldId, status: 'sold' });
 
-    const inactiveId = await owner.mutation(api.listings.createListing, {
+    const inactiveId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Owner Inactive Listing',
     });
     await owner.mutation(api.listings.updateListingStatus, { id: inactiveId, status: 'inactive' });
 
-    const deletedId = await owner.mutation(api.listings.createListing, {
+    const deletedId = await owner.action(api.listings.createListing, {
       ...baseArgs,
       title: 'Owner Deleted Listing',
     });

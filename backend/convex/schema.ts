@@ -120,4 +120,16 @@ export default defineSchema({
   })
     .index('by_conversation_createdAt', ['conversationId', 'createdAt'])
     .index('by_conversation_recipient_readAt', ['conversationId', 'recipientId', 'readAt']),
+
+  moderationResults: defineTable({
+    contentType: v.union(v.literal('listing'), v.literal('message')),
+    contentId: v.optional(v.string()),
+    inputText: v.string(),
+    flagged: v.boolean(),
+    categories: v.optional(v.string()), // JSON-stringified category results
+    userId: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_contentType', ['contentType', 'createdAt']),
 });

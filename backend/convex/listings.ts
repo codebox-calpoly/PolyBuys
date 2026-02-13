@@ -1,7 +1,8 @@
 import { v, ConvexError } from 'convex/values';
-import { query, mutation } from './_generated/server';
+import { query, mutation, action, internalMutation, internalQuery } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
+import { internal } from './_generated/api';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -497,8 +498,58 @@ export const getListings = query({
   },
 });
 
-// Create a new listing
-export const createListing = mutation({
+// Internal query for fetching a listing (used by actions for ownership checks)
+export const internalGetListing = internalQuery({
+  args: { id: v.id('listings') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// Internal query for checking user profile (used by createListing action)
+export const internalGetProfile = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+      .unique();
+  },
+});
+
+// Internal mutation: persists a new listing (called by createListing action after moderation)
+export const internalCreateListing = internalMutation({
+  args: {
+    title: v.string(),
+    description: v.string(),
+    price: v.number(),
+    category: categoryValidator,
+    images: v.array(v.string()),
+    condition: conditionValidator,
+    tags: v.optional(v.array(v.string())),
+    sellerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const listingId = await ctx.db.insert('listings', {
+      title: args.title,
+      description: args.description,
+      price: args.price,
+      category: args.category,
+      images: args.images,
+      condition: args.condition,
+      tags: args.tags,
+      sellerId: args.sellerId,
+      status: 'active',
+      createdAt: now,
+      postedOn: now,
+    });
+    return listingId;
+  },
+});
+
+// Create a new listing (action — screens content via moderation before persisting)
+export const createListing = action({
   args: {
     title: v.string(),
     description: v.string(),
@@ -508,21 +559,21 @@ export const createListing = mutation({
     condition: conditionValidator,
     tags: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<string> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError('You must be logged in to create a listing');
     }
 
-    // Verify user has completed profile setup before allowing listing creation
-    const userProfile = await ctx.db
-      .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
-      .unique();
+    // Verify user has completed profile setup
+    const userProfile = await ctx.runQuery(internal.listings.internalGetProfile, {
+      userId: identity.subject,
+    });
     if (!userProfile) {
       throw new ConvexError('You must complete your profile setup before creating a listing');
     }
 
+    // Validate inputs
     const validatedTitle = validateTitle(args.title);
     validateDescription(args.description);
     validateImages(args.images);
@@ -533,9 +584,22 @@ export const createListing = mutation({
       throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
     }
     const normalizedTags = validateTags(args.tags);
-    const now = Date.now();
 
-    const listingId = await ctx.db.insert('listings', {
+    // Screen content via OpenAI Moderation API
+    const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
+      text: validatedTitle + ' ' + args.description,
+      contentType: 'listing',
+      userId: identity.subject,
+    });
+
+    if (moderationResult.flagged) {
+      throw new ConvexError(
+        'Your listing contains content that violates our community guidelines. Please revise and try again.'
+      );
+    }
+
+    // Persist via internal mutation
+    const listingId = await ctx.runMutation(internal.listings.internalCreateListing, {
       title: validatedTitle,
       description: args.description,
       price: args.price,
@@ -544,15 +608,38 @@ export const createListing = mutation({
       condition: args.condition,
       tags: normalizedTags,
       sellerId: identity.subject,
-      status: 'active',
-      createdAt: now,
-      postedOn: now,
     });
     return listingId;
   },
 });
 
-export const updateListing = mutation({
+// Internal mutation: patches an existing listing (called by updateListing action after moderation)
+export const internalUpdateListing = internalMutation({
+  args: {
+    id: v.id('listings'),
+    update: v.object({
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      price: v.optional(v.number()),
+      images: v.optional(v.array(v.string())),
+      condition: v.optional(conditionValidator),
+      category: v.optional(categoryValidator),
+      tags: v.optional(v.array(v.string())),
+    }),
+  },
+  handler: async (ctx, args) => {
+    // Build a clean update object (strip undefined fields)
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(args.update)) {
+      if (value !== undefined) {
+        patch[key] = value;
+      }
+    }
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
+export const updateListing = action({
   args: {
     id: v.id('listings'),
     title: v.optional(v.string()),
@@ -563,14 +650,27 @@ export const updateListing = mutation({
     category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args) => {
-    const listing = await verifyOwnership(ctx, args.id);
+  handler: async (ctx, args): Promise<void> => {
+    // Auth check
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to perform this action');
+    }
 
+    // Ownership check via internal query (actions can't read DB directly)
+    const listing = await ctx.runQuery(internal.listings.internalGetListing, { id: args.id });
+    if (!listing) {
+      throw new ConvexError('Listing not found');
+    }
+    if (listing.sellerId !== identity.subject) {
+      throw new ConvexError('You are not the owner of this listing');
+    }
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot update a deleted listing');
     }
 
-    const update: Partial<Doc<'listings'>> = {};
+    // Validate inputs
+    const update: Record<string, unknown> = {};
 
     if (args.title !== undefined) {
       const validatedTitle = validateTitle(args.title);
@@ -604,6 +704,7 @@ export const updateListing = mutation({
       }
       update.price = args.price;
     }
+
     if (args.tags !== undefined) {
       const normalizedTags = validateTags(args.tags);
       update.tags = normalizedTags;
@@ -613,7 +714,42 @@ export const updateListing = mutation({
       throw new ConvexError('No valid fields to update');
     }
 
-    await ctx.db.patch(args.id, update);
+    // Screen updated text content via moderation
+    const titleToCheck = (update.title as string) ?? listing.title;
+    const descToCheck = (update.description as string) ?? listing.description;
+
+    const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
+      text: titleToCheck + ' ' + descToCheck,
+      contentType: 'listing',
+      userId: identity.subject,
+      contentId: args.id,
+    });
+
+    if (moderationResult.flagged) {
+      throw new ConvexError(
+        'Your listing contains content that violates our community guidelines. Please revise and try again.'
+      );
+    }
+
+    // Persist via internal mutation
+    await ctx.runMutation(internal.listings.internalUpdateListing, {
+      id: args.id,
+      update: {
+        title: update.title as string | undefined,
+        description: update.description as string | undefined,
+        price: update.price as number | undefined,
+        images: update.images as string[] | undefined,
+        condition: update.condition as 'new' | 'used' | 'refurbished' | undefined,
+        category: update.category as
+          | 'textbooks'
+          | 'electronics'
+          | 'furniture'
+          | 'tickets'
+          | 'other'
+          | undefined,
+        tags: update.tags as string[] | undefined,
+      },
+    });
   },
 });
 
