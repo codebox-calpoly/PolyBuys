@@ -19,6 +19,7 @@ module.exports = {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
+        diagnostics: false,
         tsconfig: {
           module: 'commonjs',
           esModuleInterop: true,

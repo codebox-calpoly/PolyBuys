@@ -1,19 +1,57 @@
-import { internalMutation, mutation, query } from './_generated/server';
+import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
 import { v, ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { internal } from './_generated/api';
 
 export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
 
-//Sends a message and updates conversation metadata
-export const sendMessage = mutation({
+// Internal query: get conversation and verify user is a participant (used by sendMessage action)
+export const internalGetConversation = internalQuery({
+  args: { conversationId: v.id('conversations') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.conversationId);
+  },
+});
+
+// Internal mutation: persists a message and updates conversation (called by sendMessage action after moderation)
+export const internalSendMessage = internalMutation({
+  args: {
+    conversationId: v.id('conversations'),
+    listingId: v.id('listings'),
+    senderId: v.string(),
+    recipientId: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const messageId = await ctx.db.insert('messages', {
+      conversationId: args.conversationId,
+      listingId: args.listingId,
+      senderId: args.senderId,
+      recipientId: args.recipientId,
+      body: args.body,
+      createdAt: now,
+      readAt: 0,
+    });
+
+    await ctx.db.patch(args.conversationId, {
+      updatedAt: now,
+    });
+
+    return { messageId };
+  },
+});
+
+// Sends a message (action — screens content via moderation before persisting)
+export const sendMessage = action({
   args: {
     conversationId: v.id('conversations'),
     body: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ messageId: string }> => {
     // Validate message body length
     if (args.body.length === 0) {
       throw new ConvexError('Message cannot be empty');
@@ -22,25 +60,50 @@ export const sendMessage = mutation({
       throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
     }
 
-    const { userId, convo } = await requireParticipant(ctx, args.conversationId);
-    const now = Date.now();
+    // Auth check
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('Unauthorized');
+    }
+    const userId = identity.subject;
+
+    // Participant check via internal query
+    const convo = await ctx.runQuery(internal.messages.internalGetConversation, {
+      conversationId: args.conversationId,
+    });
+    if (!convo) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    const isBuyer = convo.buyerId === userId;
+    const isSeller = convo.sellerId === userId;
+    if (!isBuyer && !isSeller) {
+      throw new ConvexError('Forbidden');
+    }
+
     const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
 
-    const messageId = await ctx.db.insert('messages', {
+    // Screen content via OpenAI Moderation API
+    const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
+      text: args.body,
+      contentType: 'message',
+      userId,
+    });
+
+    if (moderationResult.flagged) {
+      throw new ConvexError('Your message was not sent because it contains inappropriate content.');
+    }
+
+    // Persist via internal mutation
+    const result = await ctx.runMutation(internal.messages.internalSendMessage, {
       conversationId: args.conversationId,
       listingId: convo.listingId,
       senderId: userId,
       recipientId,
       body: args.body,
-      createdAt: now,
-      readAt: 0,
     });
 
-    await ctx.db.patch(convo._id, {
-      updatedAt: now,
-    });
-
-    return { messageId };
+    return result;
   },
 });
 

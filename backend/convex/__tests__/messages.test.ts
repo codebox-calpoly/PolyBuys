@@ -8,6 +8,21 @@ import {
   createTestConversation,
 } from './testUtils';
 
+// Mock global fetch for OpenAI Moderation API calls
+const originalFetch = global.fetch;
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      results: [{ flagged: false, categories: {}, category_scores: {} }],
+    }),
+  }) as any;
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
+
 describe('Messages queries and mutations', () => {
   describe('sendMessage', () => {
     it('throws error when user is not a participant', async () => {
@@ -23,7 +38,7 @@ describe('Messages queries and mutations', () => {
       const asOther = t.withIdentity(other.identity);
 
       await expect(async () => {
-        await asOther.mutation(api.messages.sendMessage, {
+        await asOther.action(api.messages.sendMessage, {
           conversationId,
           body: 'Hello',
         });
@@ -40,7 +55,7 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
 
-      const result = await asBuyer.mutation(api.messages.sendMessage, {
+      const result = await asBuyer.action(api.messages.sendMessage, {
         conversationId,
         body: 'Hello seller!',
       });
@@ -48,7 +63,7 @@ describe('Messages queries and mutations', () => {
       expect(result.messageId).toBeDefined();
 
       const message = await t.run(async (ctx) => {
-        return await ctx.db.get(result.messageId);
+        return await ctx.db.get(result.messageId as any);
       });
 
       expect(message).toMatchObject({
@@ -71,13 +86,13 @@ describe('Messages queries and mutations', () => {
 
       const asSeller = t.withIdentity(seller.identity);
 
-      const result = await asSeller.mutation(api.messages.sendMessage, {
+      const result = await asSeller.action(api.messages.sendMessage, {
         conversationId,
         body: 'Hello buyer!',
       });
 
       const message = await t.run(async (ctx) => {
-        return await ctx.db.get(result.messageId);
+        return await ctx.db.get(result.messageId as any);
       });
 
       expect(message?.senderId).toBe(seller.id);
@@ -102,7 +117,7 @@ describe('Messages queries and mutations', () => {
       // Wait a bit to ensure timestamp difference
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      await asBuyer.mutation(api.messages.sendMessage, {
+      await asBuyer.action(api.messages.sendMessage, {
         conversationId,
         body: 'Test message',
       });

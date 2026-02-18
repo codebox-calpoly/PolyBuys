@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useAction } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import TagInput from '../../../components/TagInput';
@@ -23,7 +24,7 @@ export default function EditListingScreen() {
   const listing = useQuery(api.listings.getListing, {
     id: id as Id<'listings'>,
   });
-  const updateListing = useMutation(api.listings.updateListing);
+  const updateListing = useAction(api.listings.updateListing);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -117,7 +118,12 @@ export default function EditListingScreen() {
       });
       router.replace(`/listings/${listing._id}`);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update listing';
+      const errorMessage =
+        error instanceof ConvexError
+          ? (error.data as string)
+          : error instanceof Error
+            ? error.message
+            : 'Failed to update listing';
       Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
