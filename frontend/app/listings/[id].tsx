@@ -3,6 +3,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import ListingUnavailable from '../../components/ListingUnavailable';
+import HiddenBanner from '../../components/HiddenBanner';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -28,15 +30,21 @@ export default function ListingDetailScreen() {
   }
 
   if (listing === null) {
-    return (
-      <View style={styles.container}>
-        <Text>Listing not found</Text>
-      </View>
-    );
+    return <ListingUnavailable />;
+  }
+
+  const isOwner = currentUserSubject === listing.sellerId;
+  const isHidden = listing.isHidden === true;
+  const isHiddenOwnerView = isOwner && isHidden;
+
+  if (isHidden && !isOwner) {
+    return <ListingUnavailable />;
   }
 
   return (
     <ScrollView style={styles.container}>
+      {isHiddenOwnerView && <HiddenBanner />}
+
       <Text style={styles.title}>{listing.title}</Text>
       <Text style={styles.price}>${listing.price}</Text>
       <Text style={styles.description}>{listing.description}</Text>
@@ -55,7 +63,7 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      {currentUserSubject && currentUserSubject === listing.sellerId && (
+      {isOwner && !isHidden && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.editButton}
