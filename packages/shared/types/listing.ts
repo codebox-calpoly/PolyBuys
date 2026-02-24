@@ -10,7 +10,6 @@ export interface Listing {
   title: string;
   description: string;
   price: number;
-  sellerEmail: string;
   sellerId: string;
   images: string[];
   category: ListingCategory;
@@ -25,7 +24,6 @@ export interface CreateListingInput {
   title: string;
   description: string;
   price: number;
-  sellerEmail: string;
   category: ListingCategory;
   condition: ListingCondition;
   images: string[];

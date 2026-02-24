@@ -10,6 +10,7 @@
     "deploy": "convex deploy"
   },
   "dependencies": {
+    "@auth/core": "^0.37.4",
     "@convex-dev/auth": "^0.0.90",
     "@oslojs/crypto": "^1.0.1",
     "@polybuys/shared": "*",
@@ -17,6 +18,7 @@
     "resend": "^4.8.0"
   },
   "devDependencies": {
+    "@babel/preset-typescript": "^7.28.5",
     "@types/node": "^22.10.1",
     "convex-test": "^0.0.41",
     "typescript": "^5.7.2"

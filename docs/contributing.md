@@ -244,8 +244,21 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 **Backend** (`backend/.env.local`):
 
 - `CONVEX_SELF_HOSTED_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
+- `CONVEX_SELF_HOSTED_ACTIONS_URL` - Self-hosted Convex actions URL: `https://actions.polybuys.com`
 - `CONVEX_SELF_HOSTED_ADMIN_KEY` - Admin key for self-hosted backend (get from tech leads)
 - `AUTH_RESEND_KEY` - Resend API key for sending verification emails (get from tech leads)
+
+**Convex Runtime (Railway service environment):**
+
+- `AWS_REGION` - AWS region for S3 buckets
+- `AWS_ACCESS_KEY_ID` - S3 access key ID for backend storage access
+- `AWS_SECRET_ACCESS_KEY` - S3 secret key for backend storage access
+- `S3_STORAGE_EXPORTS_BUCKET` - Bucket for Convex snapshot exports
+- `S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET` - Bucket for Convex snapshot imports
+- `S3_STORAGE_MODULES_BUCKET` - Bucket for Convex module bundles
+- `S3_STORAGE_FILES_BUCKET` - Bucket for user-uploaded files
+- `S3_STORAGE_SEARCH_BUCKET` - Bucket for Convex search indexes
+- `S3_ENDPOINT_URL` - Optional endpoint for R2/S3-compatible providers
 
 Ask tech leads for any additional secrets needed (API keys, etc.)
 

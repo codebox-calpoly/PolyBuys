@@ -25,6 +25,7 @@ PolyBuys uses **self-hosted Convex** deployed on Railway instead of Convex cloud
 - **Backend URL**: `https://api.polybuys.com`
 - **Actions URL**: `https://actions.polybuys.com`
 - **Database**: SQLite (default) or PostgreSQL/MySQL (configurable)
+- **Object Storage**: Container filesystem (default) or S3-compatible storage
 
 ## Developer Setup
 
@@ -41,6 +42,7 @@ Ask tech leads for:
 
 ```bash
 CONVEX_SELF_HOSTED_URL='https://api.polybuys.com'
+CONVEX_SELF_HOSTED_ACTIONS_URL='https://actions.polybuys.com'
 CONVEX_SELF_HOSTED_ADMIN_KEY='<admin-key>'
 ```
 
@@ -74,11 +76,18 @@ All standard Convex CLI commands work with self-hosted:
 ```bash
 cd backend
 
-# Run a function
-npx convex run listings:getListings
+# Run a query function with arguments
+npx convex run listings:getListings '{"paginationOpts":{"numItems":20,"cursor":null}}'
 
-# Create data
-npx convex run listings:createListing '{"title":"Test","description":"Testing","price":25,"sellerEmail":"test@calpoly.edu","category":"other"}'
+# Run with filters
+npx convex run listings:getListings '{"category":"textbooks","paginationOpts":{"numItems":20,"cursor":null}}'
+
+# Search and filter listings
+npx convex run listings:searchAndFilterListings '{"filters":{"category":"textbooks"},"paginationOpts":{"numItems":20,"cursor":null}}'
+
+# Create data (requires authentication - use Convex dashboard or authenticated client instead)
+# Example payload structure:
+# {"title":"Test Book","description":"Great condition","price":25,"category":"textbooks","condition":"used","images":["https://example.com/image.jpg"]}
 
 # Import data
 npx convex import --table listings data.jsonl
@@ -133,6 +142,31 @@ The Convex backend runs in a Docker container on Railway:
    - `api.polybuys.com` → port 3210
    - `actions.polybuys.com` → port 3211
 
+### S3 Storage on Railway
+
+By default, the Convex backend stores file data on the container filesystem. To
+use durable object storage (recommended for production), configure S3 buckets
+and set these environment variables on the **Convex Railway service**:
+
+```bash
+AWS_REGION=your-region
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+S3_STORAGE_EXPORTS_BUCKET=convex-snapshot-exports
+S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET=convex-snapshot-imports
+S3_STORAGE_MODULES_BUCKET=convex-modules
+S3_STORAGE_FILES_BUCKET=convex-user-files
+S3_STORAGE_SEARCH_BUCKET=convex-search-indexes
+```
+
+Optional (required for R2 or other S3-compatible providers):
+
+```bash
+S3_ENDPOINT_URL=https://<your-s3-compatible-endpoint>
+```
+
+After setting variables in Railway, redeploy the Convex backend service.
+
 ### Frontend Deployment
 
 When deploying the Expo app (Netlify, Vercel, EAS, etc.):
@@ -180,6 +214,25 @@ npx convex export --path backup.zip
 # Export specific table
 npx convex export --table listings --path listings-backup.jsonl
 ```
+
+### Migrating Storage Providers
+
+If you switch between filesystem storage and S3 storage (or vice versa), move
+data with a full snapshot export/import:
+
+```bash
+# Export from current backend
+npx convex export --path backup.zip
+```
+
+Then point your CLI at a fresh backend using the new storage provider and run:
+
+```bash
+# Import into new backend (replaces all existing data)
+npx convex import --replace-all backup.zip
+```
+
+Run this during a maintenance window, since imports replace existing data.
 
 ### Monitoring
 
@@ -231,6 +284,6 @@ npx convex dev --verbose
 ### Future Considerations
 
 - **PostgreSQL/MySQL**: Can migrate from SQLite if needed
-- **S3 Storage**: Can configure for files and exports
+- **S3 Storage**: Use the "S3 Storage on Railway" section above
 - **Dashboard Deployment**: Optional, for team access
 - **Multiple Environments**: Can set up staging/production backends

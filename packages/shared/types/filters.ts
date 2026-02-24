@@ -14,7 +14,7 @@ export type ListingSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc'
  * Filters for searching listings
  */
 export interface ListingFilters {
-  /** Full-text search term (searches title and description) */
+  /** Full-text search term (searches title only) */
   searchTerm?: string;
   /** Filter by category */
   category?: ListingCategory;

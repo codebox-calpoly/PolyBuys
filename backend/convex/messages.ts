@@ -1,30 +1,43 @@
-import { internalMutation, mutation, query } from './_generated/server';
-import { v } from 'convex/values';
+import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
+import { v, ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { internal } from './_generated/api';
 
-//Sends a message and updates conversation metadata
-export const sendMessage = mutation({
+export const PAYLOAD_BOUNDS = {
+  MESSAGE_MAX: 2000,
+};
+
+// Internal query: get conversation and verify user is a participant (used by sendMessage action)
+export const internalGetConversation = internalQuery({
+  args: { conversationId: v.id('conversations') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.conversationId);
+  },
+});
+
+// Internal mutation: persists a message and updates conversation (called by sendMessage action after moderation)
+export const internalSendMessage = internalMutation({
   args: {
     conversationId: v.id('conversations'),
+    listingId: v.id('listings'),
+    senderId: v.string(),
+    recipientId: v.string(),
     body: v.string(),
   },
   handler: async (ctx, args) => {
-    const { userId, convo } = await requireParticipant(ctx, args.conversationId);
     const now = Date.now();
-    const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
-
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
-      listingId: convo.listingId,
-      senderId: userId,
-      recipientId,
+      listingId: args.listingId,
+      senderId: args.senderId,
+      recipientId: args.recipientId,
       body: args.body,
       createdAt: now,
       readAt: 0,
     });
 
-    await ctx.db.patch(convo._id, {
+    await ctx.db.patch(args.conversationId, {
       updatedAt: now,
     });
 
@@ -32,18 +45,82 @@ export const sendMessage = mutation({
   },
 });
 
+// Sends a message (action — screens content via moderation before persisting)
+export const sendMessage = action({
+  args: {
+    conversationId: v.id('conversations'),
+    body: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ messageId: string }> => {
+    // Validate message body length
+    if (args.body.length === 0) {
+      throw new ConvexError('Message cannot be empty');
+    }
+    if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
+      throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
+    }
+
+    // Auth check
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('Unauthorized');
+    }
+    const userId = identity.subject;
+
+    // Participant check via internal query
+    const convo = await ctx.runQuery(internal.messages.internalGetConversation, {
+      conversationId: args.conversationId,
+    });
+    if (!convo) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    const isBuyer = convo.buyerId === userId;
+    const isSeller = convo.sellerId === userId;
+    if (!isBuyer && !isSeller) {
+      throw new ConvexError('Forbidden');
+    }
+
+    const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
+
+    // Screen content via OpenAI Moderation API
+    const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
+      text: args.body,
+      contentType: 'message',
+      userId,
+    });
+
+    if (moderationResult.flagged) {
+      throw new ConvexError('Your message was not sent because it contains inappropriate content.');
+    }
+
+    // Persist via internal mutation
+    const result = await ctx.runMutation(internal.messages.internalSendMessage, {
+      conversationId: args.conversationId,
+      listingId: convo.listingId,
+      senderId: userId,
+      recipientId,
+      body: args.body,
+    });
+
+    return result;
+  },
+});
+
 //Debug helper for local testing
 export const debugCreateConversationID = internalMutation({
   args: {
     listingId: v.id('listings'),
+    buyerId: v.id('users'),
+    sellerId: v.id('users'),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
 
     const conversationId = await ctx.db.insert('conversations', {
       listingId: args.listingId,
-      buyerId: 'buyer@test.com',
-      sellerId: 'seller@test.com',
+      buyerId: args.buyerId,
+      sellerId: args.sellerId,
       createdAt: now,
       updatedAt: now,
       buyerLastReadAt: now,
@@ -92,9 +169,9 @@ export const listUserConversations = query({
   },
 });
 
-async function getUserId(ctx: MutationCtx | QueryCtx) {
+async function getUserId(ctx: MutationCtx | QueryCtx): Promise<string> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error('Unauthorized');
+  if (!identity) throw new ConvexError('Unauthorized');
   return identity.subject;
 }
 
@@ -104,16 +181,15 @@ async function requireParticipant(
 ) {
   const userId = await getUserId(ctx);
   const convo = await ctx.db.get(conversationId);
-  if (!convo) throw new Error('Conversation not found');
+  if (!convo) throw new ConvexError('Conversation not found');
 
   const isBuyer = convo.buyerId === userId;
   const isSeller = convo.sellerId === userId;
-  if (!isBuyer && !isSeller) throw new Error('Forbidden');
+  if (!isBuyer && !isSeller) throw new ConvexError('Forbidden');
 
   return { userId, convo, isBuyer, isSeller };
 }
 
-// TASK: associate conversations with specific listings
 export const getOrCreateConversation = mutation({
   args: {
     listingId: v.id('listings'),
@@ -122,10 +198,18 @@ export const getOrCreateConversation = mutation({
     const buyerId = await getUserId(ctx);
 
     const listing = await ctx.db.get(args.listingId);
-    if (!listing) throw new Error('Listing not found');
+    if (!listing) throw new ConvexError('Listing not found');
+
+    // Security: Only allow conversations on active, public listings
+    if (listing.status !== 'active') {
+      throw new ConvexError('Listing is not active');
+    }
+    if (listing.isHidden) {
+      throw new ConvexError('Listing is not available');
+    }
 
     const sellerId = listing.sellerId;
-    if (buyerId === sellerId) throw new Error("You can't message yourself");
+    if (buyerId === sellerId) throw new ConvexError("You can't message yourself");
 
     const existing = await ctx.db
       .query('conversations')
