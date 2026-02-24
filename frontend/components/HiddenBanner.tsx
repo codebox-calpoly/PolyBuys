@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 
-//Modify to actual support email
-const SUPPORT_EMAIL = 'support@polybuys.com';
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || 'support@polybuys.com';
 
 export default function HiddenBanner() {
-  const onAppealPress = () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
+  const onAppealPress = () => {
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {
+      Alert.alert('Unable to open email app', `Please contact support at ${SUPPORT_EMAIL}.`);
+    });
+  };
 
   return (
     <View style={styles.banner}>

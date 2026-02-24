@@ -21,7 +21,7 @@ export default function ListingDetailScreen() {
     });
   };
 
-  if (listing === undefined) {
+  if (listing === undefined || currentUserSubject === undefined) {
     return (
       <View style={styles.container}>
         <Text>Loading...</Text>

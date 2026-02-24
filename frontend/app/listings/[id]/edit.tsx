@@ -14,7 +14,7 @@ import { ConvexError } from 'convex/values';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import TagInput from '../../../components/TagInput';
-import ListingUnavailable from '@/components/ListingUnavailable';
+import ListingUnavailable from '../../../components/ListingUnavailable';
 
 type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
 type Condition = 'new' | 'used' | 'refurbished';
@@ -142,11 +142,7 @@ export default function EditListingScreen() {
     );
   }
 
-  if (listing === null) {
-    return <ListingUnavailable />;
-  }
-
-  if (isHidden) {
+  if (listing === null || isHidden) {
     return <ListingUnavailable />;
   }
 
