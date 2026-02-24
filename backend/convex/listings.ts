@@ -122,9 +122,13 @@ function normalizeSearchTags(tags: string[]): string[] {
     ...new Set(
       tags
         .map((tag) => tag.trim().toLowerCase())
-        .filter((tag) => tag.length >= 1 && tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH)
+        .filter(
+          (tag) =>
+            tag.length >= TAG_CONSTRAINTS.MIN_TAG_LENGTH &&
+            tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH
+        )
     ),
-  ];
+  ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
 }
 
 // Get a single listing by ID
@@ -165,6 +169,7 @@ export const searchAndFilterListings = query({
         minPrice: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
         condition: v.optional(conditionValidator),
+        tags: v.optional(v.array(v.string())),
         sortBy: v.optional(
           v.union(
             v.literal('newest'),
@@ -609,6 +614,7 @@ export const createListing = action({
       tags: normalizedTags,
       sellerId: identity.subject,
     });
+
     return listingId;
   },
 });
