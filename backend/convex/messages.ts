@@ -279,6 +279,33 @@ export const markMessagesAsRead = mutation({
 });
 
 // TASK: real-time message delivery (Convex query is reactive when used with useQuery)
+export const backfillMessagingFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const conversations = await ctx.db.query('conversations').collect();
+    let conversationPatches = 0;
+
+    for (const convo of conversations) {
+      if (!convo.participantIds || convo.participantIds.length !== 2) {
+        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
+        conversationPatches += 1;
+      }
+    }
+
+    const messages = await ctx.db.query('messages').collect();
+    let messagePatches = 0;
+
+    for (const message of messages) {
+      if (!message.type) {
+        await ctx.db.patch(message._id, { type: 'text' });
+        messagePatches += 1;
+      }
+    }
+
+    return { conversationPatches, messagePatches };
+  },
+});
+
 export const messagesByConversation = query({
   args: {
     conversationId: v.id('conversations'),
