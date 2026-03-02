@@ -239,7 +239,8 @@ describe('Messages queries and mutations', () => {
 
       const conversations = await asBuyer.query(api.messages.listUserConversations);
 
-      expect(conversations).toEqual([]);
+      expect(conversations.items).toEqual([]);
+      expect(conversations.nextCursor).toBeNull();
     });
 
     it('returns conversations where user is buyer', async () => {
@@ -253,8 +254,8 @@ describe('Messages queries and mutations', () => {
       const asBuyer = t.withIdentity(buyer.identity);
       const conversations = await asBuyer.query(api.messages.listUserConversations);
 
-      expect(conversations).toHaveLength(1);
-      expect(conversations[0].buyerId).toBe(buyer.id);
+      expect(conversations.items).toHaveLength(1);
+      expect(conversations.items[0].otherParticipant.id).toBe(seller.id);
     });
 
     it('returns conversations where user is seller', async () => {
@@ -268,8 +269,8 @@ describe('Messages queries and mutations', () => {
       const asSeller = t.withIdentity(seller.identity);
       const conversations = await asSeller.query(api.messages.listUserConversations);
 
-      expect(conversations).toHaveLength(1);
-      expect(conversations[0].sellerId).toBe(seller.id);
+      expect(conversations.items).toHaveLength(1);
+      expect(conversations.items[0].otherParticipant.id).toBe(buyer.id);
     });
 
     it('returns conversations sorted by most recent activity', async () => {
@@ -314,8 +315,10 @@ describe('Messages queries and mutations', () => {
       const asBuyer = t.withIdentity(buyer.identity);
       const conversations = await asBuyer.query(api.messages.listUserConversations);
 
-      expect(conversations).toHaveLength(2);
-      expect(conversations[0].updatedAt).toBeGreaterThan(conversations[1].updatedAt);
+      expect(conversations.items).toHaveLength(2);
+      expect(conversations.items[0].lastMessageAt).toBeGreaterThan(
+        conversations.items[1].lastMessageAt
+      );
     });
   });
 
