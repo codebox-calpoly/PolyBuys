@@ -100,7 +100,7 @@ export default defineSchema({
     listingId: v.id('listings'),
     buyerId: v.string(), // Auth identity subject
     sellerId: v.string(), // Auth identity subject
-    participantIds: v.array(v.string()),
+    participantIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
     buyerLastReadAt: v.number(),
@@ -118,7 +118,7 @@ export default defineSchema({
     senderId: v.string(), // Auth identity subject
     recipientId: v.string(), // Auth identity subject
     body: v.string(),
-    type: v.string(),
+    type: v.optional(v.string()),
     createdAt: v.number(),
     readAt: v.number(),
   })
