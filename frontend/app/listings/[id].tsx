@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
@@ -43,6 +44,29 @@ export default function ListingDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      <Head>
+        {/* eslint-disable-next-line react-native/no-raw-text */}
+        <title>{`${listing.title} - PolyBuys`}</title>
+        <meta property="og:title" content={`${listing.title} - PolyBuys`} />
+        <meta
+          property="og:description"
+          content={`$${listing.price} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
+        />
+        <meta property="og:url" content={`https://polybuys.com/listings/${listing._id}`} />
+      </Head>
+
+      {Platform.OS === 'web' && (
+        <View style={styles.webBannerContainer}>
+          <Text style={styles.webBannerText}>Experience PolyBuys on mobile!</Text>
+          <TouchableOpacity
+            style={styles.webBannerButton}
+            onPress={() => Linking.openURL(`polybuys://listings/${listing._id}`)}
+          >
+            <Text style={styles.webBannerButtonText}>Open in App</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {isHiddenOwnerView && <HiddenBanner />}
 
       <Text style={styles.title}>{listing.title}</Text>
@@ -132,5 +156,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  webBannerContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  webBannerText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  webBannerButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  webBannerButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
