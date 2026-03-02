@@ -69,8 +69,15 @@ If you didn't request this code, you can safely ignore this email.`,
     });
 
     if (error) {
-      console.error('Resend error:', error);
-      throw new ConvexError('Failed to send verification email. Please try again.');
+      console.error('Resend API error:', JSON.stringify(error, null, 2));
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        statusCode: (error as any).statusCode,
+      });
+      throw new ConvexError(
+        `Failed to send verification email: ${error.message || 'Unknown error'}. Please try again.`
+      );
     }
   },
 });

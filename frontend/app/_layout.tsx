@@ -42,6 +42,8 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <Stack>
         <Stack.Screen name="index" options={{ title: 'PolyBuys' }} />
+        <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+        <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="listings/[id]" options={{ title: 'Listing Details' }} />
         <Stack.Screen name="listings/new" options={{ title: 'Create Listing' }} />
         <Stack.Screen name="listings/[id]/edit" options={{ title: 'Edit Listing' }} />

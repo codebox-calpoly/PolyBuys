@@ -3,8 +3,13 @@
     "apps": [],
     "details": [
       {
+<<<<<<< HEAD
         "appID": "B2469T42RM.com.polybuy.app",
         "paths": ["/listings/*"]
+=======
+        "appID": "TEAMID.com.polybuy.app",
+        "paths": ["/listings/*", "/l/*"]
+>>>>>>> 6d93aed (fixes)
       }
     ]
   }

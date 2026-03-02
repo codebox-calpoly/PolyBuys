@@ -1,6 +1,7 @@
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -57,13 +58,25 @@ export default function ListingDetailScreen() {
   const shareListing = async () => {
     if (!listing) return;
 
-    const shareUrl = `https://polybuys.com/l/${listing._id}`;
+    // Use current origin for web, fallback to polybuys.com for native
+    const origin =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://polybuys.com';
+    const shareUrl = `${origin}/l/${listing._id}`;
+
     try {
-      await Share.share({
-        message: `${listing.title} — $${listing.price}\n${shareUrl}`,
-        url: shareUrl,
-        title: listing.title,
-      });
+      if (Platform.OS === 'web') {
+        // On web, copy the URL to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        Alert.alert('Link Copied', 'Share link copied to clipboard!');
+      } else {
+        // On native, share just the URL
+        await Share.share({
+          url: shareUrl,
+          message: shareUrl,
+        });
+      }
     } catch {
       Alert.alert('Unable to share listing right now.');
     }
@@ -125,6 +138,24 @@ export default function ListingDetailScreen() {
       )}
 
       {isHiddenOwnerView && <HiddenBanner />}
+
+      {listing.images && listing.images.length > 0 && (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          style={styles.imageCarousel}
+        >
+          {listing.images.map((imageUrl, index) => (
+            <Image
+              key={index}
+              source={{ uri: imageUrl }}
+              style={styles.carouselImage}
+              resizeMode="cover"
+            />
+          ))}
+        </ScrollView>
+      )}
 
       <View style={styles.headerRow}>
         <Text style={styles.title}>{listing.title}</Text>
@@ -188,6 +219,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     padding: 20,
+  },
+  imageCarousel: {
+    marginHorizontal: -20,
+    marginBottom: 20,
+  },
+  carouselImage: {
+    width: Platform.OS === 'web' ? 600 : 375,
+    height: 300,
+    backgroundColor: '#e0e0e0',
   },
   headerRow: {
     flexDirection: 'row',

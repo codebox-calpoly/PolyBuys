@@ -219,9 +219,14 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
         </View>
         {isLoading ? null : isAuthenticated ? (
-          <TouchableOpacity style={styles.createButton} onPress={handleCreateListing}>
-            <Text style={styles.createButtonText}>+ Create</Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity style={styles.profileButton} onPress={() => router.push('/profile')}>
+              <Text style={styles.profileButtonText}>Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.createButton} onPress={handleCreateListing}>
+              <Text style={styles.createButtonText}>+ Create</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/auth/login')}>
             <Text style={styles.signInButtonText}>Sign In</Text>
@@ -332,12 +337,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  profileButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  profileButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   createButton: {
     backgroundColor: '#4CAF50',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    marginTop: 12,
   },
   createButtonText: {
     color: '#fff',

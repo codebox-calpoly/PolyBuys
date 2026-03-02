@@ -23,6 +23,11 @@
               "scheme": "https",
               "host": "polybuys.com",
               "pathPrefix": "/listings"
+            },
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/l"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
