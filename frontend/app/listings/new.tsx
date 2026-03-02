@@ -119,6 +119,8 @@ export default function NewListingScreen() {
     );
   }
 
+  const isCancelDisabled = isSubmitting || hasPendingUploads;
+
   return (
     <ScrollView
       style={styles.container}
@@ -200,7 +202,9 @@ export default function NewListingScreen() {
                 ]}
                 onPress={() => setCondition(option)}
               >
-                <Text style={[styles.optionText, condition === option && styles.optionTextSelected]}>
+                <Text
+                  style={[styles.optionText, condition === option && styles.optionTextSelected]}
+                >
                   {option.charAt(0).toUpperCase() + option.slice(1)}
                 </Text>
               </Pressable>
@@ -239,9 +243,13 @@ export default function NewListingScreen() {
             </Text>
           </Pressable>
           <Pressable
-            style={({ pressed }) => [styles.cancelButton, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.cancelButton,
+              isCancelDisabled && styles.cancelButtonDisabled,
+              pressed && !isCancelDisabled && styles.buttonPressed,
+            ]}
             onPress={() => router.back()}
-            disabled={isSubmitting}
+            disabled={isCancelDisabled}
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
@@ -381,6 +389,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d5e0db',
     backgroundColor: '#f6faf8',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
   },
   cancelButtonText: {
     color: '#4f645b',

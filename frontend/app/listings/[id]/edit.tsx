@@ -207,7 +207,9 @@ export default function EditListingScreen() {
                 ]}
                 onPress={() => setCondition(option)}
               >
-                <Text style={[styles.optionText, condition === option && styles.optionTextSelected]}>
+                <Text
+                  style={[styles.optionText, condition === option && styles.optionTextSelected]}
+                >
                   {option.charAt(0).toUpperCase() + option.slice(1)}
                 </Text>
               </Pressable>
@@ -241,7 +243,9 @@ export default function EditListingScreen() {
             }}
             disabled={isSubmitting || hasPendingUploads}
           >
-            <Text style={styles.submitButtonText}>{isSubmitting ? 'Saving...' : 'Save Changes'}</Text>
+            <Text style={styles.submitButtonText}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [

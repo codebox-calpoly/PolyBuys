@@ -25,7 +25,6 @@ import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 type FeedTabHref = '/' | '/search' | '/settings';
-
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
 function getAppOrigin() {
@@ -33,6 +32,7 @@ function getAppOrigin() {
   if (!configuredOrigin) {
     return DEFAULT_APP_ORIGIN;
   }
+
   return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
 }
 
