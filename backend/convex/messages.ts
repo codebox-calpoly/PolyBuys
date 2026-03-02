@@ -160,11 +160,18 @@ export const getConversationHistory = query({
   },
 });
 
-//List all user conversations a user participates in, ordered by most recent activity
+// List user conversations with pagination + inbox payload
 export const listUserConversations = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const userId = await getUserId(ctx);
+    const limit = Math.max(1, Math.min(args.limit ?? 20, 100));
+    const cursor = args.cursor ? Number.parseInt(args.cursor, 10) : 0;
+    const offset = Number.isNaN(cursor) || cursor < 0 ? 0 : cursor;
+
     const buyerConvos = await ctx.db
       .query('conversations')
       .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
@@ -178,9 +185,60 @@ export const listUserConversations = query({
       .take(MAX_USER_CONVERSATIONS);
 
     const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
-    return [...deduped.values()]
+    const sorted = [...deduped.values()]
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, MAX_USER_CONVERSATIONS);
+
+    const page = sorted.slice(offset, offset + limit);
+    const items = [];
+
+    for (const convo of page) {
+      const otherUserId = convo.buyerId === userId ? convo.sellerId : convo.buyerId;
+      const profile = await ctx.db
+        .query('profiles')
+        .withIndex('by_userId', (q) => q.eq('userId', otherUserId))
+        .unique();
+
+      let preview = '';
+      if (convo.lastMessageId) {
+        const last = await ctx.db.get(convo.lastMessageId);
+        preview = (last?.body ?? '').slice(0, 140);
+      } else {
+        const latest = await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', convo._id))
+          .order('desc')
+          .take(1);
+        preview = (latest[0]?.body ?? '').slice(0, 140);
+      }
+
+      const unreadRows = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation_recipient_readAt', (q) =>
+          q.eq('conversationId', convo._id).eq('recipientId', userId).eq('readAt', 0)
+        )
+        .take(200);
+
+      items.push({
+        conversationId: convo._id,
+        listingId: convo.listingId,
+        lastMessageAt: convo.updatedAt,
+        lastMessagePreview: preview,
+        unreadCount: unreadRows.length,
+        otherParticipant: {
+          id: otherUserId,
+          name: profile?.name ?? null,
+          avatar: profile?.picture ?? null,
+        },
+      });
+    }
+
+    const nextOffset = offset + page.length;
+    return {
+      items,
+      nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+      total: sorted.length,
+    };
   },
 });
 
