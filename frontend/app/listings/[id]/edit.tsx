@@ -21,10 +21,12 @@ type Condition = 'new' | 'used' | 'refurbished';
 
 export default function EditListingScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const listing = useQuery(api.listings.getListing, {
-    id: id as Id<'listings'>,
-  });
+  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
+  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const listing = useQuery(
+    api.listings.getListing,
+    listingId ? { id: listingId as Id<'listings'> } : 'skip'
+  );
   const updateListing = useAction(api.listings.updateListing);
 
   const [title, setTitle] = useState('');
@@ -76,6 +78,10 @@ export default function EditListingScreen() {
       setImages(images.filter((_, i) => i !== index));
     }
   };
+
+  if (!listingId) {
+    return <ListingUnavailable />;
+  }
 
   const isHidden = listing?.isHidden === true;
 

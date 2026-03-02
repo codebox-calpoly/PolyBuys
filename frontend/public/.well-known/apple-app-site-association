@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.com.polybuys.app",
+        "appID": "TEAMID.com.polybuy.app",
         "paths": ["/listings/*"]
       }
     ]

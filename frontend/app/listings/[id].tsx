@@ -20,12 +20,14 @@ import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
 
 export default function ListingDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const listing = useQuery(api.listings.getListing, {
-    id: id as Id<'listings'>,
-  });
+  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const listing = useQuery(
+    api.listings.getListing,
+    listingId ? { id: listingId as Id<'listings'> } : 'skip'
+  );
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
     isAuthenticated ? {} : 'skip'
@@ -58,6 +60,10 @@ export default function ListingDetailScreen() {
       document.title = `${listing.title} - PolyBuys`;
     }
   }, [listing]);
+
+  if (!listingId) {
+    return <ListingUnavailable />;
+  }
 
   if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
     return (
