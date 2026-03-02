@@ -14,6 +14,7 @@ import { ConvexError } from 'convex/values';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import TagInput from '../../../components/TagInput';
+import ListingUnavailable from '../../../components/ListingUnavailable';
 
 type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
 type Condition = 'new' | 'used' | 'refurbished';
@@ -76,8 +77,11 @@ export default function EditListingScreen() {
     }
   };
 
+  const isHidden = listing?.isHidden === true;
+
   const handleSubmit = async () => {
     if (!listing) return;
+    if (isHidden) return;
 
     // Validation
     const trimmedTitle = title.trim();
@@ -138,12 +142,8 @@ export default function EditListingScreen() {
     );
   }
 
-  if (listing === null) {
-    return (
-      <View style={styles.container}>
-        <Text>Listing not found</Text>
-      </View>
-    );
+  if (listing === null || isHidden) {
+    return <ListingUnavailable />;
   }
 
   return (
