@@ -112,7 +112,8 @@ export default function HomeScreen() {
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
-  const listings = allListings;
+  // Defensive client-side guard in case stale cache includes hidden listings.
+  const listings = allListings.filter((listing) => listing.isHidden !== true);
 
   const hasActiveFilters =
     !!filters.category ||
