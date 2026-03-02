@@ -1,27 +1,57 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } from 'react-native';
-import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Linking,
+  Share,
+  Alert,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from 'convex/react';
+import Head from 'expo-router/head';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { useAuth } from '../../hooks/useAuth';
+import { useEffect } from 'react';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
-import { ReportModal } from '../../components/ReportModal';
 
 export default function ListingDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const router = useRouter();
-  const listing = useQuery(api.listings.getListing, {
-    id: id as Id<'listings'>,
-  });
-  const currentUserSubject = useQuery(api.listings.getCurrentUserSubject);
-  const [reportOpen, setReportOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const listing = useQuery(
+    api.listings.getListing,
+    listingId ? { id: listingId as Id<'listings'> } : 'skip'
+  );
+  const currentUserSubject = useQuery(
+    api.listings.getCurrentUserSubject,
+    isAuthenticated ? {} : 'skip'
+  );
+  const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
       pathname: '/',
       params: { tags: tag },
     });
+  };
+
+  const openConversation = async () => {
+    if (!listing) return;
+    try {
+      const convo = await getOrCreateConversation({ listingId: listing._id });
+      router.push({
+        pathname: '/messages/[id]',
+        params: { id: String(convo.conversationId) },
+      });
+    } catch {
+      Alert.alert('Unable to start conversation right now.');
+    }
   };
 
   const shareListing = async () => {
@@ -39,7 +69,17 @@ export default function ListingDetailScreen() {
     }
   };
 
-  if (listing === undefined || currentUserSubject === undefined) {
+  useEffect(() => {
+    if (Platform.OS === 'web' && listing && typeof document !== 'undefined') {
+      document.title = `${listing.title} - PolyBuys`;
+    }
+  }, [listing]);
+
+  if (!listingId) {
+    return <ListingUnavailable />;
+  }
+
+  if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
     return (
       <View style={styles.container}>
         <Text>Loading...</Text>
@@ -61,6 +101,29 @@ export default function ListingDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      <Head>
+        {/* eslint-disable-next-line react-native/no-raw-text */}
+        <title>{`${listing.title} - PolyBuys`}</title>
+        <meta property="og:title" content={`${listing.title} - PolyBuys`} />
+        <meta
+          property="og:description"
+          content={`$${listing.price} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
+        />
+        <meta property="og:url" content={`https://polybuys.com/listings/${listing._id}`} />
+      </Head>
+
+      {Platform.OS === 'web' && (
+        <View style={styles.webBannerContainer}>
+          <Text style={styles.webBannerText}>Experience PolyBuys on mobile!</Text>
+          <TouchableOpacity
+            style={styles.webBannerButton}
+            onPress={() => Linking.openURL(`polybuys://listings/${listing._id}`)}
+          >
+            <Text style={styles.webBannerButtonText}>Open in App</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {isHiddenOwnerView && <HiddenBanner />}
 
       <View style={styles.headerRow}>
@@ -97,20 +160,25 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      {!isOwner && (
+      {!isAuthenticated ? (
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.reportButton} onPress={() => setReportOpen(true)}>
-            <Text style={styles.reportButtonText}>Report listing</Text>
+          <TouchableOpacity
+            style={styles.messageButton}
+            onPress={() => {
+              const redirectTo = `/listings/${listing._id}`;
+              router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+            }}
+          >
+            <Text style={styles.messageButtonText}>Sign in to message seller</Text>
           </TouchableOpacity>
         </View>
-      )}
-
-      <ReportModal
-        isVisible={reportOpen}
-        onClose={() => setReportOpen(false)}
-        targetId={String(listing._id)}
-        targetType="listing"
-      />
+      ) : currentUserSubject && currentUserSubject !== listing.sellerId ? (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.messageButton} onPress={openConversation}>
+            <Text style={styles.messageButtonText}>Message Seller</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -189,15 +257,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  reportButton: {
-    borderWidth: 1,
-    borderColor: '#c62828',
-    padding: 12,
+  messageButton: {
+    backgroundColor: '#1976d2',
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
-  reportButtonText: {
-    color: '#c62828',
-    fontWeight: '700',
+  messageButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  webBannerContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  webBannerText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  webBannerButton: {
+    backgroundColor: '#2196f3',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  webBannerButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

@@ -4,13 +4,14 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FilterBar } from '../components/FilterBar';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { PriceRangePicker } from '../components/PriceRangePicker';
@@ -25,6 +26,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const { tags } = useLocalSearchParams();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = isWeb && width > 1024;
+  const isTablet = isWeb && width > 768 && width <= 1024;
 
   // Filter state
   const [filters, setFilters] = useState<Filters>({});
@@ -115,6 +120,28 @@ export default function HomeScreen() {
   // Defensive client-side guard in case stale cache includes hidden listings.
   const listings = allListings.filter((listing) => listing.isHidden !== true);
 
+  // If a fetched page is fully hidden by defensive filtering, auto-advance pagination.
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !isLoadingMore &&
+      !isDone &&
+      allListings.length > 0 &&
+      listings.length === 0 &&
+      listingsResult?.continueCursor
+    ) {
+      setIsLoadingMore(true);
+      setCursor(listingsResult.continueCursor);
+    }
+  }, [
+    isLoading,
+    isLoadingMore,
+    isDone,
+    allListings.length,
+    listings.length,
+    listingsResult?.continueCursor,
+  ]);
+
   const hasActiveFilters =
     !!filters.category ||
     filters.minPrice !== undefined ||
@@ -166,30 +193,40 @@ export default function HomeScreen() {
   }, [isDone, isLoadingMore, listingsResult?.continueCursor]);
 
   const handleCreateListing = () => {
-    if (!isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/auth/login') },
-      ]);
-      return;
-    }
     router.push('/listings/new');
   };
 
+  // Calculate columns for responsive grid
+  const numColumns = useMemo(() => {
+    if (!isWeb) return 1;
+    if (isDesktop) return 3;
+    if (isTablet) return 2;
+    return 1;
+  }, [isWeb, isDesktop, isTablet]);
+
+  // Set document title for web SEO
+  useEffect(() => {
+    if (isWeb && typeof document !== 'undefined') {
+      document.title = 'PolyBuys — Cal Poly Student Marketplace';
+    }
+  }, [isWeb]);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, isWeb && styles.webContainer]}>
+      <View style={[styles.header, isWeb && styles.webHeader]}>
         <View>
-          <Text style={styles.title}>Welcome to PolyBuy</Text>
+          <Text style={styles.title}>Welcome to PolyBuys</Text>
           <Text style={styles.subtitle}>Marketplace for Cal Poly Students</Text>
         </View>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={handleCreateListing}
-          disabled={isLoading}
-        >
-          <Text style={styles.createButtonText}>+ Create</Text>
-        </TouchableOpacity>
+        {isLoading ? null : isAuthenticated ? (
+          <TouchableOpacity style={styles.createButton} onPress={handleCreateListing}>
+            <Text style={styles.createButtonText}>+ Create</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/auth/login')}>
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FilterBar
@@ -238,10 +275,16 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
+          key={`list-${numColumns}`}
           data={listings}
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => <ListingCard listing={item} />}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            isWeb && numColumns > 1 && styles.webListContainer,
+          ]}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
@@ -263,6 +306,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     padding: 20,
+  },
+  webContainer: {
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  webHeader: {
+    paddingHorizontal: 0,
   },
   title: {
     fontSize: 28,
@@ -318,6 +369,25 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 20,
+  },
+  webListContainer: {
+    paddingHorizontal: 0,
+  },
+  columnWrapper: {
+    justifyContent: 'flex-start',
+    paddingHorizontal: 0,
+  },
+  signInButton: {
+    backgroundColor: '#154734',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  signInButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
   footerLoader: {
     paddingVertical: 20,
