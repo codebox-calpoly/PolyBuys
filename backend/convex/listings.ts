@@ -26,6 +26,23 @@ export const PAYLOAD_BOUNDS = {
   PRICE_MAX: 1_000_000,
 };
 
+const MAX_PAGE_SIZE = 100;
+const MAX_MANUAL_COLLECT = 1000;
+const MAX_SEARCH_TERM_LENGTH = 120;
+
+function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: string | null }) {
+  if (paginationOpts.numItems < 1 || paginationOpts.numItems > MAX_PAGE_SIZE) {
+    throw new ConvexError(`numItems must be between 1 and ${MAX_PAGE_SIZE}`);
+  }
+
+  if (paginationOpts.cursor !== null) {
+    const parsed = Number.parseInt(paginationOpts.cursor, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      throw new ConvexError('cursor must be a non-negative integer string or null');
+    }
+  }
+}
+
 async function verifyOwnership(
   ctx: MutationCtx,
   listingId: Id<'listings'>
@@ -187,13 +204,15 @@ export const searchAndFilterListings = query({
   },
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
-    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
-      throw new ConvexError('numItems must be between 1 and 100');
-    }
+    validatePaginationOrThrow(args.paginationOpts);
 
     const filters = args.filters ?? {};
     const searchTerm = filters.searchTerm?.trim();
     const sortBy = filters.sortBy ?? 'newest';
+
+    if (searchTerm && searchTerm.length > MAX_SEARCH_TERM_LENGTH) {
+      throw new ConvexError(`searchTerm must be <= ${MAX_SEARCH_TERM_LENGTH} characters`);
+    }
 
     // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
     // This is acceptable because search results are typically limited by search relevance.
@@ -210,7 +229,7 @@ export const searchAndFilterListings = query({
         return sq;
       });
 
-      const MAX_SEARCH_COLLECT = 1000;
+      const MAX_SEARCH_COLLECT = MAX_MANUAL_COLLECT;
       // For search queries, we must collect since search indexes don't support paginate()
       let results = await searchQuery.take(MAX_SEARCH_COLLECT);
 
@@ -360,7 +379,7 @@ export const searchAndFilterListings = query({
 
     // Need post-filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
-    const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
+    const MAX_COLLECT = MAX_MANUAL_COLLECT; // Limit to prevent excessive memory usage
 
     const allResults = await query
       .filter((q) => q.neq(q.field('isHidden'), true))
@@ -415,9 +434,7 @@ export const getListings = query({
   },
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
-    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) {
-      throw new ConvexError('numItems must be between 1 and 100');
-    }
+    validatePaginationOrThrow(args.paginationOpts);
 
     // Validate price filters
     if (args.minPrice !== undefined && args.minPrice < 0) {
@@ -469,7 +486,7 @@ export const getListings = query({
 
     // Need tags/price filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
-    const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
+    const MAX_COLLECT = MAX_MANUAL_COLLECT; // Limit to prevent excessive memory usage
 
     const allResults = await query
       .filter((q) => q.neq(q.field('isHidden'), true))
@@ -792,7 +809,7 @@ export const deleteListing = mutation({
 export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
-    const MAX_SEARCH_COLLECT = 1000;
+    const MAX_SEARCH_COLLECT = MAX_MANUAL_COLLECT;
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>

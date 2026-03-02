@@ -136,6 +136,16 @@ describe('Filtered pagination correctness', () => {
     expect(result.page[0].price).toBe(200);
   });
 
+  it('getListings rejects malformed cursor values', async () => {
+    const t = await setupTestWithProfile();
+
+    await expect(
+      t.query(api.listings.getListings, {
+        paginationOpts: { numItems: 10, cursor: '-1' },
+      })
+    ).rejects.toThrow('cursor must be a non-negative integer string or null');
+  });
+
   it('getListings pagination cursor advances correctly with tag filtering', async () => {
     const t = await setupTestWithProfile();
     const asUser = t.withIdentity(aliceIdentity);
@@ -189,6 +199,28 @@ describe('Filtered pagination correctness', () => {
     const page2Ids = page2.page.map((l) => l._id);
     const intersection = page1Ids.filter((id) => page2Ids.includes(id));
     expect(intersection.length).toBe(0);
+  });
+
+  it('searchAndFilterListings rejects malformed cursor values', async () => {
+    const t = await setupTestWithProfile();
+
+    await expect(
+      t.query(api.listings.searchAndFilterListings, {
+        filters: {},
+        paginationOpts: { numItems: 10, cursor: 'not-a-number' },
+      })
+    ).rejects.toThrow('cursor must be a non-negative integer string or null');
+  });
+
+  it('searchAndFilterListings rejects overly long search terms', async () => {
+    const t = await setupTestWithProfile();
+
+    await expect(
+      t.query(api.listings.searchAndFilterListings, {
+        filters: { searchTerm: 'x'.repeat(121) },
+        paginationOpts: { numItems: 10, cursor: null },
+      })
+    ).rejects.toThrow('searchTerm must be <= 120 characters');
   });
 
   it('searchAndFilterListings pagination with maxPrice does not skip results', async () => {
