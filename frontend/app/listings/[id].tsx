@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import ListingUnavailable from '../../components/ListingUnavailable';
+import HiddenBanner from '../../components/HiddenBanner';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -19,7 +21,22 @@ export default function ListingDetailScreen() {
     });
   };
 
-  if (listing === undefined) {
+  const shareListing = async () => {
+    if (!listing) return;
+
+    const shareUrl = `https://polybuys.com/l/${listing._id}`;
+    try {
+      await Share.share({
+        message: `${listing.title} — $${listing.price}\n${shareUrl}`,
+        url: shareUrl,
+        title: listing.title,
+      });
+    } catch {
+      Alert.alert('Unable to share listing right now.');
+    }
+  };
+
+  if (listing === undefined || currentUserSubject === undefined) {
     return (
       <View style={styles.container}>
         <Text>Loading...</Text>
@@ -28,16 +45,27 @@ export default function ListingDetailScreen() {
   }
 
   if (listing === null) {
-    return (
-      <View style={styles.container}>
-        <Text>Listing not found</Text>
-      </View>
-    );
+    return <ListingUnavailable />;
+  }
+
+  const isOwner = currentUserSubject === listing.sellerId;
+  const isHidden = listing.isHidden === true;
+  const isHiddenOwnerView = isOwner && isHidden;
+
+  if (isHidden && !isOwner) {
+    return <ListingUnavailable />;
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>{listing.title}</Text>
+      {isHiddenOwnerView && <HiddenBanner />}
+
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{listing.title}</Text>
+        <TouchableOpacity style={styles.shareButton} onPress={shareListing}>
+          <Text style={styles.shareButtonText}>Share</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.price}>${listing.price}</Text>
       <Text style={styles.description}>{listing.description}</Text>
 
@@ -55,7 +83,7 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      {currentUserSubject && currentUserSubject === listing.sellerId && (
+      {isOwner && !isHidden && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.editButton}
@@ -75,10 +103,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+    flex: 1,
+  },
+  shareButton: {
+    backgroundColor: '#1976d2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   price: {
     fontSize: 28,

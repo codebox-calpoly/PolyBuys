@@ -24,6 +24,7 @@ export const internalSendMessage = internalMutation({
     senderId: v.string(),
     recipientId: v.string(),
     body: v.string(),
+    type: v.string(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -35,10 +36,12 @@ export const internalSendMessage = internalMutation({
       body: args.body,
       createdAt: now,
       readAt: 0,
+      type: args.type,
     });
 
     await ctx.db.patch(args.conversationId, {
       updatedAt: now,
+      lastMessageId: messageId,
     });
 
     return { messageId };
@@ -50,6 +53,7 @@ export const sendMessage = action({
   args: {
     conversationId: v.id('conversations'),
     body: v.string(),
+    type: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ messageId: string }> => {
     // Validate message body length
@@ -59,6 +63,8 @@ export const sendMessage = action({
     if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
       throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
     }
+
+    const type = args.type ?? 'text';
 
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
@@ -101,6 +107,7 @@ export const sendMessage = action({
       senderId: userId,
       recipientId,
       body: args.body,
+      type: type,
     });
 
     return result;
@@ -121,6 +128,7 @@ export const debugCreateConversationID = internalMutation({
       listingId: args.listingId,
       buyerId: args.buyerId,
       sellerId: args.sellerId,
+      participantIds: [args.buyerId, args.sellerId],
       createdAt: now,
       updatedAt: now,
       buyerLastReadAt: now,
@@ -226,6 +234,7 @@ export const getOrCreateConversation = mutation({
       listingId: args.listingId,
       buyerId,
       sellerId,
+      participantIds: [buyerId, sellerId],
       createdAt: now,
       updatedAt: now,
       buyerLastReadAt: now,
@@ -270,6 +279,33 @@ export const markMessagesAsRead = mutation({
 });
 
 // TASK: real-time message delivery (Convex query is reactive when used with useQuery)
+export const backfillMessagingFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const conversations = await ctx.db.query('conversations').collect();
+    let conversationPatches = 0;
+
+    for (const convo of conversations) {
+      if (!convo.participantIds || convo.participantIds.length !== 2) {
+        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
+        conversationPatches += 1;
+      }
+    }
+
+    const messages = await ctx.db.query('messages').collect();
+    let messagePatches = 0;
+
+    for (const message of messages) {
+      if (!message.type) {
+        await ctx.db.patch(message._id, { type: 'text' });
+        messagePatches += 1;
+      }
+    }
+
+    return { conversationPatches, messagePatches };
+  },
+});
+
 export const messagesByConversation = query({
   args: {
     conversationId: v.id('conversations'),
