@@ -21,22 +21,23 @@ export default function HiddenBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: '#FFF8E1',
-    borderColor: '#F1C40F',
+    backgroundColor: '#fff9eb',
+    borderColor: '#f0d37a',
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
   },
   title: {
     fontSize: 14,
-    color: '#5D4037',
-    marginBottom: 6,
+    color: '#6c4f20',
+    marginBottom: 8,
     fontWeight: '600',
   },
   link: {
     fontSize: 14,
-    color: '#154734',
+    color: '#8a5a00',
     fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

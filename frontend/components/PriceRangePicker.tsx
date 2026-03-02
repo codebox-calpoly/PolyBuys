@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Animated,
   View,
   Text,
   TouchableOpacity,
@@ -8,6 +9,7 @@ import {
   Pressable,
   TextInput,
 } from 'react-native';
+import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 
 interface PriceRangePickerProps {
   visible: boolean;
@@ -31,6 +33,7 @@ export function PriceRangePicker({
   onApply,
   onClose,
 }: PriceRangePickerProps) {
+  const entranceStyle = useEntranceAnimation(40, 8);
   const [min, setMin] = useState<string>(minPrice?.toString() ?? '');
   const [max, setMax] = useState<string>(maxPrice?.toString() ?? '');
   const [error, setError] = useState<string>('');
@@ -94,57 +97,59 @@ export function PriceRangePicker({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Price Range</Text>
+        <Animated.View style={[styles.sheet, entranceStyle]}>
+          <Pressable style={styles.sheetTapArea} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.handle} />
+            <Text style={styles.title}>Price Range</Text>
 
-          {/* Quick Presets */}
-          <View style={styles.presetsContainer}>
-            {PRESETS.map((preset) => (
-              <TouchableOpacity
-                key={preset.label}
-                style={styles.presetButton}
-                onPress={() => handlePreset(preset)}
-              >
-                <Text style={styles.presetText}>{preset.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Custom Range Inputs */}
-          <Text style={styles.sectionTitle}>Custom Range</Text>
-          <View style={styles.inputRow}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Min</Text>
-              <TextInput
-                style={styles.input}
-                value={min}
-                onChangeText={setMin}
-                placeholder="$0"
-                keyboardType="numeric"
-                placeholderTextColor="#999"
-              />
+            {/* Quick Presets */}
+            <View style={styles.presetsContainer}>
+              {PRESETS.map((preset) => (
+                <TouchableOpacity
+                  key={preset.label}
+                  style={styles.presetButton}
+                  onPress={() => handlePreset(preset)}
+                >
+                  <Text style={styles.presetText}>{preset.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <Text style={styles.separator}>–</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Max</Text>
-              <TextInput
-                style={styles.input}
-                value={max}
-                onChangeText={setMax}
-                placeholder="Any"
-                keyboardType="numeric"
-                placeholderTextColor="#999"
-              />
+
+            {/* Custom Range Inputs */}
+            <Text style={styles.sectionTitle}>Custom Range</Text>
+            <View style={styles.inputRow}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Min</Text>
+                <TextInput
+                  style={styles.input}
+                  value={min}
+                  onChangeText={setMin}
+                  placeholder="$0"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              <Text style={styles.separator}>–</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Max</Text>
+                <TextInput
+                  style={styles.input}
+                  value={max}
+                  onChangeText={setMax}
+                  placeholder="Any"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                />
+              </View>
             </View>
-          </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
-            <Text style={styles.applyButtonText}>Apply</Text>
-          </TouchableOpacity>
-        </Pressable>
+            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+              <Text style={styles.applyButtonText}>Apply</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -157,9 +162,16 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
+    backgroundColor: 'transparent',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  sheetTapArea: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
@@ -172,10 +184,11 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 19,
+    fontWeight: '700',
+    marginBottom: 14,
     textAlign: 'center',
+    color: '#153428',
   },
   presetsContainer: {
     flexDirection: 'row',
@@ -186,7 +199,9 @@ const styles = StyleSheet.create({
   presetButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f4f8f6',
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
     borderRadius: 20,
   },
   presetText: {
@@ -214,11 +229,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: '#d4dfd9',
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+    backgroundColor: '#f9fbfa',
   },
   separator: {
     fontSize: 18,
@@ -234,7 +250,7 @@ const styles = StyleSheet.create({
   applyButton: {
     backgroundColor: '#154734',
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
   },
   applyButtonText: {

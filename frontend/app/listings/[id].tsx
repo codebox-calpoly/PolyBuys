@@ -1,13 +1,17 @@
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Linking,
-  Share,
+  ActivityIndicator,
   Alert,
+  Animated,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
@@ -15,15 +19,31 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
-import { useEffect } from 'react';
-import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
+import ListingUnavailable from '../../components/ListingUnavailable';
+import { ReportModal } from '../../components/ReportModal';
+import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+
+type FeedTabHref = '/' | '/search' | '/settings';
+
+const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
+
+function getAppOrigin() {
+  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
+  if (!configuredOrigin) {
+    return DEFAULT_APP_ORIGIN;
+  }
+  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
+}
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
+  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const entranceStyle = useEntranceAnimation();
+  const appOrigin = getAppOrigin();
+
   const listing = useQuery(
     api.listings.getListing,
     listingId ? { id: listingId as Id<'listings'> } : 'skip'
@@ -33,16 +53,19 @@ export default function ListingDetailScreen() {
     isAuthenticated ? {} : 'skip'
   );
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
-      pathname: '/',
+      pathname: '/' as FeedTabHref,
       params: { tags: tag },
     });
   };
 
   const openConversation = async () => {
-    if (!listing) return;
+    if (!listing) {
+      return;
+    }
     try {
       const convo = await getOrCreateConversation({ listingId: listing._id });
       router.push({
@@ -55,12 +78,14 @@ export default function ListingDetailScreen() {
   };
 
   const shareListing = async () => {
-    if (!listing) return;
+    if (!listing) {
+      return;
+    }
 
-    const shareUrl = `https://polybuys.com/l/${listing._id}`;
+    const shareUrl = `${appOrigin}/l/${listing._id}`;
     try {
       await Share.share({
-        message: `${listing.title} — $${listing.price}\n${shareUrl}`,
+        message: `${listing.title} - $${listing.price}\n${shareUrl}`,
         url: shareUrl,
         title: listing.title,
       });
@@ -81,8 +106,9 @@ export default function ListingDetailScreen() {
 
   if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#154734" />
+        <Text style={styles.loadingText}>Loading listing...</Text>
       </View>
     );
   }
@@ -100,7 +126,11 @@ export default function ListingDetailScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <Head>
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <title>{`${listing.title} - PolyBuys`}</title>
@@ -109,147 +139,311 @@ export default function ListingDetailScreen() {
           property="og:description"
           content={`$${listing.price} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
         />
-        <meta property="og:url" content={`https://polybuys.com/listings/${listing._id}`} />
+        <meta property="og:url" content={`${appOrigin}/listings/${listing._id}`} />
       </Head>
 
       {Platform.OS === 'web' && (
         <View style={styles.webBannerContainer}>
           <Text style={styles.webBannerText}>Experience PolyBuys on mobile!</Text>
-          <TouchableOpacity
-            style={styles.webBannerButton}
-            onPress={() => Linking.openURL(`polybuys://listings/${listing._id}`)}
-          >
-            <Text style={styles.webBannerButtonText}>Open in App</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {isHiddenOwnerView && <HiddenBanner />}
-
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>{listing.title}</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={shareListing}>
-          <Text style={styles.shareButtonText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.price}>${listing.price}</Text>
-      <Text style={styles.description}>{listing.description}</Text>
-
-      {listing.tags && listing.tags.length > 0 && (
-        <View style={styles.tagContainer}>
-          {listing.tags.map((tag) => (
-            <TouchableOpacity
-              key={tag}
-              style={styles.tag}
-              onPress={() => navigateToFeedWithTag(tag)}
-            >
-              <Text style={styles.tagText}>#{tag}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {isOwner && !isHidden && (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => router.push(`/listings/${listing._id}/edit`)}
-          >
-            <Text style={styles.editButtonText}>Edit Listing</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {!isAuthenticated ? (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.messageButton}
+          <Pressable
+            style={({ pressed }) => [styles.webBannerButton, pressed && styles.buttonPressed]}
             onPress={() => {
-              const redirectTo = `/listings/${listing._id}`;
-              router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+              void Linking.openURL(`polybuys://listings/${listing._id}`);
             }}
           >
-            <Text style={styles.messageButtonText}>Sign in to message seller</Text>
-          </TouchableOpacity>
+            <Text style={styles.webBannerButtonText}>Open in App</Text>
+          </Pressable>
         </View>
-      ) : currentUserSubject && currentUserSubject !== listing.sellerId ? (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.messageButton} onPress={openConversation}>
-            <Text style={styles.messageButtonText}>Message Seller</Text>
-          </TouchableOpacity>
+      )}
+
+      <Animated.View style={[styles.card, entranceStyle]}>
+        {isHiddenOwnerView && <HiddenBanner />}
+
+        {listing.images.length > 0 ? (
+          <Image source={{ uri: listing.images[0] }} style={styles.heroImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.placeholderImage}>
+            <Text style={styles.placeholderText}>No image provided</Text>
+          </View>
+        )}
+
+        <View style={styles.headerRow}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>{listing.title}</Text>
+            <Text style={styles.price}>${listing.price}</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+            onPress={() => {
+              void shareListing();
+            }}
+          >
+            <Text style={styles.shareButtonText}>Share</Text>
+          </Pressable>
         </View>
-      ) : null}
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaLabel}>Category</Text>
+            <Text style={styles.metaValue}>{listing.category}</Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaLabel}>Condition</Text>
+            <Text style={styles.metaValue}>{listing.condition}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.description}>{listing.description}</Text>
+
+        {listing.tags && listing.tags.length > 0 && (
+          <View style={styles.tagContainer}>
+            {listing.tags.map((tag) => (
+              <Pressable
+                key={tag}
+                style={({ pressed }) => [styles.tag, pressed && styles.tagPressed]}
+                onPress={() => navigateToFeedWithTag(tag)}
+              >
+                <Text style={styles.tagText}>#{tag}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {isOwner && !isHidden && (
+          <View style={styles.buttonContainer}>
+            <Pressable
+              style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
+              onPress={() => router.push(`/listings/${listing._id}/edit`)}
+            >
+              <Text style={styles.editButtonText}>Edit Listing</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!isOwner && (
+          <View style={styles.buttonContainer}>
+            {!isAuthenticated ? (
+              <Pressable
+                style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
+                onPress={() => {
+                  const redirectTo = `/listings/${listing._id}`;
+                  router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+                }}
+              >
+                <Text style={styles.messageButtonText}>Sign in to message seller</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
+                onPress={() => {
+                  void openConversation();
+                }}
+              >
+                <Text style={styles.messageButtonText}>Message Seller</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={({ pressed }) => [styles.reportButton, pressed && styles.buttonPressed]}
+              onPress={() => setReportOpen(true)}
+            >
+              <Text style={styles.reportButtonText}>Report listing</Text>
+            </Pressable>
+          </View>
+        )}
+
+        <ReportModal
+          isVisible={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetId={String(listing._id)}
+          targetType="listing"
+        />
+      </Animated.View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f3f7f5',
+    gap: 8,
+  },
+  loadingText: {
+    color: '#5f7268',
+    fontSize: 15,
+  },
   container: {
     flex: 1,
+    backgroundColor: '#f3f7f5',
+  },
+  content: {
+    width: '100%',
+    maxWidth: 980,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 28,
+  },
+  webBannerContainer: {
+    marginBottom: 12,
+    backgroundColor: '#e8f4ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cae3ff',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  webBannerText: {
+    color: '#1f4e80',
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  webBannerButton: {
+    backgroundColor: '#1f6fb2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  webBannerButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  card: {
     backgroundColor: '#fff',
-    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d8e6df',
+    padding: 16,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  heroImage: {
+    width: '100%',
+    height: 280,
+    borderRadius: 14,
+    marginBottom: 14,
+    backgroundColor: '#e8ece9',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 14,
+    marginBottom: 14,
+    backgroundColor: '#edf2ef',
+    borderWidth: 1,
+    borderColor: '#dce6e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    color: '#7a8a83',
+    fontSize: 14,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  headerText: {
+    flex: 1,
+    gap: 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     flex: 1,
+    color: '#0f2b21',
   },
   shareButton: {
-    backgroundColor: '#1976d2',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#edf4ff',
+    borderWidth: 1,
+    borderColor: '#d2dff8',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
   shareButtonText: {
-    color: '#fff',
+    color: '#2d5ab5',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 14,
   },
   price: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 16,
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#1a7f4d',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  metaChip: {
+    backgroundColor: '#f7faf8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d9e5df',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 120,
+  },
+  metaLabel: {
+    fontSize: 11,
+    color: '#6f8178',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  metaValue: {
+    fontSize: 15,
+    color: '#1f3c30',
+    fontWeight: '600',
   },
   description: {
     fontSize: 16,
-    color: '#333',
-    marginBottom: 24,
+    color: '#41594f',
+    marginBottom: 18,
     lineHeight: 24,
   },
   tagContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 24,
+    gap: 8,
+    marginBottom: 18,
   },
   tag: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#eef4ff',
+    borderWidth: 1,
+    borderColor: '#d5e4ff',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 16,
-    marginRight: 6,
-    marginBottom: 4,
   },
   tagText: {
-    color: '#1976d2',
+    color: '#2f5fbd',
     fontSize: 14,
     fontWeight: '500',
   },
   buttonContainer: {
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 8,
+    gap: 10,
   },
   editButton: {
-    backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#154734',
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   editButtonText: {
@@ -258,9 +452,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   messageButton: {
-    backgroundColor: '#1976d2',
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#154734',
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   messageButtonText: {
@@ -268,33 +462,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  webBannerContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  reportButton: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#c62828',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
   },
-  webBannerText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    flex: 1,
+  reportButtonText: {
+    color: '#c62828',
+    fontWeight: '700',
+    fontSize: 15,
   },
-  webBannerButton: {
-    backgroundColor: '#2196f3',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginLeft: 12,
+  buttonPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
   },
-  webBannerButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+  tagPressed: {
+    opacity: 0.85,
   },
 });
