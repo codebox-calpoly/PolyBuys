@@ -64,7 +64,11 @@ export default function ListingDetailScreen() {
       {listing.tags && listing.tags.length > 0 && (
         <View style={styles.tagContainer}>
           {listing.tags.map((tag) => (
-            <TouchableOpacity key={tag} style={styles.tag} onPress={() => navigateToFeedWithTag(tag)}>
+            <TouchableOpacity
+              key={tag}
+              style={styles.tag}
+              onPress={() => navigateToFeedWithTag(tag)}
+            >
               <Text style={styles.tagText}>#{tag}</Text>
             </TouchableOpacity>
           ))}
