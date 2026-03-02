@@ -345,29 +345,47 @@ export const markMessagesAsRead = mutation({
 
 // TASK: real-time message delivery (Convex query is reactive when used with useQuery)
 export const backfillMessagingFields = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const conversations = await ctx.db.query('conversations').collect();
-    let conversationPatches = 0;
+  args: {
+    convoCursor: v.optional(v.string()),
+    messageCursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = Math.max(1, Math.min(args.batchSize ?? 200, 500));
 
-    for (const convo of conversations) {
+    const convoPage = await ctx.db.query('conversations').paginate({
+      cursor: args.convoCursor ?? null,
+      numItems: batchSize,
+    });
+
+    let conversationPatches = 0;
+    for (const convo of convoPage.page) {
       if (!convo.participantIds || convo.participantIds.length !== 2) {
         await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
         conversationPatches += 1;
       }
     }
 
-    const messages = await ctx.db.query('messages').collect();
-    let messagePatches = 0;
+    const messagePage = await ctx.db.query('messages').paginate({
+      cursor: args.messageCursor ?? null,
+      numItems: batchSize,
+    });
 
-    for (const message of messages) {
+    let messagePatches = 0;
+    for (const message of messagePage.page) {
       if (!message.type) {
         await ctx.db.patch(message._id, { type: 'text' });
         messagePatches += 1;
       }
     }
 
-    return { conversationPatches, messagePatches };
+    return {
+      conversationPatches,
+      messagePatches,
+      nextConvoCursor: convoPage.isDone ? null : convoPage.continueCursor,
+      nextMessageCursor: messagePage.isDone ? null : messagePage.continueCursor,
+      done: convoPage.isDone && messagePage.isDone,
+    };
   },
 });
 
