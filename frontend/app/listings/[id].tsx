@@ -1,18 +1,24 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { useAuth } from '../../hooks/useAuth';
+import { useEffect } from 'react';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const listing = useQuery(api.listings.getListing, {
     id: id as Id<'listings'>,
   });
-  const currentUserSubject = useQuery(api.listings.getCurrentUserSubject);
+  const currentUserSubject = useQuery(
+    api.listings.getCurrentUserSubject,
+    isAuthenticated ? {} : 'skip'
+  );
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -21,7 +27,13 @@ export default function ListingDetailScreen() {
     });
   };
 
-  if (listing === undefined || currentUserSubject === undefined) {
+  useEffect(() => {
+    if (Platform.OS === 'web' && listing && typeof document !== 'undefined') {
+      document.title = `${listing.title} - PolyBuys`;
+    }
+  }, [listing]);
+
+  if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
     return (
       <View style={styles.container}>
         <Text>Loading...</Text>
@@ -73,6 +85,26 @@ export default function ListingDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {!isAuthenticated ? (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.messageButton}
+            onPress={() => {
+              const redirectTo = `/listings/${listing._id}`;
+              router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+            }}
+          >
+            <Text style={styles.messageButtonText}>Sign in to message seller</Text>
+          </TouchableOpacity>
+        </View>
+      ) : currentUserSubject && currentUserSubject !== listing.sellerId ? (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.messageButton} onPress={() => {}}>
+            <Text style={styles.messageButtonText}>Message Seller</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -129,6 +161,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   editButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  messageButton: {
+    backgroundColor: '#1976d2',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  messageButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

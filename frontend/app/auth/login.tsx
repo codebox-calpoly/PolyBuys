@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,30 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useConvexAuth } from 'convex/react';
 import { getEmailValidationError } from '@polybuys/shared';
 
 type Step = 'email' | { email: string };
 
+// Validate returnTo is a safe relative path
+function getSafeRedirect(path?: string | string[]): string {
+  // Handle array from duplicate query params
+  if (Array.isArray(path)) {
+    path = path[0];
+  }
+  if (!path || typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) {
+    return '/';
+  }
+  return path;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -26,6 +41,15 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const redirectPath = getSafeRedirect(returnTo);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      router.replace(redirectPath as any);
+    }
+  }, [isAuthenticated, returnTo, router]);
 
   const handleSendCode = async () => {
     // Validate email
@@ -65,8 +89,7 @@ export default function LoginScreen() {
 
     try {
       await signIn('resend-otp', { email: step.email, code: code.trim() });
-      // On success, redirect to home
-      router.replace('/');
+      // Redirect is handled by useEffect when isAuthenticated changes
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
       setError(errorMessage);

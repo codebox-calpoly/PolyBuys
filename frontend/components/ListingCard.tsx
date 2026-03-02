@@ -1,4 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 
 interface ListingCardProps {
@@ -13,21 +20,29 @@ interface ListingCardProps {
 
 export default function ListingCard({ listing }: ListingCardProps) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = isWeb && width > 1024;
   const displayTags = listing.tags?.slice(0, 2) || [];
+  const uniqueTags = Array.from(new Set(displayTags));
   const hasMoreTags = listing.tags && listing.tags.length > 2;
 
   return (
     <TouchableOpacity
-      style={styles.listingCard}
+      style={[
+        styles.listingCard,
+        isWeb && !isDesktop && styles.webListingCard,
+        isDesktop && styles.desktopListingCard,
+      ]}
       onPress={() => router.push(`/listings/${listing._id}`)}
     >
       <Text style={styles.listingTitle}>{listing.title}</Text>
       <Text style={styles.listingPrice}>${listing.price}</Text>
       <Text style={styles.listingDescription}>{listing.description}</Text>
 
-      {(displayTags.length > 0 || hasMoreTags) && (
+      {(uniqueTags.length > 0 || hasMoreTags) && (
         <View style={styles.tagsContainer}>
-          {displayTags.map((tag) => (
+          {uniqueTags.map((tag) => (
             <View key={tag} style={styles.tagChip}>
               <Text style={styles.tagText}>#{tag}</Text>
             </View>
@@ -45,6 +60,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
+  },
+  webListingCard: {
+    marginHorizontal: 0,
+  },
+  desktopListingCard: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 16,
+    marginHorizontal: 8,
   },
   listingTitle: {
     fontSize: 18,
