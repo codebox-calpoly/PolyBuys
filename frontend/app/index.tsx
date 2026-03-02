@@ -117,7 +117,30 @@ export default function HomeScreen() {
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
-  const listings = allListings;
+  // Defensive client-side guard in case stale cache includes hidden listings.
+  const listings = allListings.filter((listing) => listing.isHidden !== true);
+
+  // If a fetched page is fully hidden by defensive filtering, auto-advance pagination.
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !isLoadingMore &&
+      !isDone &&
+      allListings.length > 0 &&
+      listings.length === 0 &&
+      listingsResult?.continueCursor
+    ) {
+      setIsLoadingMore(true);
+      setCursor(listingsResult.continueCursor);
+    }
+  }, [
+    isLoading,
+    isLoadingMore,
+    isDone,
+    allListings.length,
+    listings.length,
+    listingsResult?.continueCursor,
+  ]);
 
   const hasActiveFilters =
     !!filters.category ||

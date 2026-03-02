@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
@@ -32,12 +32,26 @@ export default function ListingDetailScreen() {
     api.listings.getCurrentUserSubject,
     isAuthenticated ? {} : 'skip'
   );
+  const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
       pathname: '/',
       params: { tags: tag },
     });
+  };
+
+  const openConversation = async () => {
+    if (!listing) return;
+    try {
+      const convo = await getOrCreateConversation({ listingId: listing._id });
+      router.push({
+        pathname: '/messages/[id]',
+        params: { id: String(convo.conversationId) },
+      });
+    } catch {
+      Alert.alert('Unable to start conversation right now.');
+    }
   };
 
   const shareListing = async () => {
@@ -160,7 +174,7 @@ export default function ListingDetailScreen() {
         </View>
       ) : currentUserSubject && currentUserSubject !== listing.sellerId ? (
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.messageButton} onPress={() => {}}>
+          <TouchableOpacity style={styles.messageButton} onPress={openConversation}>
             <Text style={styles.messageButtonText}>Message Seller</Text>
           </TouchableOpacity>
         </View>
