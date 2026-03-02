@@ -1,0 +1,25 @@
+backend/convex/auth.config.ts
+  e7e0a8757cd0d00b 2,6
+frontend/app/(tabs)/search.tsx
+  e7e0a8757cd0d00b 72-78,80-81,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "b6d363f961d5d96fe420274089f3cf6187f1f8a6",
+  "prompts": {
+    "e7e0a8757cd0d00b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2e6deb66-5125-42fa-8310-d9db030af625",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 14,
+      "accepted_lines": 12,
+      "overriden_lines": 1
+    }
+  }
+}
