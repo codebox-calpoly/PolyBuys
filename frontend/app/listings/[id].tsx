@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } from 'react-native';
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
+import { ReportModal } from '../../components/ReportModal';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -13,6 +15,7 @@ export default function ListingDetailScreen() {
     id: id as Id<'listings'>,
   });
   const currentUserSubject = useQuery(api.listings.getCurrentUserSubject);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -93,6 +96,21 @@ export default function ListingDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {!isOwner && (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.reportButton} onPress={() => setReportOpen(true)}>
+            <Text style={styles.reportButtonText}>Report listing</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ReportModal
+        isVisible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetId={String(listing._id)}
+        targetType="listing"
+      />
     </ScrollView>
   );
 }
@@ -170,5 +188,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reportButton: {
+    borderWidth: 1,
+    borderColor: '#c62828',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  reportButtonText: {
+    color: '#c62828',
+    fontWeight: '700',
   },
 });
