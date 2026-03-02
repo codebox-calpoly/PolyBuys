@@ -69,17 +69,19 @@ export default function SearchScreen() {
 
   useEffect(() => {
     if (listingsResult && queryFilterVersion === filterVersionRef.current) {
-      const cursorId = cursor || 'initial';
-
-      if (!processedCursorsRef.current.has(cursorId)) {
-        if (cursor === null) {
-          setAllListings(listingsResult.page);
-        } else {
-          setAllListings((prev) => [...prev, ...listingsResult.page]);
-        }
+      if (cursor === null) {
+        // Keep first-page results reactive instead of one-time processing.
+        setAllListings(listingsResult.page);
         setIsDone(listingsResult.isDone);
         setIsLoadingMore(false);
-        processedCursorsRef.current.add(cursorId);
+        return;
+      }
+
+      if (!processedCursorsRef.current.has(cursor)) {
+        setAllListings((prev) => [...prev, ...listingsResult.page]);
+        setIsDone(listingsResult.isDone);
+        setIsLoadingMore(false);
+        processedCursorsRef.current.add(cursor);
       }
     }
   }, [listingsResult, cursor, queryFilterVersion]);
