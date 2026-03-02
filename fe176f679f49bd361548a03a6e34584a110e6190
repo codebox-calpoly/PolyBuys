@@ -1,0 +1,27 @@
+frontend/app/listings/new.tsx
+  e7e0a8757cd0d00b 122-123,246-247,250
+frontend/app/listings/[id].tsx
+  e7e0a8757cd0d00b 24,26-33,39,58
+frontend/app/listings/[id]/edit.tsx
+  e7e0a8757cd0d00b 121-122,245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "fe176f679f49bd361548a03a6e34584a110e6190",
+  "prompts": {
+    "e7e0a8757cd0d00b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2e6deb66-5125-42fa-8310-d9db030af625",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 5,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}
