@@ -117,6 +117,24 @@ const categoryValidator = v.union(
 // Condition validator for reuse
 const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
 
+export const generateListingImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to upload images');
+    }
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const getListingImageUrl = query({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
 function normalizeSearchTags(tags: string[]): string[] {
   return [
     ...new Set(
