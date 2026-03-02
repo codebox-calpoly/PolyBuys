@@ -8,6 +8,10 @@ export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
 
+const MAX_CONVERSATION_HISTORY = 500;
+const MAX_USER_CONVERSATIONS = 400;
+const MAX_READ_PATCH_BATCH = 1000;
+
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
 export const internalGetConversation = internalQuery({
   args: { conversationId: v.id('conversations') },
@@ -150,7 +154,7 @@ export const getConversationHistory = query({
     const messages = await ctx.db
       .query('messages')
       .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .collect();
+      .take(MAX_CONVERSATION_HISTORY);
 
     return messages;
   },
@@ -165,15 +169,18 @@ export const listUserConversations = query({
       .query('conversations')
       .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
       .order('desc')
-      .collect();
+      .take(MAX_USER_CONVERSATIONS);
 
     const sellerConvos = await ctx.db
       .query('conversations')
       .withIndex('by_seller', (q) => q.eq('sellerId', userId))
       .order('desc')
-      .collect();
+      .take(MAX_USER_CONVERSATIONS);
 
-    return [...buyerConvos, ...sellerConvos].sort((a, b) => b.updatedAt - a.updatedAt);
+    const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
+    return [...deduped.values()]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_USER_CONVERSATIONS);
   },
 });
 
@@ -268,7 +275,7 @@ export const markMessagesAsRead = mutation({
       )
       .filter((q) => q.eq(q.field('recipientId'), userId))
       .filter((q) => q.eq(q.field('readAt'), 0))
-      .collect();
+      .take(MAX_READ_PATCH_BATCH);
 
     for (const msg of unread) {
       await ctx.db.patch(msg._id, { readAt: now });
@@ -316,6 +323,6 @@ export const messagesByConversation = query({
     return await ctx.db
       .query('messages')
       .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .collect();
+      .take(MAX_CONVERSATION_HISTORY);
   },
 });
