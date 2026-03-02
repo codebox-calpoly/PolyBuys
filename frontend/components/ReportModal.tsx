@@ -85,7 +85,9 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
             onChangeText={setNotes}
             placeholder="Add details that help moderators review this report"
           />
-          <Text style={styles.counter}>{notes.length}/{MAX_NOTES}</Text>
+          <Text style={styles.counter}>
+            {notes.length}/{MAX_NOTES}
+          </Text>
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelButton} onPress={handleClose}>
