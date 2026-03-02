@@ -2,23 +2,39 @@ import { Stack } from 'expo-router';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
 });
 
-const storage = {
-  getItem: async (key: string) => {
-    return await AsyncStorage.getItem(key);
+// Web-compatible storage: use localStorage on web, AsyncStorage on native
+const storage = Platform.select({
+  web: {
+    getItem: async (key: string) => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+      return null;
+    },
+    setItem: async (key: string, value: string) => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    },
+    removeItem: async (key: string) => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    },
   },
-  setItem: async (key: string, value: string) => {
-    await AsyncStorage.setItem(key, value);
+  default: {
+    getItem: (key: string) => AsyncStorage.getItem(key),
+    setItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+    removeItem: (key: string) => AsyncStorage.removeItem(key),
   },
-  removeItem: async (key: string) => {
-    await AsyncStorage.removeItem(key);
-  },
-};
+})!;
 
 export default function RootLayout() {
   return (
