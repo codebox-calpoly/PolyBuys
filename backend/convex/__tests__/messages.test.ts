@@ -492,69 +492,6 @@ describe('Messages queries and mutations', () => {
     });
   });
 
-  describe('messagesByConversation', () => {
-    it('throws error when user is not a participant', async () => {
-      const t = createConvexTest();
-
-      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
-      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
-      const other = await createTestUser(t, 'other@calpoly.edu', 'Other');
-
-      const listingId = await createTestListing(t, seller.id);
-      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-
-      const asOther = t.withIdentity(other.identity);
-
-      await expect(async () => {
-        await asOther.query(api.messages.messagesByConversation, {
-          conversationId,
-        });
-      }).rejects.toThrow('Forbidden');
-    });
-
-    it('returns all messages in the conversation', async () => {
-      const t = createConvexTest();
-
-      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
-      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
-      const listingId = await createTestListing(t, seller.id);
-      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-
-      await t.run(async (ctx) => {
-        await ctx.db.insert('messages', {
-          conversationId,
-          listingId,
-          senderId: buyer.id,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Message 1',
-          createdAt: Date.now(),
-          readAt: 0,
-        });
-
-        await ctx.db.insert('messages', {
-          conversationId,
-          listingId,
-          senderId: seller.id,
-          recipientId: buyer.id,
-          type: 'text',
-          body: 'Message 2',
-          createdAt: Date.now() + 1000,
-          readAt: 0,
-        });
-      });
-
-      const asBuyer = t.withIdentity(buyer.identity);
-      const messages = await asBuyer.query(api.messages.messagesByConversation, {
-        conversationId,
-      });
-
-      expect(messages).toHaveLength(2);
-      expect(messages[0].body).toBe('Message 1');
-      expect(messages[1].body).toBe('Message 2');
-    });
-  });
-
   describe('messagesByConversationPaginated', () => {
     it('returns latest messages first with a stable cursor', async () => {
       const t = createConvexTest();

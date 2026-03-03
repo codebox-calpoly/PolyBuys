@@ -565,17 +565,3 @@ export const messagesByConversationPaginated = query({
     };
   },
 });
-
-export const messagesByConversation = query({
-  args: {
-    conversationId: v.id('conversations'),
-  },
-  handler: async (ctx, args) => {
-    await requireParticipant(ctx, args.conversationId);
-
-    return await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .take(MAX_MESSAGE_PAGE_SIZE);
-  },
-});

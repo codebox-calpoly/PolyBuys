@@ -254,23 +254,6 @@ export const logModerationResult = internalMutation({
   },
 });
 
-export const createModerationAlert = internalMutation({
-  args: {
-    alertType: v.union(
-      v.literal('provider_degraded'),
-      v.literal('shadow_flagged'),
-      v.literal('shadow_failed')
-    ),
-    contentType: v.optional(v.union(v.literal('listing'), v.literal('message'))),
-    contentId: v.optional(v.string()),
-    queueId: v.optional(v.id('shadowModerationQueue')),
-    detail: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await insertModerationAlert(ctx, args);
-  },
-});
-
 export const enqueueShadowModeration = internalMutation({
   args: {
     contentType: v.union(v.literal('listing'), v.literal('message')),
