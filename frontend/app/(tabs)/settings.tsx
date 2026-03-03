@@ -212,7 +212,7 @@ export default function SettingsScreen() {
 
           <Text style={styles.label}>Email</Text>
           <TextInput
-            style={[styles.input, { color: '#888', backgroundColor: '#f0f0f0' }]}
+            style={[styles.input, styles.disabledInput]}
             value={email}
             editable={false}
             placeholder="you@calpoly.edu"
@@ -403,5 +403,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '600',
+  },
+  disabledInput: {
+    color: '#888',
+    backgroundColor: '#f0f0f0',
   },
 });

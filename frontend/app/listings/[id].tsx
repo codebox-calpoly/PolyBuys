@@ -122,10 +122,8 @@ export default function ListingDetailScreen() {
   const isOwner = currentUserSubject === listing.sellerId;
   const isHidden = listing.isHidden === true;
   const isHiddenOwnerView = isOwner && isHidden;
-
-  if (isHidden && !isOwner) {
-    return <ListingUnavailable />;
-  }
+  // Note: non-owner access to hidden listings is already blocked by getListing
+  // returning null above (caught by the listing === null check). No second guard needed.
 
   return (
     <ScrollView

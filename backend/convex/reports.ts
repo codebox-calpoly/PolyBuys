@@ -57,13 +57,15 @@ export const createReport = mutation({
       }
     }
 
-    // 6. Check for duplicate report (same user + same target)
+    // 6. Check for duplicate report (same user + same target) — O(1) via compound index
     const existingReport = await ctx.db
       .query('reports')
-      .withIndex('by_target', (q) =>
-        q.eq('targetId', args.targetId).eq('targetType', args.targetType)
+      .withIndex('by_target_reporter', (q) =>
+        q
+          .eq('targetId', args.targetId)
+          .eq('targetType', args.targetType)
+          .eq('reporterId', reporterId)
       )
-      .filter((q) => q.eq(q.field('reporterId'), reporterId))
       .first();
 
     if (existingReport) {
@@ -95,19 +97,18 @@ export const createReport = mutation({
     });
 
     // 8. Check if content should be auto-hidden
-    // Count all reports for this target
-    const allReports = await ctx.db
+    // Use take(REPORT_THRESHOLD) — the dedup check above guarantees one row per
+    // reporter per target, so row count == unique-reporter count. O(threshold)
+    // instead of O(all reports on this target).
+    const reportSample = await ctx.db
       .query('reports')
       .withIndex('by_target', (q) =>
         q.eq('targetId', args.targetId).eq('targetType', args.targetType)
       )
-      .collect();
-
-    // Count unique reporters using Set
-    const uniqueReporters = new Set(allReports.map((r) => r.reporterId)).size;
+      .take(REPORT_THRESHOLD);
 
     // If threshold reached, hide the content
-    if (uniqueReporters >= REPORT_THRESHOLD && !isAlreadyHidden) {
+    if (reportSample.length >= REPORT_THRESHOLD && !isAlreadyHidden) {
       if (args.targetType === 'listing') {
         await ctx.db.patch(args.targetId as Id<'listings'>, {
           isHidden: true,

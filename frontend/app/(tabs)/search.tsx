@@ -31,6 +31,7 @@ export default function SearchScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [resultsTruncated, setResultsTruncated] = useState(false);
 
   const filterVersionRef = useRef(0);
   const currentFilterVersionRef = useRef(0);
@@ -51,6 +52,7 @@ export default function SearchScreen() {
     setAllListings([]);
     setIsDone(false);
     setIsLoadingMore(false);
+    setResultsTruncated(false);
     processedCursorsRef.current.clear();
   }, [searchTerm]);
 
@@ -74,6 +76,8 @@ export default function SearchScreen() {
         setAllListings(listingsResult.page);
         setIsDone(listingsResult.isDone);
         setIsLoadingMore(false);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setResultsTruncated(!!(listingsResult as any).resultsTruncated);
         return;
       }
 
@@ -153,6 +157,12 @@ export default function SearchScreen() {
             <View style={styles.footerLoader}>
               <ActivityIndicator size="small" color="#154734" />
               <Text style={styles.footerText}>Loading more...</Text>
+            </View>
+          ) : resultsTruncated ? (
+            <View style={styles.truncatedBanner}>
+              <Text style={styles.truncatedText}>
+                Showing top 1,000 results — refine your search for more accurate results.
+              </Text>
             </View>
           ) : null
         }
@@ -243,5 +253,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#666',
+  },
+  truncatedBanner: {
+    marginVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fffbe6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ffe58f',
+  },
+  truncatedText: {
+    fontSize: 13,
+    color: '#7c5f00',
+    textAlign: 'center',
   },
 });

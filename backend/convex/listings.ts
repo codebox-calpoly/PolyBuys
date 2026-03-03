@@ -251,6 +251,9 @@ export const searchAndFilterListings = query({
       const MAX_SEARCH_COLLECT = MAX_MANUAL_COLLECT;
       // For search queries, we must collect since search indexes don't support paginate()
       let results = await searchQuery.take(MAX_SEARCH_COLLECT);
+      // Detect scan ceiling: if we got exactly MAX_SEARCH_COLLECT rows the true result
+      // set may be larger. Signal this to callers so the UI can warn the user.
+      const resultsTruncated = results.length === MAX_SEARCH_COLLECT;
 
       // Apply price range filters in memory (search indexes don't support range queries)
       if (filters.minPrice !== undefined) {
@@ -292,6 +295,7 @@ export const searchAndFilterListings = query({
         page: paginatedResults,
         continueCursor: nextCursor,
         isDone: !hasMore,
+        resultsTruncated,
       };
     }
 
@@ -393,6 +397,7 @@ export const searchAndFilterListings = query({
         page: paginationResult.page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
+        resultsTruncated: false,
       };
     }
 
@@ -430,11 +435,14 @@ export const searchAndFilterListings = query({
 
     // Always mark as done when filtered results are exhausted to prevent infinite empty pages
     const isDone = !hasMore;
+    // Detect scan ceiling for this filter branch.
+    const resultsTruncated = allResults.length === MAX_COLLECT;
 
     return {
       page,
       continueCursor: nextCursor,
       isDone,
+      resultsTruncated,
     };
   },
 });
@@ -500,6 +508,7 @@ export const getListings = query({
         page: paginationResult.page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
+        resultsTruncated: false,
       };
     }
 
@@ -530,11 +539,14 @@ export const getListings = query({
 
     // Always mark as done when filtered results are exhausted to prevent infinite empty pages
     const isDone = !hasMore;
+    // Detect scan ceiling for this filter branch.
+    const resultsTruncated = allResults.length === MAX_COLLECT;
 
     return {
       page,
       continueCursor: nextCursor,
       isDone,
+      resultsTruncated,
     };
   },
 });
@@ -861,10 +873,9 @@ export const getMyHiddenListings = query({
 
     return await ctx.db
       .query('listings')
-      .filter((q) =>
-        q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
-      )
-      .collect();
+      .withIndex('by_seller', (q) => q.eq('sellerId', identity.subject))
+      .filter((q) => q.eq(q.field('isHidden'), true))
+      .take(200);
   },
 });
 
@@ -879,9 +890,9 @@ export const getMyListings = query({
     }
     return await ctx.db
       .query('listings')
-      .filter((q) =>
-        q.and(q.eq(q.field('sellerId'), identity.subject), q.neq(q.field('status'), 'deleted'))
-      )
+      .withIndex('by_seller', (q) => q.eq('sellerId', identity.subject))
+      .filter((q) => q.neq(q.field('status'), 'deleted'))
+      .order('desc')
       .take(200);
   },
 });

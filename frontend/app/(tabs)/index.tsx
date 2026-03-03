@@ -46,6 +46,7 @@ export default function HomeScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [resultsTruncated, setResultsTruncated] = useState(false);
 
   // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
@@ -85,6 +86,8 @@ export default function HomeScreen() {
       if (!processedCursorsRef.current.has(cursorId)) {
         if (cursor === null) {
           setAllListings(listingsResult.page);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setResultsTruncated(!!(listingsResult as any).resultsTruncated);
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }
@@ -101,10 +104,12 @@ export default function HomeScreen() {
     setCursor(null);
     setAllListings([]);
     setIsDone(false);
+    setResultsTruncated(false);
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
-  const listings = allListings.filter((listing) => listing.isHidden !== true);
+  // isHidden is already filtered server-side by getListings; no client-side re-filter needed.
+  const listings = allListings;
 
   const hasActiveFilters =
     !!filters.category ||
@@ -221,6 +226,14 @@ export default function HomeScreen() {
           onApply={handlePriceApply}
           onClose={() => setShowPricePicker(false)}
         />
+
+        {resultsTruncated && (
+          <View style={styles.truncatedBanner}>
+            <Text style={styles.truncatedText}>
+              Showing top 1,000 results — narrow your filters for more accurate results.
+            </Text>
+          </View>
+        )}
 
         {listingsResult === undefined && cursor === null ? (
           <View style={styles.centerContainer}>
@@ -388,5 +401,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#666',
+  },
+  truncatedBanner: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fffbe6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ffe58f',
+  },
+  truncatedText: {
+    fontSize: 13,
+    color: '#7c5f00',
+    textAlign: 'center',
   },
 });

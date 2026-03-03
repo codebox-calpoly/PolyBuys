@@ -203,10 +203,12 @@ export default function ImageUploader({
   async function uploadToConvex(blob: Blob, onProgress: (progress: number) => void) {
     const uploadUrl = await generateUploadUrl({});
 
+    const UPLOAD_TIMEOUT_MS = 30_000;
     return await new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', uploadUrl);
       xhr.setRequestHeader('Content-Type', blob.type || 'image/jpeg');
+      xhr.timeout = UPLOAD_TIMEOUT_MS;
 
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable) {
@@ -215,6 +217,10 @@ export default function ImageUploader({
         onProgress(event.loaded / event.total);
       };
 
+      xhr.ontimeout = () => {
+        xhr.abort();
+        reject(new Error('Upload timed out. Please check your connection and try again.'));
+      };
       xhr.onerror = () => reject(new Error('Network error during upload.'));
       xhr.onload = () => {
         if (xhr.status < 200 || xhr.status >= 300) {

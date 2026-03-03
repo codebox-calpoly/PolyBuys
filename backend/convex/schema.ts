@@ -62,6 +62,7 @@ export default defineSchema({
       'createdAt',
     ])
     .index('by_tag', ['tags'])
+    .index('by_seller', ['sellerId', 'createdAt'])
     .searchIndex('search_listings', {
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],
@@ -94,7 +95,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_target', ['targetId', 'targetType'])
-    .index('by_reporter', ['reporterId']),
+    .index('by_reporter', ['reporterId'])
+    // Compound index for O(1) duplicate-report check (replaces by_target scan + filter)
+    .index('by_target_reporter', ['targetId', 'targetType', 'reporterId']),
 
   conversations: defineTable({
     listingId: v.id('listings'),

@@ -9,10 +9,8 @@ export const PAYLOAD_BOUNDS = {
 };
 
 const MAX_CONVERSATION_HISTORY = 500;
-// Per-side inbox fetch cap. Each user can be buyer OR seller, so up to 2x this
-// many rows are merged in memory. Keep small to stay within Convex query budget.
-const MAX_INBOX_PER_SIDE = 50;
 const MAX_READ_PATCH_BATCH = 1000;
+const UNREAD_CAP = 99;
 
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
 export const internalGetConversation = internalQuery({
@@ -55,11 +53,12 @@ export const internalSendMessage = internalMutation({
 });
 
 // Sends a message (action — screens content via moderation before persisting)
+// Note: `type` is intentionally omitted from public args. The client path is
+// locked to 'text'. Only internalSendMessage may write the 'system' type.
 export const sendMessage = action({
   args: {
     conversationId: v.id('conversations'),
     body: v.string(),
-    type: v.optional(v.union(v.literal('text'), v.literal('system'))),
   },
   handler: async (ctx, args): Promise<{ messageId: string }> => {
     // Validate message body length
@@ -69,8 +68,6 @@ export const sendMessage = action({
     if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
       throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
     }
-
-    const type = args.type ?? 'text';
 
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
@@ -113,7 +110,7 @@ export const sendMessage = action({
       senderId: userId,
       recipientId,
       body: args.body,
-      type: type,
+      type: 'text',
     });
 
     return result;
@@ -137,85 +134,154 @@ export const getConversationHistory = query({
   },
 });
 
-// List user conversations with pagination + inbox payload
+// List user conversations with pagination + inbox payload.
+//
+// CURSOR FORMAT: "{updatedAt}|{_id}"
+// Using a compound cursor avoids the skip/duplicate problem when multiple
+// conversations share the same updatedAt ms timestamp.
+// - Index queries use `lte('updatedAt', cursorTs)` (inclusive boundary) so ties
+//   are never dropped.
+// - After dedup+sort, rows from the previous page are filtered out by
+//   (updatedAt === cursorTs && _id <= cursorId), using Convex ID lexicographic order.
+// Both by_buyer and by_seller indexes include updatedAt, so the range is index-native
+// and every conversation is reachable regardless of collection size.
+//
+// FAN-OUT: all per-page I/O (profiles, previews, unread counts) is fired in a
+// single Promise.all to eliminate sequential round trips.
 export const listUserConversations = query({
   args: {
     limit: v.optional(v.number()),
+    // Opaque compound cursor: "{updatedAt}|{_id}". Absent = first page.
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getUserId(ctx);
-    const limit = Math.max(1, Math.min(args.limit ?? 20, 100));
-    const cursor = args.cursor ? Number.parseInt(args.cursor, 10) : 0;
-    const offset = Number.isNaN(cursor) || cursor < 0 ? 0 : cursor;
+    const limit = Math.max(1, Math.min(args.limit ?? 20, 50));
 
-    const buyerConvos = await ctx.db
-      .query('conversations')
-      .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
-      .order('desc')
-      .take(MAX_INBOX_PER_SIDE);
-
-    const sellerConvos = await ctx.db
-      .query('conversations')
-      .withIndex('by_seller', (q) => q.eq('sellerId', userId))
-      .order('desc')
-      .take(MAX_INBOX_PER_SIDE);
-
-    const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
-    const sorted = [...deduped.values()]
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, MAX_INBOX_PER_SIDE * 2);
-
-    const page = sorted.slice(offset, offset + limit);
-    const items = [];
-
-    for (const convo of page) {
-      const otherUserId = convo.buyerId === userId ? convo.sellerId : convo.buyerId;
-      const profile = await ctx.db
-        .query('profiles')
-        .withIndex('by_userId', (q) => q.eq('userId', otherUserId))
-        .unique();
-
-      let preview = '';
-      if (convo.lastMessageId) {
-        const last = await ctx.db.get(convo.lastMessageId);
-        preview = (last?.body ?? '').slice(0, 140);
-      } else {
-        const latest = await ctx.db
-          .query('messages')
-          .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', convo._id))
-          .order('desc')
-          .take(1);
-        preview = (latest[0]?.body ?? '').slice(0, 140);
+    // Parse compound cursor
+    let cursorTs = NaN;
+    let cursorId = '';
+    if (args.cursor) {
+      const sep = args.cursor.indexOf('|');
+      if (sep !== -1) {
+        cursorTs = Number.parseInt(args.cursor.slice(0, sep), 10);
+        cursorId = args.cursor.slice(sep + 1);
       }
+    }
+    const hasValidCursor = !Number.isNaN(cursorTs) && cursorTs > 0 && cursorId !== '';
 
-      const unreadRows = await ctx.db
-        .query('messages')
-        .withIndex('by_conversation_recipient_readAt', (q) =>
-          q.eq('conversationId', convo._id).eq('recipientId', userId).eq('readAt', 0)
+    // Overfetch per side to survive dedup and still fill a full page.
+    // lte boundary may pull extra same-ts rows that get filtered below.
+    const FETCH = limit * 4 + 20;
+
+    const [buyerConvos, sellerConvos] = await Promise.all([
+      hasValidCursor
+        ? ctx.db
+            .query('conversations')
+            .withIndex('by_buyer', (q) => q.eq('buyerId', userId).lte('updatedAt', cursorTs))
+            .order('desc')
+            .take(FETCH)
+        : ctx.db
+            .query('conversations')
+            .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
+            .order('desc')
+            .take(FETCH),
+      hasValidCursor
+        ? ctx.db
+            .query('conversations')
+            .withIndex('by_seller', (q) => q.eq('sellerId', userId).lte('updatedAt', cursorTs))
+            .order('desc')
+            .take(FETCH)
+        : ctx.db
+            .query('conversations')
+            .withIndex('by_seller', (q) => q.eq('sellerId', userId))
+            .order('desc')
+            .take(FETCH),
+    ]);
+
+    // Deduplicate (user can be buyer and seller simultaneously) and sort desc
+    const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
+    let sorted = [...deduped.values()].sort(
+      (a, b) => b.updatedAt - a.updatedAt || (a._id < b._id ? 1 : -1)
+    );
+
+    // Drop rows already delivered on the previous page (same-ts tiebreaker)
+    if (hasValidCursor) {
+      sorted = sorted.filter(
+        (c) => c.updatedAt < cursorTs || (c.updatedAt === cursorTs && c._id < cursorId)
+      );
+    }
+
+    const page = sorted.slice(0, limit);
+    const hasMore = sorted.length > limit;
+
+    // ── Batch all per-page I/O in parallel ──────────────────────────────────
+    // 1. Unique counterpart user IDs for profile lookups
+    const otherUserIds = [
+      ...new Set(page.map((c) => (c.buyerId === userId ? c.sellerId : c.buyerId))),
+    ];
+
+    // Fire profiles, previews and unread counts simultaneously
+    const [profileResults, previewResults, unreadResults] = await Promise.all([
+      // Profiles: one lookup per unique counterpart
+      Promise.all(
+        otherUserIds.map((uid) =>
+          ctx.db
+            .query('profiles')
+            .withIndex('by_userId', (q) => q.eq('userId', uid))
+            .unique()
         )
-        .take(200);
+      ),
+      // Previews: one ctx.db.get per convo (lastMessageId already cached on conversations)
+      Promise.all(
+        page.map((convo) => (convo.lastMessageId ? ctx.db.get(convo.lastMessageId) : null))
+      ),
+      // Unread counts: one index range per convo (bounded by UNREAD_CAP+1)
+      Promise.all(
+        page.map((convo) =>
+          ctx.db
+            .query('messages')
+            .withIndex('by_conversation_recipient_readAt', (q) =>
+              q.eq('conversationId', convo._id).eq('recipientId', userId).eq('readAt', 0)
+            )
+            .take(UNREAD_CAP + 1)
+        )
+      ),
+    ]);
 
-      items.push({
+    // Build profile map from parallel results
+    const profileMap = new Map<string, { name: string | null; avatar: string | null }>();
+    otherUserIds.forEach((uid, i) => {
+      const p = profileResults[i];
+      profileMap.set(uid, { name: p?.name ?? null, avatar: p?.picture ?? null });
+    });
+
+    // Assemble items
+    const items = page.map((convo, i) => {
+      const otherUserId = convo.buyerId === userId ? convo.sellerId : convo.buyerId;
+      const preview = (previewResults[i]?.body ?? '').slice(0, 140);
+      const unreadRows = unreadResults[i];
+      const prof = profileMap.get(otherUserId);
+      return {
         conversationId: convo._id,
         listingId: convo.listingId,
         lastMessageAt: convo.updatedAt,
         lastMessagePreview: preview,
-        unreadCount: unreadRows.length,
+        unreadCount: Math.min(unreadRows.length, UNREAD_CAP),
+        unreadCapped: unreadRows.length > UNREAD_CAP,
         otherParticipant: {
           id: otherUserId,
-          name: profile?.name ?? null,
-          avatar: profile?.picture ?? null,
+          name: prof?.name ?? null,
+          avatar: prof?.avatar ?? null,
         },
-      });
-    }
+      };
+    });
 
-    const nextOffset = offset + page.length;
-    return {
-      items,
-      nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
-      total: sorted.length,
-    };
+    // Encode compound cursor from the last item on this page
+    const last = page.length > 0 ? page[page.length - 1] : null;
+    const nextCursor = hasMore && last ? `${last.updatedAt}|${last._id}` : null;
+
+    return { items, nextCursor };
   },
 });
 
@@ -303,20 +369,27 @@ export const markMessagesAsRead = mutation({
       await ctx.db.patch(convo._id, { sellerLastReadAt: now, updatedAt: now });
     }
 
-    const unread = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_recipient_readAt', (q) =>
-        q.eq('conversationId', args.conversationId)
-      )
-      .filter((q) => q.eq(q.field('recipientId'), userId))
-      .filter((q) => q.eq(q.field('readAt'), 0))
-      .take(MAX_READ_PATCH_BATCH);
-
-    for (const msg of unread) {
-      await ctx.db.patch(msg._id, { readAt: now });
+    // Drain all unread messages in batches until none remain.
+    // Re-querying after each batch is correct because patching readAt to `now` (non-zero)
+    // removes those rows from the readAt=0 filter, so each iteration scans fresh rows.
+    // Common case (<1000 unread) finishes in one pass; heavy inboxes drain across passes.
+    let patched = 0;
+    for (;;) {
+      const batch = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation_recipient_readAt', (q) =>
+          q.eq('conversationId', args.conversationId).eq('recipientId', userId).eq('readAt', 0)
+        )
+        .take(MAX_READ_PATCH_BATCH);
+      if (batch.length === 0) break;
+      for (const msg of batch) {
+        await ctx.db.patch(msg._id, { readAt: now });
+      }
+      patched += batch.length;
+      if (batch.length < MAX_READ_PATCH_BATCH) break; // fewer than full batch — done
     }
 
-    return { ok: true };
+    return { ok: true, patched };
   },
 });
 
@@ -363,6 +436,57 @@ export const backfillMessagingFields = internalMutation({
       nextMessageCursor: messagePage.isDone ? null : messagePage.continueCursor,
       done: convoPage.isDone && messagePage.isDone,
     };
+  },
+});
+
+// Orchestrated backfill: schedules batched runs of backfillMessagingFields until
+// the entire conversations and messages table has been processed.
+// Invoke once via the Convex dashboard or CLI:
+//   npx convex run messages:startBackfill
+export const startBackfill = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, internal.messages.driveBackfill, {});
+    return { scheduled: true };
+  },
+});
+
+export const driveBackfill = internalMutation({
+  args: {
+    convoCursor: v.optional(v.string()),
+    messageCursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = 200;
+
+    const convoPage = await ctx.db.query('conversations').paginate({
+      cursor: args.convoCursor ?? null,
+      numItems: batchSize,
+    });
+    for (const convo of convoPage.page) {
+      if (!convo.participantIds || convo.participantIds.length !== 2) {
+        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
+      }
+    }
+
+    const messagePage = await ctx.db.query('messages').paginate({
+      cursor: args.messageCursor ?? null,
+      numItems: batchSize,
+    });
+    for (const message of messagePage.page) {
+      if (!message.type) {
+        await ctx.db.patch(message._id, { type: 'text' });
+      }
+    }
+
+    const done = convoPage.isDone && messagePage.isDone;
+    if (!done) {
+      await ctx.scheduler.runAfter(0, internal.messages.driveBackfill, {
+        convoCursor: convoPage.isDone ? undefined : convoPage.continueCursor,
+        messageCursor: messagePage.isDone ? undefined : messagePage.continueCursor,
+      });
+    }
+    return { done };
   },
 });
 
