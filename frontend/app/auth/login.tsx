@@ -112,6 +112,7 @@ export default function LoginScreen() {
   };
 
   const isEmailStep = step === 'email';
+  const isVerificationStep = !isEmailStep;
   const verificationEmail = typeof step === 'string' ? '' : step.email;
 
   return (
@@ -180,7 +181,7 @@ export default function LoginScreen() {
               </View>
             )}
 
-            {successMessage && (
+            {isVerificationStep && successMessage && (
               <View style={styles.successContainer}>
                 <Text style={styles.successText}>{successMessage}</Text>
               </View>
