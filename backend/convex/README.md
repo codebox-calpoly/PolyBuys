@@ -32,7 +32,7 @@ npm run deploy --workspace=backend -- --dry-run --typecheck enable
   - `npx convex run messages:startBackfill`
 - Shadow moderation queue drain entrypoint:
   - `npx convex run moderation:processShadowModerationQueue`
-  - Run this on a periodic job (or via Convex cron) to process pending retries.
+  - Also runs automatically via Convex cron every 2 minutes.
 
 ## Security and Data Handling
 

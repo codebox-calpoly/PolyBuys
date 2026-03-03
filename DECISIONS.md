@@ -55,7 +55,7 @@ Last updated: 2026-03-03
 - Moderation audit stores hash + redacted preview (not raw text) with 30-day TTL cleanup.
 - Legacy moderation rows without TTL are pruned using createdAt retention fallback.
 - Degraded moderation now enqueues content into `shadowModerationQueue` for retries and emits `moderationAlerts`.
-- Shadow queue should be processed by a periodic runner (`moderation:processShadowModerationQueue`) for retry drain.
+- Shadow queue drains automatically via Convex cron (2-minute interval) running `moderation:processShadowModerationQueue`.
 - Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
