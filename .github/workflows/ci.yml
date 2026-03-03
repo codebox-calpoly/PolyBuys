@@ -24,12 +24,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
-      - name: Ensure Linux lightningcss binary is present
-        if: runner.os == 'Linux'
-        run: |
-          LIGHTNINGCSS_VERSION=$(node -e "process.stdout.write(require('lightningcss/package.json').version)")
-          npm install --no-save "lightningcss-linux-x64-gnu@${LIGHTNINGCSS_VERSION}"
-
       - name: Run ESLint
         run: npm run lint
 
@@ -59,12 +53,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Ensure Linux lightningcss binary is present
-        if: runner.os == 'Linux'
-        run: |
-          LIGHTNINGCSS_VERSION=$(node -e "process.stdout.write(require('lightningcss/package.json').version)")
-          npm install --no-save "lightningcss-linux-x64-gnu@${LIGHTNINGCSS_VERSION}"
 
       - name: Build all workspaces
         run: npm run build --if-present
