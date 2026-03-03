@@ -135,36 +135,48 @@ export default function InboxScreen() {
     }
   }
 
-  const renderConversation: ListRenderItem<ConversationItem> = ({ item }) => (
-    <Pressable
-      style={({ pressed }) => [styles.conversationRow, pressed && styles.buttonPressed]}
-      onPress={() =>
-        router.push({
-          pathname: '/messages/[id]',
-          params: { id: String(item.conversationId) },
-        })
-      }
-    >
-      <View style={styles.rowTop}>
-        <Text style={styles.otherName} numberOfLines={1}>
-          {item.otherParticipant.name?.trim() || 'PolyBuys user'}
-        </Text>
-        <Text style={styles.timestamp}>{formatTimestamp(item.lastMessageAt)}</Text>
-      </View>
-      <View style={styles.rowBottom}>
-        <Text style={styles.previewText} numberOfLines={1}>
-          {item.lastMessagePreview || 'No messages yet'}
-        </Text>
-        {item.unreadCount > 0 && (
-          <View style={styles.unreadPill}>
-            <Text style={styles.unreadText}>
-              {item.unreadCapped ? `${item.unreadCount}+` : String(item.unreadCount)}
-            </Text>
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
+  const renderConversation: ListRenderItem<ConversationItem> = ({ item }) => {
+    const participantName = item.otherParticipant.name?.trim() || 'PolyBuys user';
+    const lastPreview = item.lastMessagePreview || 'No messages yet';
+    const unreadLabel =
+      item.unreadCount > 0
+        ? `, ${item.unreadCapped ? `${item.unreadCount}+` : item.unreadCount} unread`
+        : '';
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.conversationRow, pressed && styles.buttonPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`${participantName}, ${lastPreview}${unreadLabel}`}
+        accessibilityState={{ selected: false }}
+        onPress={() =>
+          router.push({
+            pathname: '/messages/[id]',
+            params: { id: String(item.conversationId) },
+          })
+        }
+      >
+        <View style={styles.rowTop}>
+          <Text style={styles.otherName} numberOfLines={1}>
+            {participantName}
+          </Text>
+          <Text style={styles.timestamp}>{formatTimestamp(item.lastMessageAt)}</Text>
+        </View>
+        <View style={styles.rowBottom}>
+          <Text style={styles.previewText} numberOfLines={1}>
+            {lastPreview}
+          </Text>
+          {item.unreadCount > 0 && (
+            <View style={styles.unreadPill}>
+              <Text style={styles.unreadText}>
+                {item.unreadCapped ? `${item.unreadCount}+` : String(item.unreadCount)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
 
   if (!isAuthenticated && !isLoading) {
     return (

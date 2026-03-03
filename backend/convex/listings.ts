@@ -32,6 +32,7 @@ const MAX_MANUAL_COLLECT = 1000;
 const MAX_SEARCH_TERM_LENGTH = 120;
 const OPAQUE_CURSOR_PREFIX = 'v2';
 const FILTER_SCAN_CURSOR_PREFIX = 'scan1';
+const INVALID_CURSOR_FORMAT_MESSAGE = 'invalid cursor format';
 const POST_FILTER_SCAN_BATCH_SIZE = 120;
 const POST_FILTER_SCAN_MAX_ITEMS = 5000;
 const UPLOAD_RATE_LIMIT = {
@@ -67,6 +68,14 @@ function isFilterScanCursor(cursor: string) {
   return cursor.startsWith(`${FILTER_SCAN_CURSOR_PREFIX}|`);
 }
 
+function isManualOpaqueCursor(cursor: string) {
+  return cursor.startsWith(`${OPAQUE_CURSOR_PREFIX}|`);
+}
+
+function isLikelyConvexNativeCursor(cursor: string) {
+  return cursor === '_end_cursor' || /^[A-Za-z0-9]+$/.test(cursor);
+}
+
 function encodeFilterScanCursor(state: FilterScanCursor) {
   if (!state.cursor && state.skip === 0) {
     return null;
@@ -82,11 +91,11 @@ function encodeFilterScanCursor(state: FilterScanCursor) {
 
 function parseFilterScanCursor(cursor: string) {
   if (!isFilterScanCursor(cursor)) {
-    throw new ConvexError('Invalid scan cursor');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
   const encoded = cursor.slice(FILTER_SCAN_CURSOR_PREFIX.length + 1);
   if (encoded.length === 0) {
-    throw new ConvexError('Invalid scan cursor');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 
   // Backward compatibility for early scan cursor format: "scan1|{rawConvexCursor}".
@@ -110,14 +119,14 @@ function parseFilterScanCursor(cursor: string) {
       !Number.isInteger(skip) ||
       skip < 0
     ) {
-      throw new ConvexError('Invalid scan cursor');
+      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
     }
     return {
       cursor: parsed.cursor ?? null,
       skip,
     };
   } catch {
-    throw new ConvexError('Invalid scan cursor');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 }
 
@@ -248,17 +257,17 @@ function encodeManualCursor(sortBy: ListingSortOption, listing: Doc<'listings'>)
 function parseManualCursor(cursor: string): ManualListingCursor {
   const parts = cursor.split('|');
   if (parts.length !== 4 || parts[0] !== OPAQUE_CURSOR_PREFIX) {
-    throw new ConvexError('cursor must be a non-negative integer string or null');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 
   const sortBy = parts[1] as ListingSortOption;
   if (!['newest', 'oldest', 'price_asc', 'price_desc'].includes(sortBy)) {
-    throw new ConvexError('cursor must be a non-negative integer string or null');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 
   const metric = Number.parseFloat(parts[2]);
   if (!Number.isFinite(metric) || parts[3].length === 0) {
-    throw new ConvexError('cursor must be a non-negative integer string or null');
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 
   return { sortBy, metric, id: parts[3] };
@@ -301,7 +310,7 @@ function paginateManualSortedListings(args: {
   if (cursor) {
     const parsed = parseManualCursor(cursor);
     if (parsed.sortBy !== args.sortBy) {
-      throw new ConvexError('cursor must be a non-negative integer string or null');
+      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
     }
     scoped = args.listings.filter((listing) => isAfterManualCursor(listing, parsed));
   }
@@ -329,10 +338,13 @@ function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: s
       parseFilterScanCursor(paginationOpts.cursor);
       return;
     }
-    if (!paginationOpts.cursor.startsWith(`${OPAQUE_CURSOR_PREFIX}|`)) {
-      throw new ConvexError('cursor must be a non-negative integer string or null');
+    if (isManualOpaqueCursor(paginationOpts.cursor)) {
+      parseManualCursor(paginationOpts.cursor);
+      return;
     }
-    parseManualCursor(paginationOpts.cursor);
+    if (!isLikelyConvexNativeCursor(paginationOpts.cursor)) {
+      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+    }
   }
 }
 
@@ -749,25 +761,6 @@ export const searchAndFilterListings = query({
         .order(sortBy === 'oldest' ? 'asc' : 'desc');
     };
 
-    // If no post-filtering needed, use direct pagination (most efficient)
-    if (!needsPostFiltering) {
-      let dbQuery = makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
-
-      // Apply maxPrice filter at database level for price-sorted queries
-      if (filters.maxPrice !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc')) {
-        dbQuery = dbQuery.filter((q) => q.lte(q.field('price'), filters.maxPrice!));
-      }
-
-      const paginationResult = await dbQuery.paginate(args.paginationOpts);
-
-      return {
-        page: paginationResult.page,
-        continueCursor: paginationResult.continueCursor,
-        isDone: paginationResult.isDone,
-        resultsTruncated: false,
-      };
-    }
-
     const makeDbQuery = () => makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
     const shouldInclude = (l: Doc<'listings'>) => {
       if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
@@ -782,10 +775,13 @@ export const searchAndFilterListings = query({
       return true;
     };
 
+    const rawCursor = args.paginationOpts.cursor;
     const useLegacyManualCursor =
-      args.paginationOpts.cursor !== null && !isFilterScanCursor(args.paginationOpts.cursor);
+      rawCursor !== null && (isLegacyOffsetCursor(rawCursor) || isManualOpaqueCursor(rawCursor));
+    const useFilterScanCursor = rawCursor !== null && isFilterScanCursor(rawCursor);
+
     if (useLegacyManualCursor) {
-      // Compatibility path for old cursor formats already in client state.
+      // Compatibility path for old offset/v2 cursors already in client state.
       const allResults = await makeDbQuery().take(MAX_MANUAL_COLLECT);
       const filtered = allResults.filter(shouldInclude);
       const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, sortBy));
@@ -803,6 +799,46 @@ export const searchAndFilterListings = query({
       };
     }
 
+    // If no post-filtering needed, use direct pagination (most efficient)
+    if (!needsPostFiltering) {
+      if (useFilterScanCursor) {
+        // Compatibility path for prior scan cursors; do not pass scan cursors into paginate().
+        return await paginatePostFilteredListings({
+          makeDbQuery,
+          paginationOpts: args.paginationOpts,
+          shouldInclude,
+        });
+      }
+
+      let dbQuery = makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
+
+      // Apply maxPrice filter at database level for price-sorted queries
+      if (filters.maxPrice !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc')) {
+        dbQuery = dbQuery.filter((q) => q.lte(q.field('price'), filters.maxPrice!));
+      }
+
+      let paginationResult;
+      try {
+        paginationResult = await dbQuery.paginate(args.paginationOpts);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (args.paginationOpts.cursor !== null && /cursor/i.test(message)) {
+          throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+        }
+        throw error;
+      }
+
+      return {
+        page: paginationResult.page,
+        continueCursor: paginationResult.continueCursor,
+        isDone: paginationResult.isDone,
+        resultsTruncated: false,
+      };
+    }
+
+    if (!useFilterScanCursor && rawCursor !== null) {
+      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+    }
     return await paginatePostFilteredListings({
       makeDbQuery,
       paginationOpts: args.paginationOpts,
@@ -861,20 +897,6 @@ export const getListings = query({
         .order('desc');
     };
 
-    // If no tags/price filters, use direct pagination (most efficient)
-    if (!hasTags && !hasPriceFilters) {
-      const paginationResult = await makeBaseQuery()
-        .filter((q) => q.neq(q.field('isHidden'), true))
-        .paginate(args.paginationOpts);
-
-      return {
-        page: paginationResult.page,
-        continueCursor: paginationResult.continueCursor,
-        isDone: paginationResult.isDone,
-        resultsTruncated: false,
-      };
-    }
-
     const makeDbQuery = () => makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
     const shouldInclude = (l: Doc<'listings'>) => {
       if (hasTags && !(l.tags ?? []).some((tag) => normalizedTags.includes(tag))) return false;
@@ -883,10 +905,13 @@ export const getListings = query({
       return true;
     };
 
+    const rawCursor = args.paginationOpts.cursor;
     const useLegacyManualCursor =
-      args.paginationOpts.cursor !== null && !isFilterScanCursor(args.paginationOpts.cursor);
+      rawCursor !== null && (isLegacyOffsetCursor(rawCursor) || isManualOpaqueCursor(rawCursor));
+    const useFilterScanCursor = rawCursor !== null && isFilterScanCursor(rawCursor);
+
     if (useLegacyManualCursor) {
-      // Compatibility path for old cursor formats already in client state.
+      // Compatibility path for old offset/v2 cursors already in client state.
       const allResults = await makeDbQuery().take(MAX_MANUAL_COLLECT);
       const filtered = allResults.filter(shouldInclude);
       const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, 'newest'));
@@ -904,6 +929,41 @@ export const getListings = query({
       };
     }
 
+    // If no tags/price filters, use direct pagination (most efficient)
+    if (!hasTags && !hasPriceFilters) {
+      if (useFilterScanCursor) {
+        // Compatibility path for prior scan cursors; do not pass scan cursors into paginate().
+        return await paginatePostFilteredListings({
+          makeDbQuery,
+          paginationOpts: args.paginationOpts,
+          shouldInclude,
+        });
+      }
+
+      let paginationResult;
+      try {
+        paginationResult = await makeBaseQuery()
+          .filter((q) => q.neq(q.field('isHidden'), true))
+          .paginate(args.paginationOpts);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (args.paginationOpts.cursor !== null && /cursor/i.test(message)) {
+          throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+        }
+        throw error;
+      }
+
+      return {
+        page: paginationResult.page,
+        continueCursor: paginationResult.continueCursor,
+        isDone: paginationResult.isDone,
+        resultsTruncated: false,
+      };
+    }
+
+    if (!useFilterScanCursor && rawCursor !== null) {
+      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+    }
     return await paginatePostFilteredListings({
       makeDbQuery,
       paginationOpts: args.paginationOpts,

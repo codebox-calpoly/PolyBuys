@@ -104,6 +104,7 @@ export default defineSchema({
     listingId: v.id('listings'),
     buyerId: v.string(), // Auth identity subject
     sellerId: v.string(), // Auth identity subject
+    conversationKey: v.optional(v.string()),
     participantIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -111,6 +112,7 @@ export default defineSchema({
     sellerLastReadAt: v.number(),
     lastMessageId: v.optional(v.id('messages')),
   })
+    .index('by_conversation_key', ['conversationKey'])
     .index('by_listing_buyer_seller', ['listingId', 'buyerId', 'sellerId'])
     .index('by_buyer', ['buyerId', 'updatedAt'])
     .index('by_seller', ['sellerId', 'updatedAt'])

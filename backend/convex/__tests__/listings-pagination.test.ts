@@ -143,7 +143,7 @@ describe('Filtered pagination correctness', () => {
       t.query(api.listings.getListings, {
         paginationOpts: { numItems: 10, cursor: '-1' },
       })
-    ).rejects.toThrow('cursor must be a non-negative integer string or null');
+    ).rejects.toThrow('invalid cursor format');
   });
 
   it('getListings pagination cursor advances correctly with tag filtering', async () => {
@@ -242,7 +242,7 @@ describe('Filtered pagination correctness', () => {
         filters: {},
         paginationOpts: { numItems: 10, cursor: 'not-a-number' },
       })
-    ).rejects.toThrow('cursor must be a non-negative integer string or null');
+    ).rejects.toThrow('invalid cursor format');
   });
 
   it('searchAndFilterListings rejects overly long search terms', async () => {

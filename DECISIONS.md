@@ -32,6 +32,7 @@ Last updated: 2026-03-03
 - **Read/unread strategy:** optimize for fast inbox counts with precise message-state behavior.
 - **Conversation ordering:** read acknowledgements do not bump conversation `updatedAt`; only message activity changes inbox order.
 - **History loading:** message thread history uses cursor pagination (`messagesByConversationPaginated`) rather than fixed caps.
+- **Conversation idempotency:** use deterministic `conversationKey` (`listingId|buyerId|sellerId`, encoded) plus tuple reconciliation to reduce duplicate creation under concurrent `getOrCreateConversation` calls.
 - **Migration strategy:** staged rollout + backfill/reconciliation, avoid hard cutovers.
 - **Retention:** keep all messages for now.
 
@@ -44,7 +45,7 @@ Last updated: 2026-03-03
 - Use `reports.by_reporter_createdAt` for report rate-limit checks to avoid large reporter-history scans.
 - Use stable opaque cursors on manual listing pagination branches to reduce duplicate/skip behavior during concurrent writes.
 - Replace post-filter listing `take(MAX_COLLECT)` truncation with bounded scan pagination (`scan1` cursors, 5k scan ceiling) for filter paths that cannot be fully index-native.
-- Reconcile duplicate conversations in `getOrCreateConversation` by canonicalizing oldest tuple match and deleting only empty duplicates.
+- Reconcile duplicate conversations in `getOrCreateConversation` by canonicalizing oldest tuple/key match and deleting only empty duplicates.
 
 ## Deep Linking / Sharing Decisions
 
