@@ -313,9 +313,8 @@ export const getOrCreateConversation = mutation({
     const existing = await ctx.db
       .query('conversations')
       .withIndex('by_listing_buyer_seller', (q) =>
-        q.eq('listingId', args.listingId).eq('buyerId', buyerId)
+        q.eq('listingId', args.listingId).eq('buyerId', buyerId).eq('sellerId', sellerId)
       )
-      .filter((q) => q.eq(q.field('sellerId'), sellerId))
       .first();
 
     if (existing) return { conversationId: existing._id };

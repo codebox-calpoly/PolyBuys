@@ -95,6 +95,7 @@ export default defineSchema({
   })
     .index('by_target', ['targetId', 'targetType'])
     .index('by_reporter', ['reporterId'])
+    .index('by_reporter_createdAt', ['reporterId', 'createdAt'])
     // Compound index for O(1) duplicate-report check (replaces by_target scan + filter)
     .index('by_target_reporter', ['targetId', 'targetType', 'reporterId']),
 

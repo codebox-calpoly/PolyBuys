@@ -21,7 +21,7 @@ import { PriceRangePicker } from '../../components/PriceRangePicker';
 import ListingCard from '../../components/ListingCard';
 import type { Filters, Category } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
-import type { Doc } from 'convex/_generated/dataModel';
+import type { Doc } from '../../../backend/convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const PAGE_SIZE = 20;

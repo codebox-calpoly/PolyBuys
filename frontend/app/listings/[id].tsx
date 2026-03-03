@@ -17,7 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { Id } from 'convex/_generated/dataModel';
+import type { Id } from '../../../backend/convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';

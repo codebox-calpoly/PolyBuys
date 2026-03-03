@@ -78,8 +78,9 @@ export const createReport = mutation({
     const oneDayAgo = Date.now() - ONE_DAY_MS;
     const recentReports = await ctx.db
       .query('reports')
-      .withIndex('by_reporter', (q) => q.eq('reporterId', reporterId))
-      .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
+      .withIndex('by_reporter_createdAt', (q) =>
+        q.eq('reporterId', reporterId).gt('createdAt', oneDayAgo)
+      )
       .take(MAX_REPORTS_PER_DAY + 1);
 
     if (recentReports.length >= MAX_REPORTS_PER_DAY) {

@@ -13,7 +13,7 @@ import {
 import { useAction, useQuery } from 'convex/react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
-import { Id } from 'convex/_generated/dataModel';
+import type { Id } from '../../../../backend/convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';

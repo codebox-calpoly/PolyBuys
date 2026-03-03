@@ -13,6 +13,7 @@ Last updated: 2026-03-03
 
 - Merge **small/clean PRs first**.
 - If a PR is stale/conflicted/low quality: **rebuild as clean branch from `dev`**.
+- CI quality gates run on **all pull requests** (not only PRs targeting `main`/`dev`) to avoid blind spots on integration/staging branches.
 - Require quality gates before merge recommendations:
   - lint
   - frontend/backend typecheck
@@ -35,6 +36,7 @@ Last updated: 2026-03-03
 - Avoid unbounded reads/writes in hot paths and migrations.
 - Use batched backfill for large-table migrations.
 - Add upload timeout/error handling in image upload flow.
+- Use `reports.by_reporter_createdAt` for report rate-limit checks to avoid large reporter-history scans.
 
 ## Deep Linking / Sharing Decisions
 
