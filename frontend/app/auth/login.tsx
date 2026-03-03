@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -20,6 +20,7 @@ type Step = 'email' | { email: string };
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
   const panelEntrance = useEntranceAnimation();
 
@@ -29,6 +30,14 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const normalizedReturnTo = Array.isArray(returnTo) ? returnTo[0] : returnTo;
+  const postAuthRedirect =
+    typeof normalizedReturnTo === 'string' &&
+    normalizedReturnTo.startsWith('/') &&
+    !normalizedReturnTo.startsWith('//')
+      ? normalizedReturnTo
+      : '/';
 
   const handleSendCode = async () => {
     // Validate email
@@ -68,8 +77,7 @@ export default function LoginScreen() {
 
     try {
       await signIn('resend-otp', { email: step.email, code: code.trim() });
-      // On success, redirect to home
-      router.replace('/');
+      router.replace(postAuthRedirect);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
       setError(errorMessage);
