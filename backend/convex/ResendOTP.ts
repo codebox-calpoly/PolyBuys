@@ -84,15 +84,17 @@ If you didn't request this code, you can safely ignore this email.`,
     });
 
     if (error) {
-      console.error('Resend API error:', JSON.stringify(error, null, 2));
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        statusCode: (error as { statusCode?: number }).statusCode,
+      const upstreamStatus =
+        (error as { statusCode?: number; statusCodeNumber?: number }).statusCode ??
+        (error as { statusCodeNumber?: number }).statusCodeNumber;
+      const errorName = (error as { name?: string }).name ?? 'UnknownResendError';
+      const errorRef = `otp_${Date.now().toString(36)}`;
+      console.error('Resend OTP send failed', {
+        errorRef,
+        errorName,
+        upstreamStatus,
       });
-      throw new ConvexError(
-        `Failed to send verification email: ${error.message || 'Unknown error'}. Please try again.`
-      );
+      throw new ConvexError('Failed to send verification email. Please try again.');
     }
   },
 });

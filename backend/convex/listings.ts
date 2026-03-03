@@ -605,6 +605,19 @@ export const searchAndFilterListings = query({
     if (searchTerm && searchTerm.length > MAX_SEARCH_TERM_LENGTH) {
       throw new ConvexError(`searchTerm must be <= ${MAX_SEARCH_TERM_LENGTH} characters`);
     }
+    if (filters.minPrice !== undefined && filters.minPrice < 0) {
+      throw new ConvexError('minPrice must be non-negative');
+    }
+    if (filters.maxPrice !== undefined && filters.maxPrice < 0) {
+      throw new ConvexError('maxPrice must be non-negative');
+    }
+    if (
+      filters.maxPrice !== undefined &&
+      filters.minPrice !== undefined &&
+      filters.maxPrice < filters.minPrice
+    ) {
+      throw new ConvexError('maxPrice must be greater than or equal to minPrice');
+    }
 
     // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
     // This is acceptable because search results are typically limited by search relevance.

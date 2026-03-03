@@ -1,4 +1,4 @@
-const CONVEX_ID_PATTERN = /^[a-z0-9]{10,64}$/i;
+const CONVEX_ID_PATTERN = /^[a-z0-9]{10,64}$/;
 
 export function normalizeConvexId(id: string | string[] | undefined): string | null {
   if (typeof id !== 'string') {

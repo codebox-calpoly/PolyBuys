@@ -34,6 +34,10 @@ type PickedImage = {
   isObjectUrl?: boolean;
 };
 
+function isRemoteUrl(value: string) {
+  return value.startsWith('http://') || value.startsWith('https://');
+}
+
 export default function ImageUploader({
   images,
   listingId,
@@ -54,6 +58,33 @@ export default function ImageUploader({
   useEffect(() => {
     onPendingChange?.(pendingUploads.some((upload) => upload.status === 'uploading'));
   }, [onPendingChange, pendingUploads]);
+
+  useEffect(() => {
+    const activeStorageIds = new Set(images.filter((imageId) => !isRemoteUrl(imageId)));
+
+    for (const [storageId, objectUrl] of Object.entries(objectUrlByStorageIdRef.current)) {
+      if (activeStorageIds.has(storageId)) {
+        continue;
+      }
+      if (Platform.OS === 'web') {
+        URL.revokeObjectURL(objectUrl);
+      }
+      delete objectUrlByStorageIdRef.current[storageId];
+    }
+
+    setLocalPreviewByStorageId((prev) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [storageId, previewUri] of Object.entries(prev)) {
+        if (activeStorageIds.has(storageId)) {
+          next[storageId] = previewUri;
+          continue;
+        }
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [images, listingId, mappedUrls]);
 
   useEffect(() => {
     return () => {

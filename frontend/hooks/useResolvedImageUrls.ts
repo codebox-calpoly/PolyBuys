@@ -13,6 +13,11 @@ export function useResolvedImageUrls(imageIds: string[], listingId?: Id<'listing
   const resolvedUrlsRef = useRef<Record<string, string | null>>({});
 
   useEffect(() => {
+    resolvedUrlsRef.current = {};
+    setResolvedUrls({});
+  }, [listingId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function resolveImageUrls() {

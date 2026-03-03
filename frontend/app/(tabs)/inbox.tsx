@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { api } from 'convex/_generated/api';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
@@ -50,20 +50,33 @@ export default function InboxScreen() {
   const [olderItems, setOlderItems] = useState<ConversationItem[]>([]);
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [loadOlderError, setLoadOlderError] = useState<string | null>(null);
+  const loadOlderRequestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      loadOlderRequestIdRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    loadOlderRequestIdRef.current += 1;
     if (!isAuthenticated) {
       setOlderItems([]);
       setOlderCursor(null);
+      setLoadOlderError(null);
+      setIsLoadingOlder(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!latestPage || olderItems.length > 0 || olderCursor !== null) {
+    if (!isAuthenticated || !latestPage || olderItems.length > 0 || olderCursor !== null) {
       return;
     }
     setOlderCursor(latestPage.nextCursor);
-  }, [latestPage, olderCursor, olderItems.length]);
+  }, [isAuthenticated, latestPage, olderCursor, olderItems.length]);
 
   const items = useMemo(() => {
     const merged = [...(latestPage?.items ?? []), ...olderItems];
@@ -81,19 +94,44 @@ export default function InboxScreen() {
   }, [latestPage?.items, olderItems]);
 
   async function loadOlderConversations() {
-    if (!olderCursor || isLoadingOlder) {
+    if (!olderCursor || isLoadingOlder || !isAuthenticated) {
       return;
     }
+
+    const cursorSnapshot = olderCursor;
+    const requestId = ++loadOlderRequestIdRef.current;
+
+    setLoadOlderError(null);
+    setIsLoadingOlder(true);
+
     try {
-      setIsLoadingOlder(true);
       const olderPage = await convex.query(api.messages.listUserConversations, {
         limit: 30,
-        cursor: olderCursor,
+        cursor: cursorSnapshot,
       });
-      setOlderItems((prev) => [...prev, ...(olderPage.items as ConversationItem[])]);
-      setOlderCursor(olderPage.nextCursor);
+
+      const canApplyResults =
+        isMountedRef.current && requestId === loadOlderRequestIdRef.current && isAuthenticated;
+      if (canApplyResults) {
+        setOlderItems((prev) => [...prev, ...(olderPage.items as ConversationItem[])]);
+        setOlderCursor(olderPage.nextCursor);
+      }
+    } catch (error) {
+      const canApplyErrorState =
+        isMountedRef.current && requestId === loadOlderRequestIdRef.current;
+      if (canApplyErrorState) {
+        const errorName = error instanceof Error ? error.name : 'UnknownError';
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Inbox load older conversations failed', {
+          errorName,
+          errorMessage,
+        });
+        setLoadOlderError('Unable to load older conversations. Please try again.');
+      }
     } finally {
-      setIsLoadingOlder(false);
+      if (isMountedRef.current && requestId === loadOlderRequestIdRef.current) {
+        setIsLoadingOlder(false);
+      }
     }
   }
 
@@ -173,22 +211,29 @@ export default function InboxScreen() {
       }
       renderItem={renderConversation}
       ListFooterComponent={
-        olderCursor ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.loadOlderButton,
-              isLoadingOlder && styles.loadOlderButtonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => {
-              void loadOlderConversations();
-            }}
-            disabled={isLoadingOlder}
-          >
-            <Text style={styles.loadOlderText}>
-              {isLoadingOlder ? 'Loading...' : 'Load older conversations'}
-            </Text>
-          </Pressable>
+        loadOlderError || olderCursor ? (
+          <View style={styles.footerContainer}>
+            {loadOlderError ? (
+              <Text style={styles.loadOlderErrorText}>{loadOlderError}</Text>
+            ) : null}
+            {olderCursor ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.loadOlderButton,
+                  isLoadingOlder && styles.loadOlderButtonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => {
+                  void loadOlderConversations();
+                }}
+                disabled={isLoadingOlder}
+              >
+                <Text style={styles.loadOlderText}>
+                  {isLoadingOlder ? 'Loading...' : 'Load older conversations'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null
       }
     />
@@ -273,6 +318,14 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 8,
     marginBottom: 10,
+  },
+  footerContainer: {
+    gap: 8,
+  },
+  loadOlderErrorText: {
+    fontSize: 13,
+    color: '#b3261e',
+    textAlign: 'center',
   },
   loadOlderButton: {
     alignSelf: 'center',
