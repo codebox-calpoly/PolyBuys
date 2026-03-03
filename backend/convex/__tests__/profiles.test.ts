@@ -37,7 +37,7 @@ describe('Profiles mutations', () => {
     expect(profile?.userId).toBe('alice-id');
   });
 
-  it('createProfile rejects users without an authenticated email', async () => {
+  it('createProfile rejects when no email is provided or available on identity', async () => {
     const t = convexTest(schema as any, modules);
     const asUserWithoutEmail = t.withIdentity({
       name: 'NoEmail',
@@ -50,6 +50,6 @@ describe('Profiles mutations', () => {
         major: 'Computer Science',
         year: 2026,
       });
-    }).rejects.toThrowError('Authenticated user email is required to create a profile');
+    }).rejects.toThrowError('Email is required to create a profile');
   });
 });
