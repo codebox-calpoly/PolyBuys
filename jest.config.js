@@ -1,3 +1,5 @@
+const path = require('node:path');
+
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -27,7 +29,7 @@ module.exports = {
         },
       },
     ],
-    '^.+\\.jsx?$': ['babel-jest'],
+    '^.+\\.jsx?$': ['babel-jest', { configFile: path.resolve(__dirname, 'babel.jest.config.js') }],
   },
   // Transform ES module packages from node_modules with babel
   transformIgnorePatterns: ['node_modules/(?!(convex-test|convex)/)'],

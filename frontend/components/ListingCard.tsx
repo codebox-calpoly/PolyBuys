@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface ListingCardProps {
   listing: {
@@ -9,80 +10,160 @@ interface ListingCardProps {
     description: string;
     tags?: string[];
   };
+  index?: number;
 }
 
-export default function ListingCard({ listing }: ListingCardProps) {
+export default function ListingCard({ listing, index = 0 }: ListingCardProps) {
   const router = useRouter();
-  const displayTags = listing.tags?.slice(0, 2) || [];
-  const hasMoreTags = listing.tags && listing.tags.length > 2;
+  const displayTags = listing.tags?.slice(0, 3) || [];
+  const hasMoreTags = listing.tags && listing.tags.length > 3;
+  const [isHovered, setIsHovered] = useState(false);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+
+  useEffect(() => {
+    const delay = Math.min(index * 45, 240);
+    const animation = Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 280,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 280,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    animation.start();
+    return () => animation.stop();
+  }, [index, opacity, translateY]);
+
+  const animatedStyle = useMemo(
+    () => ({
+      opacity,
+      transform: [{ translateY }],
+    }),
+    [opacity, translateY]
+  );
 
   return (
-    <TouchableOpacity
-      style={styles.listingCard}
-      onPress={() => router.push(`/listings/${listing._id}`)}
-    >
-      <Text style={styles.listingTitle}>{listing.title}</Text>
-      <Text style={styles.listingPrice}>${listing.price}</Text>
-      <Text style={styles.listingDescription}>{listing.description}</Text>
-
-      {(displayTags.length > 0 || hasMoreTags) && (
-        <View style={styles.tagsContainer}>
-          {displayTags.map((tag) => (
-            <View key={tag} style={styles.tagChip}>
-              <Text style={styles.tagText}>#{tag}</Text>
-            </View>
-          ))}
-          {hasMoreTags && <Text style={styles.tagCount}>+{listing.tags!.length - 2} more</Text>}
+    <Animated.View style={[styles.listingCardWrapper, animatedStyle]}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.listingCard,
+          isHovered && styles.listingCardHover,
+          pressed && styles.listingCardPressed,
+        ]}
+        onPress={() => router.push(`/listings/${listing._id}`)}
+        onHoverIn={() => setIsHovered(true)}
+        onHoverOut={() => setIsHovered(false)}
+      >
+        <View style={styles.headerRow}>
+          <Text style={styles.listingTitle} numberOfLines={1}>
+            {listing.title}
+          </Text>
+          <View style={styles.pricePill}>
+            <Text style={styles.listingPrice}>${listing.price}</Text>
+          </View>
         </View>
-      )}
-    </TouchableOpacity>
+
+        <Text style={styles.listingDescription} numberOfLines={2}>
+          {listing.description}
+        </Text>
+
+        {(displayTags.length > 0 || hasMoreTags) && (
+          <View style={styles.tagsContainer}>
+            {displayTags.map((tag) => (
+              <View key={tag} style={styles.tagChip}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
+            ))}
+            {hasMoreTags && <Text style={styles.tagCount}>+{listing.tags!.length - 3} more</Text>}
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  listingCardWrapper: {
+    marginBottom: 14,
+  },
   listingCard: {
-    backgroundColor: '#f5f5f5',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e3e9e6',
     padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
+    gap: 10,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  listingCardHover: {
+    borderColor: '#b8d2c7',
+    transform: [{ translateY: -2 }],
+  },
+  listingCardPressed: {
+    transform: [{ scale: 0.995 }],
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   listingTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
+    color: '#0f2b21',
+    flex: 1,
+  },
+  pricePill: {
+    backgroundColor: '#e9f7ef',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   listingPrice: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a7f4d',
   },
   listingDescription: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
+    lineHeight: 20,
+    color: '#50635b',
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    marginTop: 8,
+    gap: 8,
   },
   tagChip: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#eef4ff',
+    borderWidth: 1,
+    borderColor: '#d5e4ff',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 12,
-    marginRight: 6,
-    marginBottom: 4,
   },
   tagText: {
-    color: '#1976d2',
+    color: '#2f5fbd',
     fontSize: 12,
+    fontWeight: '500',
   },
   tagCount: {
-    color: '#666',
+    color: '#6a7570',
     fontSize: 12,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
 });

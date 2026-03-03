@@ -48,6 +48,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
+    .index('by_seller_createdAt', ['sellerId', 'createdAt'])
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])

@@ -1,23 +1,43 @@
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
+  ActivityIndicator,
   Alert,
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { useState, useEffect } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useQuery, useAction } from 'convex/react';
-import { ConvexError } from 'convex/values';
+import { useAction, useQuery } from 'convex/react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
-import TagInput from '../../../components/TagInput';
+import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
+import TagInput from '../../../components/TagInput';
+import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
 
-type Category = 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
-type Condition = 'new' | 'used' | 'refurbished';
+const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
+const conditions = ['new', 'used', 'refurbished'] as const;
+const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
+
+function getListingActionError(error: unknown, fallbackTitle: string) {
+  const rawMessage = error instanceof Error ? error.message : 'Unknown error';
+  if (rawMessage.includes(MODERATION_ERROR_FRAGMENT)) {
+    return {
+      title: 'Listing needs edits',
+      message:
+        'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.',
+    };
+  }
+
+  return {
+    title: fallbackTitle,
+    message: rawMessage,
+  };
+}
 
 export default function EditListingScreen() {
   const router = useRouter();
@@ -28,249 +48,243 @@ export default function EditListingScreen() {
     listingId ? { id: listingId as Id<'listings'> } : 'skip'
   );
   const updateListing = useAction(api.listings.updateListing);
+  const entranceStyle = useEntranceAnimation();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState<Category>('other');
-  const [condition, setCondition] = useState<Condition>('used');
-  const [images, setImages] = useState<string[]>(['']);
+  const [category, setCategory] = useState<(typeof categories)[number]>('other');
+  const [condition, setCondition] = useState<(typeof conditions)[number]>('used');
+  const [images, setImages] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formPopulated, setFormPopulated] = useState(false);
-  const [lastListingId, setLastListingId] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const submittingRef = useRef(false);
 
-  // Populate form when listing loads (only once per listing)
   useEffect(() => {
-    if (listing) {
-      // Reset form if listing ID changed
-      if (lastListingId !== listing._id) {
-        setFormPopulated(false);
-        setLastListingId(listing._id);
-      }
-
-      // Populate only if not already populated for this listing
-      if (!formPopulated) {
-        setTitle(listing.title || '');
-        setDescription(listing.description || '');
-        setPrice(listing.price?.toString() || '');
-        setCategory(listing.category || 'other');
-        setCondition(listing.condition || 'used');
-        setImages(listing.images && listing.images.length > 0 ? listing.images : ['']);
-        setTags(listing.tags || []);
-        setFormPopulated(true);
-      }
+    if (!listing || hasInitialized) {
+      return;
     }
-  }, [listing, formPopulated, lastListingId]);
 
-  const handleAddImage = () => {
-    setImages([...images, '']);
-  };
+    setTitle(listing.title);
+    setDescription(listing.description);
+    setPrice(String(listing.price));
+    setCategory(listing.category);
+    setCondition(listing.condition);
+    setImages(listing.images);
+    setTags(listing.tags ?? []);
+    setHasInitialized(true);
+  }, [hasInitialized, listing]);
 
-  const handleImageChange = (index: number, value: string) => {
-    const newImages = [...images];
-    newImages[index] = value;
-    setImages(newImages);
-  };
-
-  const handleRemoveImage = (index: number) => {
-    if (images.length > 1) {
-      setImages(images.filter((_, i) => i !== index));
+  async function onSubmit() {
+    if (submittingRef.current || !listingId) {
+      return;
     }
-  };
+
+    if (!title.trim() || !description.trim()) {
+      Alert.alert('Missing fields', 'Title and description are required.');
+      return;
+    }
+
+    const parsedPrice = Number(price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      Alert.alert('Invalid price', 'Please enter a valid non-negative price.');
+      return;
+    }
+
+    if (hasPendingUploads) {
+      Alert.alert('Uploads in progress', 'Please wait for image uploads to finish.');
+      return;
+    }
+
+    if (images.length < 1 || images.length > 8) {
+      Alert.alert('Invalid images', 'Please upload between 1 and 8 images.');
+      return;
+    }
+
+    try {
+      submittingRef.current = true;
+      setIsSubmitting(true);
+      const result = await updateListing({
+        id: listingId as Id<'listings'>,
+        title: title.trim(),
+        description: description.trim(),
+        price: parsedPrice,
+        category,
+        condition,
+        images,
+        tags,
+      });
+      if (!result.ok) {
+        Alert.alert(
+          'Listing needs edits',
+          'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.'
+        );
+        return;
+      }
+      Alert.alert('Success', 'Listing updated.');
+      router.back();
+    } catch (error) {
+      const actionError = getListingActionError(error, 'Update failed');
+      Alert.alert(actionError.title, actionError.message);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  }
 
   if (!listingId) {
     return <ListingUnavailable />;
   }
 
-  const isHidden = listing?.isHidden === true;
-
-  const handleSubmit = async () => {
-    if (!listing) return;
-    if (isHidden) return;
-
-    // Validation
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle || trimmedTitle.length < 5) {
-      Alert.alert('Error', 'Title must be at least 5 characters');
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert('Error', 'Description is required');
-      return;
-    }
-    const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum < 0) {
-      Alert.alert('Error', 'Please enter a valid price');
-      return;
-    }
-    const validImages = images.filter((img) => img.trim().length > 0);
-    if (validImages.length === 0) {
-      Alert.alert('Error', 'At least one image URL is required');
-      return;
-    }
-    if (validImages.length > 8) {
-      Alert.alert('Error', 'Maximum 8 images allowed');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await updateListing({
-        id: listing._id,
-        title: trimmedTitle,
-        description: description.trim(),
-        price: priceNum,
-        category,
-        condition,
-        images: validImages,
-        tags,
-      });
-      router.replace(`/listings/${listing._id}`);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof ConvexError
-          ? (error.data as string)
-          : error instanceof Error
-            ? error.message
-            : 'Failed to update listing';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   if (listing === undefined) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="small" color="#154734" />
+        <Text style={styles.loadingText}>Loading listing...</Text>
       </View>
     );
   }
 
-  if (listing === null || isHidden) {
+  if (listing === null) {
     return <ListingUnavailable />;
   }
 
+  const isCancelDisabled = isSubmitting || hasPendingUploads;
+
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Edit Listing</Text>
+    <ScrollView
+      style={styles.container}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={styles.content}
+    >
+      <Animated.View style={[styles.formCard, entranceStyle]}>
+        <Text style={styles.eyebrow}>Seller Studio</Text>
+        <Text style={styles.title}>Edit listing</Text>
+        <Text style={styles.subtitle}>Update your listing details and keep it fresh.</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Title *</Text>
-        <TextInput
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Enter listing title"
-          maxLength={100}
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.label}>Title *</Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Enter listing title"
+            maxLength={100}
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Description *</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe your item"
-          multiline
-          numberOfLines={4}
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.label}>Description *</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe your item"
+            multiline
+            numberOfLines={4}
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Price ($) *</Text>
-        <TextInput
-          style={styles.input}
-          value={price}
-          onChangeText={setPrice}
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.label}>Price ($) *</Text>
+          <TextInput
+            style={styles.input}
+            value={price}
+            onChangeText={setPrice}
+            placeholder="0.00"
+            keyboardType="decimal-pad"
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Category *</Text>
-        <View style={styles.optionsContainer}>
-          {(['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as Category[]).map(
-            (cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.option, category === cat && styles.optionSelected]}
-                onPress={() => setCategory(cat)}
+        <View style={styles.section}>
+          <Text style={styles.label}>Category *</Text>
+          <View style={styles.optionsContainer}>
+            {categories.map((option) => (
+              <Pressable
+                key={option}
+                style={({ pressed }) => [
+                  styles.option,
+                  category === option && styles.optionSelected,
+                  pressed && styles.optionPressed,
+                ]}
+                onPress={() => setCategory(option)}
               >
-                <Text style={[styles.optionText, category === cat && styles.optionTextSelected]}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                <Text style={[styles.optionText, category === option && styles.optionTextSelected]}>
+                  {option.charAt(0).toUpperCase() + option.slice(1)}
                 </Text>
-              </TouchableOpacity>
-            )
-          )}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Condition *</Text>
-        <View style={styles.optionsContainer}>
-          {(['new', 'used', 'refurbished'] as Condition[]).map((cond) => (
-            <TouchableOpacity
-              key={cond}
-              style={[styles.option, condition === cond && styles.optionSelected]}
-              onPress={() => setCondition(cond)}
-            >
-              <Text style={[styles.optionText, condition === cond && styles.optionTextSelected]}>
-                {cond.charAt(0).toUpperCase() + cond.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Images (URLs) *</Text>
-        {images.map((image, index) => (
-          <View key={index} style={styles.imageInputContainer}>
-            <TextInput
-              style={[styles.input, styles.imageInput]}
-              value={image}
-              onChangeText={(value) => handleImageChange(index, value)}
-              placeholder={`Image URL ${index + 1}`}
-              autoCapitalize="none"
-            />
-            {images.length > 1 && (
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemoveImage(index)}
-              >
-                <Text style={styles.removeButtonText}>×</Text>
-              </TouchableOpacity>
-            )}
+              </Pressable>
+            ))}
           </View>
-        ))}
-        {images.length < 8 && (
-          <TouchableOpacity style={styles.addButton} onPress={handleAddImage}>
-            <Text style={styles.addButtonText}>+ Add Image</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Tags</Text>
-        <TagInput tags={tags} onChange={setTags} />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.label}>Condition *</Text>
+          <View style={styles.optionsContainer}>
+            {conditions.map((option) => (
+              <Pressable
+                key={option}
+                style={({ pressed }) => [
+                  styles.option,
+                  condition === option && styles.optionSelected,
+                  pressed && styles.optionPressed,
+                ]}
+                onPress={() => setCondition(option)}
+              >
+                <Text
+                  style={[styles.optionText, condition === option && styles.optionTextSelected]}
+                >
+                  {option.charAt(0).toUpperCase() + option.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.submitButtonText}>{isSubmitting ? 'Saving...' : 'Save Changes'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.label}>Images *</Text>
+          <ImageUploader
+            images={images}
+            onImagesChange={setImages}
+            onPendingChange={setHasPendingUploads}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Tags</Text>
+          <TagInput tags={tags} onChange={setTags} />
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.submitButton,
+              (isSubmitting || hasPendingUploads) && styles.submitButtonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => {
+              void onSubmit();
+            }}
+            disabled={isSubmitting || hasPendingUploads}
+          >
+            <Text style={styles.submitButtonText}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.cancelButton,
+              isCancelDisabled && styles.cancelButtonDisabled,
+              pressed && !isCancelDisabled && styles.buttonPressed,
+            ]}
+            onPress={() => router.back()}
+            disabled={isCancelDisabled}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -278,33 +292,75 @@ export default function EditListingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f3f7f5',
+  },
+  content: {
+    width: '100%',
+    maxWidth: 980,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 26,
+  },
+  formCard: {
     backgroundColor: '#fff',
-    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d8e6df',
+    padding: 16,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    color: '#5e7268',
+    fontSize: 15,
+  },
+  eyebrow: {
+    fontSize: 12,
+    color: '#2a6f52',
+    letterSpacing: 0.4,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 6,
+    color: '#0f2b21',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#5f7268',
+    marginBottom: 16,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
+    color: '#27463b',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
+    borderColor: '#d4dfd9',
+    borderRadius: 12,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#f9fbfa',
   },
   textArea: {
-    height: 100,
+    minHeight: 112,
     textAlignVertical: 'top',
   },
   optionsContainer: {
@@ -313,73 +369,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   option: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    borderColor: '#dbe6e1',
+    backgroundColor: '#f8fbf9',
   },
   optionSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#154734',
+    borderColor: '#154734',
+  },
+  optionPressed: {
+    opacity: 0.85,
   },
   optionText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4f645b',
+    fontWeight: '500',
   },
   optionTextSelected: {
     color: '#fff',
     fontWeight: '600',
   },
-  imageInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  imageInput: {
-    flex: 1,
-    marginRight: 8,
-  },
-  removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f44336',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  addButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  addButtonText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
   buttonContainer: {
-    marginTop: 8,
-    marginBottom: 32,
+    marginTop: 6,
+    marginBottom: 8,
+    gap: 10,
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#154734',
+    padding: 15,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
   },
   submitButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#9eb5ab',
   },
   submitButtonText: {
     color: '#fff',
@@ -387,14 +412,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: {
-    padding: 16,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#d5e0db',
+    backgroundColor: '#f6faf8',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
   },
   cancelButtonText: {
-    color: '#666',
+    color: '#4f645b',
     fontSize: 16,
+    fontWeight: '500',
+  },
+  buttonPressed: {
+    opacity: 0.9,
   },
 });

@@ -674,7 +674,10 @@ export const updateListing = action({
     category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ ok: true } | { ok: false; reason: 'moderation_blocked' }> => {
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -750,9 +753,7 @@ export const updateListing = action({
     });
 
     if (moderationResult.flagged) {
-      throw new ConvexError(
-        'Your listing contains content that violates our community guidelines. Please revise and try again.'
-      );
+      return { ok: false, reason: 'moderation_blocked' };
     }
 
     // Persist via internal mutation
@@ -774,6 +775,8 @@ export const updateListing = action({
         tags: update.tags as string[] | undefined,
       },
     });
+
+    return { ok: true };
   },
 });
 
@@ -838,6 +841,25 @@ export const getMyHiddenListings = query({
         q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
+  },
+});
+
+// Get current user's listings for management (includes hidden/inactive/sold, excludes deleted)
+export const getMyListings = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to view your listings');
+    }
+
+    const listings = await ctx.db
+      .query('listings')
+      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', identity.subject))
+      .order('desc')
+      .collect();
+
+    return listings.filter((listing) => listing.status !== 'deleted');
   },
 });
 

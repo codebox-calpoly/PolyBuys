@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Animated, View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
+import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 
 interface TagInputProps {
   tags: string[];
@@ -19,6 +20,7 @@ export default function TagInput({
 }: TagInputProps) {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const entranceStyle = useEntranceAnimation(70, 10);
 
   const handleAddTag = () => {
     const trimmed = inputText.trim().toLowerCase();
@@ -95,7 +97,7 @@ export default function TagInput({
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, entranceStyle]}>
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.input, error && styles.inputError]}
@@ -132,13 +134,18 @@ export default function TagInput({
           ))}
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     marginVertical: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#dde6e2',
+    backgroundColor: '#f9fbfa',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -147,20 +154,21 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
+    borderColor: '#d4dfd9',
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
     marginRight: 8,
+    backgroundColor: '#fff',
   },
   inputError: {
     borderColor: '#f44336',
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#1c7f50',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: 'center',
   },
   addButtonText: {
@@ -194,7 +202,9 @@ const styles = StyleSheet.create({
   },
   tagChip: {
     flexDirection: 'row',
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#eaf2ff',
+    borderWidth: 1,
+    borderColor: '#d6e4ff',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
