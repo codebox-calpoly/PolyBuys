@@ -106,7 +106,7 @@ export default function EditListingScreen() {
     try {
       submittingRef.current = true;
       setIsSubmitting(true);
-      const result = await updateListing({
+      await updateListing({
         id: listingId as Id<'listings'>,
         title: title.trim(),
         description: description.trim(),
@@ -116,13 +116,6 @@ export default function EditListingScreen() {
         images,
         tags,
       });
-      if (!result.ok) {
-        Alert.alert(
-          'Listing needs edits',
-          'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.'
-        );
-        return;
-      }
       Alert.alert('Success', 'Listing updated.');
       router.back();
     } catch (error) {

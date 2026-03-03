@@ -13,9 +13,9 @@ import {
 import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
-import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+// Email is bound to Cal Poly identity and cannot be changed by the user (DECISIONS.md).
 
 const BOUNDS = {
   MIN_YEAR: 1900,
@@ -27,11 +27,12 @@ export default function SettingsScreen() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const entranceStyle = useEntranceAnimation();
 
-  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const profile = useQuery(api.profiles.getMyProfile, isAuthenticated ? {} : 'skip');
   const createProfile = useMutation(api.profiles.createProfile);
   const updateProfile = useMutation(api.profiles.updateProfile);
 
   const [name, setName] = useState('');
+  // Email is read-only — it is fixed to the Cal Poly identity used to sign in.
   const [email, setEmail] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
@@ -106,7 +107,6 @@ export default function SettingsScreen() {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
     const trimmedBio = bio.trim();
-    const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
       Alert.alert('Missing field', 'Name is required.');
@@ -114,12 +114,6 @@ export default function SettingsScreen() {
     }
     if (!trimmedMajor) {
       Alert.alert('Missing field', 'Major is required.');
-      return;
-    }
-
-    const emailError = getEmailValidationError(normalizedEmail);
-    if (emailError) {
-      Alert.alert('Invalid email', emailError);
       return;
     }
 
@@ -142,20 +136,18 @@ export default function SettingsScreen() {
       if (!profile) {
         await createProfile({
           name: trimmedName,
-          email: normalizedEmail,
+          bio: trimmedBio || undefined,
+          major: trimmedMajor,
+          year: parsedYear,
+        });
+      } else {
+        await updateProfile({
+          name: trimmedName,
           bio: trimmedBio || undefined,
           major: trimmedMajor,
           year: parsedYear,
         });
       }
-
-      await updateProfile({
-        name: trimmedName,
-        email: normalizedEmail,
-        bio: trimmedBio,
-        major: trimmedMajor,
-        year: parsedYear,
-      });
 
       Alert.alert('Profile saved', 'Your profile has been updated.');
     } catch (error) {
@@ -218,11 +210,11 @@ export default function SettingsScreen() {
             placeholder="Your full name"
           />
 
-          <Text style={styles.label}>Email *</Text>
+          <Text style={styles.label}>Email</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: '#888', backgroundColor: '#f0f0f0' }]}
             value={email}
-            onChangeText={setEmail}
+            editable={false}
             placeholder="you@calpoly.edu"
             keyboardType="email-address"
             autoCapitalize="none"

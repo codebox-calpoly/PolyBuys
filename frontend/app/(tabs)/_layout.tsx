@@ -1,5 +1,5 @@
 import { Link, Slot, usePathname } from 'expo-router';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 type WebTab = {
@@ -77,47 +77,30 @@ export default function TabsLayout() {
       tintColor={tabTint}
       labelStyle={nativeTabLabelStyle}
     >
-      <NativeTabs.Trigger name="index" disableTransparentOnScrollEdge>
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
+      <NativeTabs.Trigger name="index" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
+        <Label>Home</Label>
+        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role="search" disableTransparentOnScrollEdge>
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
+      <NativeTabs.Trigger name="search" role="search" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }}
-          md="search"
-        />
+        <Label>Search</Label>
+        <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="my-listings" disableTransparentOnScrollEdge>
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
+      <NativeTabs.Trigger name="my-listings" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }}
-          md="view_list"
-        />
+        <Label>My Listings</Label>
+        <Icon sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="inbox" disableTransparentOnScrollEdge>
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
+      <NativeTabs.Trigger name="inbox" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }}
-          md="chat"
-        />
+        <Label>Inbox</Label>
+        <Icon sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
+      <NativeTabs.Trigger name="settings" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'person.circle', selected: 'person.circle.fill' }}
-          md="settings"
-        />
+        <Label>Profile</Label>
+        <Icon sf={{ default: 'person.circle', selected: 'person.circle.fill' }} />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -868,6 +868,24 @@ export const getMyHiddenListings = query({
   },
 });
 
+// Get current user's own listings (all non-deleted statuses)
+// Capped at 200 — per DECISIONS.md, avoid unbounded reads. 200 own listings is a generous ceiling.
+export const getMyListings = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to view your listings');
+    }
+    return await ctx.db
+      .query('listings')
+      .filter((q) =>
+        q.and(q.eq(q.field('sellerId'), identity.subject), q.neq(q.field('status'), 'deleted'))
+      )
+      .take(200);
+  },
+});
+
 // Get current user's identity subject
 export const getCurrentUserSubject = query({
   args: {},
