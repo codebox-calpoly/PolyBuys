@@ -25,6 +25,24 @@ afterEach(() => {
 
 describe('Messages queries and mutations', () => {
   describe('sendMessage', () => {
+    it('rejects whitespace-only messages', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await expect(async () => {
+        await asBuyer.action(api.messages.sendMessage, {
+          conversationId,
+          body: '   \n\t  ',
+        });
+      }).rejects.toThrow('Message cannot be empty');
+    });
+
     it('throws error when user is not a participant', async () => {
       const t = createConvexTest();
 
@@ -97,6 +115,29 @@ describe('Messages queries and mutations', () => {
 
       expect(message?.senderId).toBe(seller.id);
       expect(message?.recipientId).toBe(buyer.id);
+    });
+
+    it('throttles rapid consecutive sends from the same participant', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await asBuyer.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'First message',
+      });
+
+      await expect(async () => {
+        await asBuyer.action(api.messages.sendMessage, {
+          conversationId,
+          body: 'Second message too soon',
+        });
+      }).rejects.toThrow('You are sending messages too quickly. Please wait a moment.');
     });
 
     it('updates conversation updatedAt timestamp', async () => {

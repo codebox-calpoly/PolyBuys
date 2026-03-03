@@ -84,4 +84,4 @@ We may update this policy periodically. Material changes will be reflected by an
 
 ## 12. Contact
 
-For privacy requests or questions, contact the PolyBuys team (add official privacy email/contact page).
+For privacy requests or questions, contact [support@polybuys.com](mailto:support@polybuys.com).

@@ -73,4 +73,4 @@ You agree not to:
 
 ## 12. Contact
 
-For support or legal requests, contact the PolyBuys team (add official email/contact page).
+For support or legal requests, contact [support@polybuys.com](mailto:support@polybuys.com).

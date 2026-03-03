@@ -52,4 +52,38 @@ describe('Profiles mutations', () => {
       });
     }).rejects.toThrowError('Authenticated user email is required to create a profile');
   });
+
+  it('createProfile enforces Cal Poly email addresses', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Outside User',
+      subject: 'outside-id',
+      email: 'outside@gmail.com',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.profiles.createProfile, {
+        name: 'Outside User',
+        major: 'Computer Science',
+        year: 2026,
+      });
+    }).rejects.toThrowError('Email must be a @calpoly.edu address');
+  });
+
+  it('createProfile validates year bounds', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-year-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.profiles.createProfile, {
+        name: 'Alice',
+        major: 'Computer Science',
+        year: 1200,
+      });
+    }).rejects.toThrowError('Year must be between 1900 and 9999');
+  });
 });

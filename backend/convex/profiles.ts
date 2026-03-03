@@ -2,6 +2,7 @@ import { v, ConvexError } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
+import { isCalPolyEmail } from '@polybuys/shared';
 
 export const PAYLOAD_BOUNDS = {
   NAME_MIN: 1,
@@ -12,6 +13,16 @@ export const PAYLOAD_BOUNDS = {
 };
 
 const MAX_PROFILE_NAME_MATCHES = 100;
+const YEAR_BOUNDS = {
+  MIN: 1900,
+  MAX: 9999,
+};
+
+function validateYear(year: number) {
+  if (!Number.isInteger(year) || year < YEAR_BOUNDS.MIN || year > YEAR_BOUNDS.MAX) {
+    throw new ConvexError(`Year must be between ${YEAR_BOUNDS.MIN} and ${YEAR_BOUNDS.MAX}`);
+  }
+}
 
 /**
  * Sanitizes a profile to only include public fields.
@@ -106,6 +117,9 @@ export const createProfile = mutation({
     if (!email) {
       throw new ConvexError('Authenticated user email is required to create a profile');
     }
+    if (!isCalPolyEmail(email)) {
+      throw new ConvexError('Email must be a @calpoly.edu address');
+    }
 
     // Validate inputs
     if (args.name.length < PAYLOAD_BOUNDS.NAME_MIN || args.name.length > PAYLOAD_BOUNDS.NAME_MAX) {
@@ -124,6 +138,7 @@ export const createProfile = mutation({
         `Major must be ${PAYLOAD_BOUNDS.MAJOR_MIN}-${PAYLOAD_BOUNDS.MAJOR_MAX} characters`
       );
     }
+    validateYear(args.year);
 
     const existingProfile = await ctx.db
       .query('profiles')
@@ -197,7 +212,10 @@ export const updateProfile = mutation({
       }
       update.major = args.major;
     }
-    if (args.year !== undefined) update.year = args.year;
+    if (args.year !== undefined) {
+      validateYear(args.year);
+      update.year = args.year;
+    }
 
     if (Object.keys(update).length === 0) {
       throw new ConvexError('No valid fields to update');

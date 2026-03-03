@@ -12,9 +12,15 @@ const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 const MAX_MESSAGE_PAGE_SIZE = 100;
 const MAX_READ_PATCH_BATCH = 1000;
 const UNREAD_CAP = 99;
+const MESSAGE_MIN_INTERVAL_MS = 1_000;
 
 type MessageCursor = {
   createdAt: number;
+  id: string;
+};
+
+type ConversationCursor = {
+  updatedAt: number;
   id: string;
 };
 
@@ -36,6 +42,22 @@ function parseMessageCursor(cursor: string | undefined): MessageCursor | null {
     throw new ConvexError('Invalid cursor');
   }
   return { createdAt, id };
+}
+
+function parseConversationCursor(cursor: string | undefined): ConversationCursor | null {
+  if (!cursor) {
+    return null;
+  }
+  const sep = cursor.indexOf('|');
+  if (sep === -1) {
+    throw new ConvexError('Invalid cursor');
+  }
+  const updatedAt = Number.parseInt(cursor.slice(0, sep), 10);
+  const id = cursor.slice(sep + 1);
+  if (Number.isNaN(updatedAt) || updatedAt <= 0 || id.length === 0) {
+    throw new ConvexError('Invalid cursor');
+  }
+  return { updatedAt, id };
 }
 
 async function runMessagingBackfillBatch(
@@ -89,6 +111,18 @@ export const internalGetConversation = internalQuery({
   },
 });
 
+export const internalGetLatestConversationMessage = internalQuery({
+  args: { conversationId: v.id('conversations') },
+  handler: async (ctx, args) => {
+    const latest = await ctx.db
+      .query('messages')
+      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
+      .order('desc')
+      .take(1);
+    return latest[0] ?? null;
+  },
+});
+
 // Internal mutation: persists a message and updates conversation (called by sendMessage action after moderation)
 export const internalSendMessage = internalMutation({
   args: {
@@ -131,10 +165,11 @@ export const sendMessage = action({
   },
   handler: async (ctx, args): Promise<{ messageId: string }> => {
     // Validate message body length
-    if (args.body.length === 0) {
+    const trimmedBody = args.body.trim();
+    if (trimmedBody.length === 0) {
       throw new ConvexError('Message cannot be empty');
     }
-    if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
+    if (trimmedBody.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
       throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
     }
 
@@ -160,10 +195,24 @@ export const sendMessage = action({
     }
 
     const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
+    const latestMessage = await ctx.runQuery(
+      internal.messages.internalGetLatestConversationMessage,
+      {
+        conversationId: args.conversationId,
+      }
+    );
+    const now = Date.now();
+    if (
+      latestMessage &&
+      latestMessage.senderId === userId &&
+      now - latestMessage.createdAt < MESSAGE_MIN_INTERVAL_MS
+    ) {
+      throw new ConvexError('You are sending messages too quickly. Please wait a moment.');
+    }
 
     // Screen content via OpenAI Moderation API
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
-      text: args.body,
+      text: trimmedBody,
       contentType: 'message',
       userId,
     });
@@ -178,7 +227,7 @@ export const sendMessage = action({
       listingId: convo.listingId,
       senderId: userId,
       recipientId,
-      body: args.body,
+      body: trimmedBody,
       type: 'text',
     });
 
@@ -224,17 +273,10 @@ export const listUserConversations = query({
     const userId = await getUserId(ctx);
     const limit = Math.max(1, Math.min(args.limit ?? 20, 50));
 
-    // Parse compound cursor
-    let cursorTs = NaN;
-    let cursorId = '';
-    if (args.cursor) {
-      const sep = args.cursor.indexOf('|');
-      if (sep !== -1) {
-        cursorTs = Number.parseInt(args.cursor.slice(0, sep), 10);
-        cursorId = args.cursor.slice(sep + 1);
-      }
-    }
-    const hasValidCursor = !Number.isNaN(cursorTs) && cursorTs > 0 && cursorId !== '';
+    const parsedCursor = parseConversationCursor(args.cursor);
+    const hasValidCursor = parsedCursor !== null;
+    const cursorTs = parsedCursor?.updatedAt ?? 0;
+    const cursorId = parsedCursor?.id ?? '';
 
     // Overfetch per side to survive dedup and still fill a full page.
     // lte boundary may pull extra same-ts rows that get filtered below.
@@ -418,7 +460,6 @@ export const getOrCreateConversation = mutation({
   },
 });
 
-// TASK: mark messages as read functionality
 export const markMessagesAsRead = mutation({
   args: {
     conversationId: v.id('conversations'),
@@ -458,7 +499,6 @@ export const markMessagesAsRead = mutation({
   },
 });
 
-// TASK: real-time message delivery (Convex query is reactive when used with useQuery)
 export const backfillMessagingFields = internalMutation({
   args: {
     convoCursor: v.optional(v.string()),

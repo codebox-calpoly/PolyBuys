@@ -20,6 +20,13 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
+function getResultsTruncatedFlag(result: unknown): boolean {
+  if (!result || typeof result !== 'object' || !('resultsTruncated' in result)) {
+    return false;
+  }
+  return Boolean((result as { resultsTruncated?: boolean }).resultsTruncated);
+}
+
 export default function SearchScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -76,8 +83,7 @@ export default function SearchScreen() {
         setAllListings(listingsResult.page);
         setIsDone(listingsResult.isDone);
         setIsLoadingMore(false);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setResultsTruncated(!!(listingsResult as any).resultsTruncated);
+        setResultsTruncated(getResultsTruncatedFlag(listingsResult));
         return;
       }
 

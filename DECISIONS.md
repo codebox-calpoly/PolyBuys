@@ -5,6 +5,7 @@ Last updated: 2026-03-03
 ## Product & Policy Decisions
 
 - **Access policy:** Cal Poly email requirement is mandatory.
+- **Access enforcement:** backend profile creation validates `@calpoly.edu` identity email before persistence.
 - **Moderation policy:** fail-open (if moderation provider is unavailable, core flows continue).
 - **Fail-open control:** degraded moderation events enqueue shadow re-checks with retry + alerting.
 - **Reporting policy:** auto-hide content at 3 unique reporter threshold.
@@ -24,6 +25,7 @@ Last updated: 2026-03-03
 ## Messaging Data Model Decisions (#44)
 
 - **Message type model:** strict minimal enum direction for now: `text`, `system`.
+- **Message input validation:** message writes trim whitespace and reject blank content.
 - **Attachments:** image/file messaging deferred to a later dedicated pass.
 - **Participants:** explicit participant IDs in conversation model.
 - **Inbox snapshots:** keep last-message snapshot fields for fast inbox rendering.
@@ -57,6 +59,7 @@ Last updated: 2026-03-03
 - Degraded moderation now enqueues content into `shadowModerationQueue` for retries and emits `moderationAlerts`.
 - Shadow queue drains automatically via Convex cron (2-minute interval) running `moderation:processShadowModerationQueue`.
 - Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
+- Add per-conversation rapid-send throttle to reduce message flooding bursts.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
 ## Branching Notes
