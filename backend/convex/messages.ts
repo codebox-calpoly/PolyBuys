@@ -373,10 +373,10 @@ export const listUserConversations = query({
     ]);
 
     // Build profile map from parallel results
-    const profileMap = new Map<string, { name: string | null; avatar: string | null }>();
+    const profileMap = new Map<string, { name: string | null; avatarStorageId: string | null }>();
     otherUserIds.forEach((uid, i) => {
       const p = profileResults[i];
-      profileMap.set(uid, { name: p?.name ?? null, avatar: p?.picture ?? null });
+      profileMap.set(uid, { name: p?.name ?? null, avatarStorageId: p?.picture ?? null });
     });
 
     // Assemble items
@@ -395,7 +395,7 @@ export const listUserConversations = query({
         otherParticipant: {
           id: otherUserId,
           name: prof?.name ?? null,
-          avatar: prof?.avatar ?? null,
+          avatarStorageId: prof?.avatarStorageId ?? null,
         },
       };
     });

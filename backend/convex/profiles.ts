@@ -17,6 +17,12 @@ const YEAR_BOUNDS = {
   MIN: 1900,
   MAX: 9999,
 };
+const PROFILE_UPLOAD_RATE_LIMIT = {
+  WINDOW_MS: 15 * 60 * 1000,
+  WINDOW_MAX: 30,
+  DAY_MS: 24 * 60 * 60 * 1000,
+  DAY_MAX: 120,
+} as const;
 
 function validateYear(year: number) {
   if (!Number.isInteger(year) || year < YEAR_BOUNDS.MIN || year > YEAR_BOUNDS.MAX) {
@@ -231,6 +237,56 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError('You must be logged in');
+
+    const now = Date.now();
+    const userId = identity.subject;
+
+    const [recentWindow, recentDay] = await Promise.all([
+      ctx.db
+        .query('profileImageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q) =>
+          q
+            .eq('userId', userId)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - PROFILE_UPLOAD_RATE_LIMIT.WINDOW_MS)
+        )
+        .take(PROFILE_UPLOAD_RATE_LIMIT.WINDOW_MAX + 1),
+      ctx.db
+        .query('profileImageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q) =>
+          q
+            .eq('userId', userId)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - PROFILE_UPLOAD_RATE_LIMIT.DAY_MS)
+        )
+        .take(PROFILE_UPLOAD_RATE_LIMIT.DAY_MAX + 1),
+    ]);
+
+    if (recentWindow.length >= PROFILE_UPLOAD_RATE_LIMIT.WINDOW_MAX) {
+      await ctx.db.insert('profileImageUploadEvents', {
+        userId,
+        eventType: 'blocked',
+        reason: 'rate_limit_15m',
+        createdAt: now,
+      });
+      throw new ConvexError('Upload limit reached. Please wait a few minutes and try again.');
+    }
+
+    if (recentDay.length >= PROFILE_UPLOAD_RATE_LIMIT.DAY_MAX) {
+      await ctx.db.insert('profileImageUploadEvents', {
+        userId,
+        eventType: 'blocked',
+        reason: 'rate_limit_day',
+        createdAt: now,
+      });
+      throw new ConvexError('Daily upload limit reached. Please try again tomorrow.');
+    }
+
+    await ctx.db.insert('profileImageUploadEvents', {
+      userId,
+      eventType: 'issued',
+      createdAt: now,
+    });
 
     return await ctx.storage.generateUploadUrl();
   },

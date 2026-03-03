@@ -194,4 +194,13 @@ export default defineSchema({
   })
     .index('by_user_createdAt', ['userId', 'createdAt'])
     .index('by_user_type_createdAt', ['userId', 'eventType', 'createdAt']),
+
+  profileImageUploadEvents: defineTable({
+    userId: v.string(),
+    eventType: v.union(v.literal('issued'), v.literal('blocked')),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_user_createdAt', ['userId', 'createdAt'])
+    .index('by_user_type_createdAt', ['userId', 'eventType', 'createdAt']),
 });

@@ -25,7 +25,7 @@ type ConversationItem = {
   otherParticipant: {
     id: string;
     name: string | null;
-    avatar: string | null;
+    avatarStorageId: string | null;
   };
 };
 

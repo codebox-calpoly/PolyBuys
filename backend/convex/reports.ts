@@ -8,6 +8,16 @@ const MAX_TARGET_REPORTS_PER_DAY = 30;
 const REPORT_THRESHOLD = 3; // Number of unique reporters before auto-hide
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+function isMalformedIdLookupError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  // Convex throws non-ConvexError runtime errors when an arbitrary string is used as an Id<T>.
+  return /invalid\s+.*id|id\s+.*invalid|unable to decode id|not a valid id|malformed id|document id/i.test(
+    error.message
+  );
+}
+
 /**
  * Create a new report for a listing or profile
  * Includes validation, duplicate prevention, and rate limiting
@@ -49,13 +59,18 @@ export const createReport = mutation({
         }
         isAlreadyHidden = !!profile.isHidden;
       }
-    } catch {
-      // Handle malformed IDs by throwing user-friendly errors
-      if (args.targetType === 'listing') {
-        throw new ConvexError('Listing not found');
-      } else {
+    } catch (error) {
+      if (error instanceof ConvexError) {
+        throw error;
+      }
+      // Only map malformed-ID lookup errors to not-found. Re-throw infra/runtime issues.
+      if (isMalformedIdLookupError(error)) {
+        if (args.targetType === 'listing') {
+          throw new ConvexError('Listing not found');
+        }
         throw new ConvexError('Profile not found');
       }
+      throw error;
     }
 
     // 6. Check for duplicate report (same user + same target) — O(1) via compound index

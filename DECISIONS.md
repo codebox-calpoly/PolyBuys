@@ -28,6 +28,7 @@ Last updated: 2026-03-03
 - **Message input validation:** message writes trim whitespace and reject blank content.
 - **Attachments:** image/file messaging deferred to a later dedicated pass.
 - **Participants:** explicit participant IDs in conversation model.
+- **Conversation payload contract:** inbox counterpart image field is `avatarStorageId` (storage id), not a resolved URL.
 - **Inbox snapshots:** keep last-message snapshot fields for fast inbox rendering.
 - **Read/unread strategy:** optimize for fast inbox counts with precise message-state behavior.
 - **Conversation ordering:** read acknowledgements do not bump conversation `updatedAt`; only message activity changes inbox order.
@@ -64,6 +65,7 @@ Last updated: 2026-03-03
 - Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
 - Add per-conversation rapid-send throttle to reduce message flooding bursts.
 - Add per-user listing image upload rate limits (30 / 15 minutes, 120 / day) with telemetry in `imageUploadEvents`.
+- Add per-user profile picture upload rate limits (30 / 15 minutes, 120 / day) with telemetry in `profileImageUploadEvents`.
 - Scope listing image URL resolution to listing membership + visibility/ownership checks before returning storage URLs.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
