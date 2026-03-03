@@ -3,14 +3,16 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 type WebTab = {
-  href: '/' | '/search' | '/settings';
-  label: 'Home' | 'Search' | 'Account';
+  href: '/' | '/search' | '/my-listings' | '/inbox' | '/settings';
+  label: 'Home' | 'Search' | 'My Listings' | 'Inbox' | 'Profile';
 };
 
 const webTabs: WebTab[] = [
   { href: '/', label: 'Home' },
   { href: '/search', label: 'Search' },
-  { href: '/settings', label: 'Account' },
+  { href: '/my-listings', label: 'My Listings' },
+  { href: '/inbox', label: 'Inbox' },
+  { href: '/settings', label: 'Profile' },
 ];
 
 function isTabActive(pathname: string, href: WebTab['href']) {
@@ -42,7 +44,7 @@ function WebTabsHeaderLayout() {
               ]);
 
               return (
-                <Link key={tab.href} href={tab.href} asChild>
+                <Link key={tab.href} href={tab.href as never} asChild>
                   <Pressable style={tabButtonStyle}>
                     <Text style={tabLabelStyle}>{tab.label}</Text>
                   </Pressable>
@@ -90,10 +92,28 @@ export default function TabsLayout() {
           md="search"
         />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="my-listings" disableTransparentOnScrollEdge>
+        {/* NativeTabs expects plain text inside Trigger.Label. */}
+        {/* eslint-disable-next-line react-native/no-raw-text */}
+        <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }}
+          md="view_list"
+        />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="inbox" disableTransparentOnScrollEdge>
+        {/* NativeTabs expects plain text inside Trigger.Label. */}
+        {/* eslint-disable-next-line react-native/no-raw-text */}
+        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }}
+          md="chat"
+        />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'person.circle', selected: 'person.circle.fill' }}
           md="settings"

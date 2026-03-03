@@ -23,6 +23,7 @@ import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -54,6 +55,7 @@ export default function ListingDetailScreen() {
   );
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
   const [reportOpen, setReportOpen] = useState(false);
+  const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -159,8 +161,12 @@ export default function ListingDetailScreen() {
       <Animated.View style={[styles.card, entranceStyle]}>
         {isHiddenOwnerView && <HiddenBanner />}
 
-        {listing.images.length > 0 ? (
-          <Image source={{ uri: listing.images[0] }} style={styles.heroImage} resizeMode="cover" />
+        {listing.images.length > 0 && mappedUrls[0] ? (
+          <Image source={{ uri: mappedUrls[0] }} style={styles.heroImage} resizeMode="cover" />
+        ) : listing.images.length > 0 ? (
+          <View style={styles.placeholderImage}>
+            <Text style={styles.placeholderText}>Loading image...</Text>
+          </View>
         ) : (
           <View style={styles.placeholderImage}>
             <Text style={styles.placeholderText}>No image provided</Text>

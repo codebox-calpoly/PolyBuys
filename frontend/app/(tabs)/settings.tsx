@@ -1,14 +1,84 @@
-import { useState } from 'react';
-import { Alert, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
+import { api } from 'convex/_generated/api';
+import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+
+const BOUNDS = {
+  MIN_YEAR: 1900,
+  MAX_YEAR: 9999,
+};
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const entranceStyle = useEntranceAnimation();
+
+  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const createProfile = useMutation(api.profiles.createProfile);
+  const updateProfile = useMutation(api.profiles.updateProfile);
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [bio, setBio] = useState('');
+  const [major, setMajor] = useState('');
+  const [year, setYear] = useState('2026');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || profile === undefined) {
+      return;
+    }
+
+    const nextKey = profile?._id ?? 'new-profile';
+    if (loadedProfileKey === nextKey) {
+      return;
+    }
+
+    if (profile) {
+      setName(profile.name);
+      setEmail(profile.email);
+      setBio(profile.bio ?? '');
+      setMajor(profile.major);
+      setYear(String(profile.year));
+    } else {
+      setName(user?.name ?? '');
+      setEmail(user?.email ?? '');
+      setBio('');
+      setMajor('');
+      setYear('2026');
+    }
+
+    setLoadedProfileKey(nextKey);
+  }, [isAuthenticated, loadedProfileKey, profile, user?.email, user?.name]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      return;
+    }
+
+    setLoadedProfileKey(null);
+    setName('');
+    setEmail('');
+    setBio('');
+    setMajor('');
+    setYear('2026');
+  }, [isAuthenticated]);
 
   const handleAuthAction = async () => {
     if (!isAuthenticated) {
@@ -17,11 +87,80 @@ export default function SettingsScreen() {
     }
 
     try {
-      setIsSubmitting(true);
+      setIsSigningOut(true);
       await signOut();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign out';
       Alert.alert('Sign Out Failed', message);
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedMajor = major.trim();
+    const trimmedBio = bio.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName) {
+      Alert.alert('Missing field', 'Name is required.');
+      return;
+    }
+    if (!trimmedMajor) {
+      Alert.alert('Missing field', 'Major is required.');
+      return;
+    }
+
+    const emailError = getEmailValidationError(normalizedEmail);
+    if (emailError) {
+      Alert.alert('Invalid email', emailError);
+      return;
+    }
+
+    const parsedYear = Number(year);
+    if (
+      !Number.isInteger(parsedYear) ||
+      parsedYear < BOUNDS.MIN_YEAR ||
+      parsedYear > BOUNDS.MAX_YEAR
+    ) {
+      Alert.alert(
+        'Invalid year',
+        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      if (!profile) {
+        await createProfile({
+          name: trimmedName,
+          email: normalizedEmail,
+          bio: trimmedBio || undefined,
+          major: trimmedMajor,
+          year: parsedYear,
+        });
+      }
+
+      await updateProfile({
+        name: trimmedName,
+        email: normalizedEmail,
+        bio: trimmedBio,
+        major: trimmedMajor,
+        year: parsedYear,
+      });
+
+      Alert.alert('Profile saved', 'Your profile has been updated.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save profile';
+      Alert.alert('Save failed', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -33,6 +172,15 @@ export default function SettingsScreen() {
       ? (user?.email ?? 'Signed in')
       : 'You are currently signed out.';
 
+  if (isAuthenticated && profile === undefined) {
+    return (
+      <View style={styles.loadingState}>
+        <ActivityIndicator size="small" color="#154734" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -40,10 +188,90 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.content}
     >
       <Animated.View style={[styles.heroCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Account</Text>
+        <Text style={styles.eyebrow}>Profile</Text>
         <Text style={styles.title}>Manage your PolyBuys profile</Text>
         <Text style={styles.subtitle}>{statusText}</Text>
       </Animated.View>
+
+      {!isAuthenticated ? (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Sign in required</Text>
+          <Text style={styles.sectionBody}>
+            Sign in with your Cal Poly email to create and edit your profile details.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+            onPress={handleAuthAction}
+          >
+            <Text style={styles.buttonText}>Sign in</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Editable profile fields</Text>
+
+          <Text style={styles.label}>Name *</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Your full name"
+          />
+
+          <Text style={styles.label}>Email *</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@calpoly.edu"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.label}>Bio</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={bio}
+            onChangeText={setBio}
+            placeholder="Tell others about yourself"
+            multiline
+          />
+
+          <Text style={styles.label}>Major *</Text>
+          <TextInput
+            style={styles.input}
+            value={major}
+            onChangeText={setMajor}
+            placeholder="Computer Science"
+          />
+
+          <Text style={styles.label}>Year *</Text>
+          <TextInput
+            style={styles.input}
+            value={year}
+            onChangeText={setYear}
+            placeholder="2026"
+            keyboardType="number-pad"
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              isSubmitting && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => {
+              void handleSaveProfile();
+            }}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.buttonText}>
+              {isSubmitting ? 'Saving profile...' : 'Save profile'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Session</Text>
@@ -52,33 +280,36 @@ export default function SettingsScreen() {
             ? 'You are signed in and can post or edit listings.'
             : 'Sign in with your Cal Poly email to post and manage listings.'}
         </Text>
-
         <Pressable
           style={({ pressed }) => [
             styles.button,
-            (isSubmitting || isLoading) && styles.buttonDisabled,
+            (isSigningOut || isLoading) && styles.buttonDisabled,
             pressed && styles.buttonPressed,
           ]}
           onPress={handleAuthAction}
-          disabled={isSubmitting || isLoading}
+          disabled={isSigningOut || isLoading}
         >
           <Text style={styles.buttonText}>
-            {isAuthenticated ? (isSubmitting ? 'Signing out...' : 'Sign out') : 'Sign in'}
+            {isAuthenticated ? (isSigningOut ? 'Signing out...' : 'Sign out') : 'Sign in'}
           </Text>
         </Pressable>
-      </View>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Safety first</Text>
-        <Text style={styles.infoText}>
-          Never send payments outside trusted channels. Meet in campus-safe public places.
-        </Text>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f7f5',
+    gap: 8,
+  },
+  loadingText: {
+    color: '#5f7268',
+    fontSize: 15,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f3f7f5',
@@ -139,8 +370,28 @@ const styles = StyleSheet.create({
     color: '#5e7268',
     lineHeight: 20,
   },
+  label: {
+    marginTop: 6,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#244539',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#d4dfd9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#f9fbfa',
+    fontSize: 15,
+    color: '#173227',
+  },
+  textArea: {
+    minHeight: 90,
+    textAlignVertical: 'top',
+  },
   button: {
-    marginTop: 4,
+    marginTop: 6,
     backgroundColor: '#154734',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -160,23 +411,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '600',
-  },
-  infoCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e9e5',
-    backgroundColor: '#f9fcfa',
-    padding: 16,
-    gap: 8,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1d3c31',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#62766d',
-    lineHeight: 20,
   },
 });

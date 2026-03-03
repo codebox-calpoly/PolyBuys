@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -32,11 +32,11 @@ export default function LoginScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const normalizedReturnTo = Array.isArray(returnTo) ? returnTo[0] : returnTo;
-  const postAuthRedirect =
+  const postAuthRedirect: Href =
     typeof normalizedReturnTo === 'string' &&
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
-      ? normalizedReturnTo
+      ? (normalizedReturnTo as Href)
       : '/';
 
   const handleSendCode = async () => {
@@ -62,7 +62,8 @@ export default function LoginScreen() {
   };
 
   const handleVerifyCode = async () => {
-    if (!code.trim() || code.trim().length !== 8) {
+    const trimmedCode = code.trim();
+    if (!/^\d{8}$/.test(trimmedCode)) {
       setError('Please enter the 8-digit code');
       return;
     }
@@ -76,7 +77,7 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      await signIn('resend-otp', { email: step.email, code: code.trim() });
+      await signIn('resend-otp', { email: step.email, code: trimmedCode });
       router.replace(postAuthRedirect);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
@@ -109,6 +110,7 @@ export default function LoginScreen() {
     setStep('email');
     setCode('');
     setError(null);
+    setSuccessMessage(null);
   };
 
   const isEmailStep = step === 'email';

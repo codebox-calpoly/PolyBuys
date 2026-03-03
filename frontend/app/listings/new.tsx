@@ -20,6 +20,23 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
+const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
+
+function getListingActionError(error: unknown, fallbackTitle: string) {
+  const rawMessage = error instanceof Error ? error.message : 'Unknown error';
+  if (rawMessage.includes(MODERATION_ERROR_FRAGMENT)) {
+    return {
+      title: 'Listing needs edits',
+      message:
+        'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.',
+    };
+  }
+
+  return {
+    title: fallbackTitle,
+    message: rawMessage,
+  };
+}
 
 export default function NewListingScreen() {
   const router = useRouter();
@@ -94,7 +111,8 @@ export default function NewListingScreen() {
       Alert.alert('Success', 'Listing created.');
       router.replace('/');
     } catch (error) {
-      Alert.alert('Create failed', error instanceof Error ? error.message : 'Unknown error');
+      const actionError = getListingActionError(error, 'Create failed');
+      Alert.alert(actionError.title, actionError.message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
