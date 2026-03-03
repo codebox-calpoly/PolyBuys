@@ -1,0 +1,23 @@
+frontend/package.json
+  68805151f4fc8bb2 49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "f8903f4f1cbfe62fb06b61fdaed0cb3347ef7e0f",
+  "prompts": {
+    "68805151f4fc8bb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0c13fe96-d503-4235-8cb8-6d5332549ee9",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
