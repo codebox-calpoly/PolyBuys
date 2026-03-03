@@ -40,6 +40,7 @@ Last updated: 2026-03-03
 ## Scale & Reliability Decisions
 
 - Add bounds for pagination and search inputs.
+- Add explicit bounds for `profiles.getProfiles` pagination (`1..100`) with cursor-format validation.
 - Avoid unbounded reads/writes in hot paths and migrations.
 - Use batched backfill for large-table migrations.
 - Add upload timeout/error handling in image upload flow.
@@ -47,6 +48,7 @@ Last updated: 2026-03-03
 - Use stable opaque cursors on manual listing pagination branches to reduce duplicate/skip behavior during concurrent writes.
 - Replace post-filter listing `take(MAX_COLLECT)` truncation with bounded scan pagination (`scan1` cursors, 5k scan ceiling) for filter paths that cannot be fully index-native.
 - Reconcile duplicate conversations in `getOrCreateConversation` by canonicalizing oldest tuple/key match and deleting only empty duplicates.
+- Use adaptive overfetch windows for compound timestamp-id cursor paths to reduce pagination miss risk under high same-timestamp write bursts.
 
 ## Deep Linking / Sharing Decisions
 
@@ -66,7 +68,10 @@ Last updated: 2026-03-03
 - Add per-conversation rapid-send throttle to reduce message flooding bursts.
 - Add per-user listing image upload rate limits (30 / 15 minutes, 120 / day) with telemetry in `imageUploadEvents`.
 - Add per-user profile picture upload rate limits (30 / 15 minutes, 120 / day) with telemetry in `profileImageUploadEvents`.
+- Add OTP verification-email send rate limits with telemetry (`otpSendEvents`) scoped to normalized email and caller identity key.
 - Scope listing image URL resolution to listing membership + visibility/ownership checks before returning storage URLs.
+- Keep seller institutional email internal-only: public listing read APIs return sanitized listing DTOs that exclude `sellerEmail`.
+- Enforce deterministic report dedupe key (`targetType|targetId|reporterId`) and unique-reporter threshold evaluation for auto-hide/flood controls.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
 ## Branching Notes

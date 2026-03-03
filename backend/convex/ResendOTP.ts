@@ -3,13 +3,139 @@ import { Resend as ResendAPI } from 'resend';
 import type { RandomReader } from '@oslojs/crypto/random';
 import { generateRandomString } from '@oslojs/crypto/random';
 import { isCalPolyEmail } from '@polybuys/shared';
-import { ConvexError } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
+import { internal } from './_generated/api';
+import { internalMutation } from './_generated/server';
 
 /**
  * Resend OTP Email Provider for Cal Poly authentication
  * Sends an 8-digit verification code that expires in 15 minutes
  */
 const resendFromAddress = process.env.AUTH_RESEND_FROM ?? process.env.RESEND_FROM;
+const OTP_SEND_RATE_LIMIT = {
+  WINDOW_MS: 10 * 60 * 1000,
+  EMAIL_WINDOW_MAX: 5,
+  IDENTITY_WINDOW_MAX: 10,
+  DAY_MS: 24 * 60 * 60 * 1000,
+  EMAIL_DAY_MAX: 20,
+  IDENTITY_DAY_MAX: 40,
+} as const;
+
+type OtpProviderActionCtx = {
+  auth: {
+    getUserIdentity: () => Promise<{ subject: string } | null>;
+  };
+  runMutation: (mutationRef: unknown, args: unknown) => Promise<unknown>;
+};
+
+function normalizeOtpEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export const enforceOtpSendRateLimit = internalMutation({
+  args: {
+    email: v.string(),
+    identityKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const normalizedEmail = normalizeOtpEmail(args.email);
+
+    const [emailWindow, identityWindow, emailDay, identityDay] = await Promise.all([
+      ctx.db
+        .query('otpSendEvents')
+        .withIndex('by_email_type_createdAt', (q) =>
+          q
+            .eq('email', normalizedEmail)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - OTP_SEND_RATE_LIMIT.WINDOW_MS)
+        )
+        .take(OTP_SEND_RATE_LIMIT.EMAIL_WINDOW_MAX + 1),
+      ctx.db
+        .query('otpSendEvents')
+        .withIndex('by_identity_type_createdAt', (q) =>
+          q
+            .eq('identityKey', args.identityKey)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - OTP_SEND_RATE_LIMIT.WINDOW_MS)
+        )
+        .take(OTP_SEND_RATE_LIMIT.IDENTITY_WINDOW_MAX + 1),
+      ctx.db
+        .query('otpSendEvents')
+        .withIndex('by_email_type_createdAt', (q) =>
+          q
+            .eq('email', normalizedEmail)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - OTP_SEND_RATE_LIMIT.DAY_MS)
+        )
+        .take(OTP_SEND_RATE_LIMIT.EMAIL_DAY_MAX + 1),
+      ctx.db
+        .query('otpSendEvents')
+        .withIndex('by_identity_type_createdAt', (q) =>
+          q
+            .eq('identityKey', args.identityKey)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - OTP_SEND_RATE_LIMIT.DAY_MS)
+        )
+        .take(OTP_SEND_RATE_LIMIT.IDENTITY_DAY_MAX + 1),
+    ]);
+
+    if (emailWindow.length >= OTP_SEND_RATE_LIMIT.EMAIL_WINDOW_MAX) {
+      await ctx.db.insert('otpSendEvents', {
+        email: normalizedEmail,
+        identityKey: args.identityKey,
+        eventType: 'blocked',
+        reason: 'email_rate_limit_10m',
+        createdAt: now,
+      });
+      throw new ConvexError(
+        'Too many verification requests. Please wait a few minutes and try again.'
+      );
+    }
+
+    if (identityWindow.length >= OTP_SEND_RATE_LIMIT.IDENTITY_WINDOW_MAX) {
+      await ctx.db.insert('otpSendEvents', {
+        email: normalizedEmail,
+        identityKey: args.identityKey,
+        eventType: 'blocked',
+        reason: 'identity_rate_limit_10m',
+        createdAt: now,
+      });
+      throw new ConvexError(
+        'Too many verification requests. Please wait a few minutes and try again.'
+      );
+    }
+
+    if (emailDay.length >= OTP_SEND_RATE_LIMIT.EMAIL_DAY_MAX) {
+      await ctx.db.insert('otpSendEvents', {
+        email: normalizedEmail,
+        identityKey: args.identityKey,
+        eventType: 'blocked',
+        reason: 'email_rate_limit_day',
+        createdAt: now,
+      });
+      throw new ConvexError('Daily verification request limit reached. Please try again tomorrow.');
+    }
+
+    if (identityDay.length >= OTP_SEND_RATE_LIMIT.IDENTITY_DAY_MAX) {
+      await ctx.db.insert('otpSendEvents', {
+        email: normalizedEmail,
+        identityKey: args.identityKey,
+        eventType: 'blocked',
+        reason: 'identity_rate_limit_day',
+        createdAt: now,
+      });
+      throw new ConvexError('Daily verification request limit reached. Please try again tomorrow.');
+    }
+
+    await ctx.db.insert('otpSendEvents', {
+      email: normalizedEmail,
+      identityKey: args.identityKey,
+      eventType: 'issued',
+      createdAt: now,
+    });
+  },
+});
 
 export const ResendOTP = Email({
   id: 'resend-otp',
@@ -27,7 +153,20 @@ export const ResendOTP = Email({
     return generateRandomString(random, alphabet, length);
   },
 
-  async sendVerificationRequest({ identifier: email, provider, token }) {
+  async sendVerificationRequest(
+    {
+      identifier: email,
+      provider,
+      token,
+    }: {
+      identifier: string;
+      provider: {
+        apiKey?: string;
+      };
+      token: string;
+    },
+    ...rest: unknown[]
+  ) {
     // Validate API key is configured
     if (!provider.apiKey) {
       throw new ConvexError('Email service not configured. Please contact support.');
@@ -46,16 +185,32 @@ export const ResendOTP = Email({
       );
     }
 
+    const normalizedEmail = normalizeOtpEmail(email);
+
     // Validate Cal Poly email domain
-    if (!isCalPolyEmail(email)) {
+    if (!isCalPolyEmail(normalizedEmail)) {
       throw new ConvexError('Email must be a @calpoly.edu address');
+    }
+
+    const actionCtx = rest[0] as OtpProviderActionCtx | undefined;
+    if (actionCtx) {
+      const identity = await actionCtx.auth.getUserIdentity();
+      // Convex provider callbacks do not expose client IP; use authenticated user id
+      // when available, otherwise fall back to the normalized destination email.
+      const identityKey = identity?.subject
+        ? `user:${identity.subject}`
+        : `email:${normalizedEmail}`;
+      await actionCtx.runMutation(internal.ResendOTP.enforceOtpSendRateLimit, {
+        email: normalizedEmail,
+        identityKey,
+      });
     }
 
     const resend = new ResendAPI(provider.apiKey);
 
     const { error } = await resend.emails.send({
       from: resendFromAddress,
-      to: [email],
+      to: [normalizedEmail],
       subject: 'Your PolyBuys verification code',
       text: `Your verification code is: ${token}
 

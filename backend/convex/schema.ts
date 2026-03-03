@@ -89,6 +89,7 @@ export default defineSchema({
     targetId: v.string(), // Can be listing or profile ID
     targetType: v.union(v.literal('listing'), v.literal('profile')),
     reporterId: v.string(), // Auth identity subject
+    reportKey: v.optional(v.string()),
     reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
     notes: v.optional(v.string()),
     createdAt: v.number(),
@@ -97,8 +98,20 @@ export default defineSchema({
     .index('by_target_createdAt', ['targetId', 'targetType', 'createdAt'])
     .index('by_reporter', ['reporterId'])
     .index('by_reporter_createdAt', ['reporterId', 'createdAt'])
+    .index('by_report_key', ['reportKey'])
     // Compound index for O(1) duplicate-report check (replaces by_target scan + filter)
     .index('by_target_reporter', ['targetId', 'targetType', 'reporterId']),
+
+  otpSendEvents: defineTable({
+    email: v.string(),
+    identityKey: v.string(),
+    eventType: v.union(v.literal('issued'), v.literal('blocked')),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_email_type_createdAt', ['email', 'eventType', 'createdAt'])
+    .index('by_identity_type_createdAt', ['identityKey', 'eventType', 'createdAt'])
+    .index('by_createdAt', ['createdAt']),
 
   conversations: defineTable({
     listingId: v.id('listings'),

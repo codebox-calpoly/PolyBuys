@@ -268,6 +268,56 @@ describe('Messages queries and mutations', () => {
         conversations.items[1].lastMessageAt
       );
     });
+
+    it('paginates through extreme same-timestamp conversation bursts without skipping', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const burstCount = 180;
+      const fixedTs = Date.now();
+      await t.run(async (ctx: any) => {
+        for (let i = 0; i < burstCount; i += 1) {
+          await ctx.db.insert('conversations', {
+            listingId,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            participantIds: [buyer.id, seller.id],
+            createdAt: fixedTs,
+            updatedAt: fixedTs,
+            buyerLastReadAt: fixedTs,
+            sellerLastReadAt: fixedTs,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      for (let i = 0; i < 20; i += 1) {
+        const page = await asBuyer.query(api.messages.listUserConversations, {
+          limit: 25,
+          ...(cursor ? { cursor } : {}),
+        });
+        for (const item of page.items) {
+          seen.add(String(item.conversationId));
+        }
+        if (!page.nextCursor) {
+          break;
+        }
+        cursor = page.nextCursor;
+      }
+
+      const persisted = await t.run(async (ctx: any) => {
+        return await ctx.db
+          .query('conversations')
+          .withIndex('by_buyer', (q: any) => q.eq('buyerId', buyer.id))
+          .collect();
+      });
+      expect(seen.size).toBe(persisted.length);
+    });
   });
 
   describe('getOrCreateConversation', () => {
@@ -575,6 +625,61 @@ describe('Messages queries and mutations', () => {
 
       expect(secondPage.items.map((m) => m.body)).toEqual(['Message 1', 'Message 2']);
       expect(secondPage.nextCursor).toBeNull();
+    });
+
+    it('paginates same-timestamp message bursts without dropping rows', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const burstCount = 220;
+      const fixedTs = Date.now();
+      await t.run(async (ctx: any) => {
+        for (let i = 0; i < burstCount; i += 1) {
+          await ctx.db.insert('messages', {
+            conversationId,
+            listingId,
+            senderId: i % 2 === 0 ? buyer.id : seller.id,
+            recipientId: i % 2 === 0 ? seller.id : buyer.id,
+            type: 'text',
+            body: `burst-${i}`,
+            createdAt: fixedTs,
+            readAt: 0,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      for (let i = 0; i < 30; i += 1) {
+        const page = await asBuyer.query(api.messages.messagesByConversationPaginated, {
+          conversationId,
+          limit: 20,
+          ...(cursor ? { cursor } : {}),
+        });
+        for (const item of page.items) {
+          seen.add(String(item._id));
+        }
+        if (!page.nextCursor) {
+          break;
+        }
+        cursor = page.nextCursor;
+      }
+
+      const persisted = await t.run(async (ctx: any) => {
+        return await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q: any) =>
+            q.eq('conversationId', conversationId)
+          )
+          .collect();
+      });
+
+      expect(seen.size).toBe(persisted.length);
     });
   });
 

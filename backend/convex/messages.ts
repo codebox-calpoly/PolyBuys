@@ -1,7 +1,7 @@
 import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
 import { v, ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 
 export const PAYLOAD_BOUNDS = {
@@ -14,6 +14,9 @@ const MAX_READ_PATCH_BATCH = 1000;
 const UNREAD_CAP = 99;
 const MESSAGE_MIN_INTERVAL_MS = 1_000;
 const MAX_CONVERSATION_DUPLICATE_SCAN = 25;
+const CURSOR_WINDOW_FETCH_MULTIPLIER = 4;
+const CURSOR_WINDOW_FETCH_PADDING = 20;
+const MAX_CURSOR_WINDOW_FETCH = 5000;
 
 function buildConversationKey(listingId: Id<'listings'>, buyerId: string, sellerId: string) {
   return [String(listingId), buyerId, sellerId].map(encodeURIComponent).join('|');
@@ -47,6 +50,17 @@ function parseMessageCursor(cursor: string | undefined): MessageCursor | null {
     throw new ConvexError('Invalid cursor');
   }
   return { createdAt, id };
+}
+
+function isLegacyCompoundCursor(cursor: string | undefined) {
+  if (!cursor) {
+    return false;
+  }
+  const sep = cursor.indexOf('|');
+  if (sep <= 0) {
+    return false;
+  }
+  return /^[0-9]+$/.test(cursor.slice(0, sep));
 }
 
 function parseConversationCursor(cursor: string | undefined): ConversationCursor | null {
@@ -267,14 +281,14 @@ export const sendMessage = action({
 // List user conversations with pagination + inbox payload.
 //
 // CURSOR FORMAT: "{updatedAt}|{_id}"
-// Using a compound cursor avoids the skip/duplicate problem when multiple
-// conversations share the same updatedAt ms timestamp.
+// Uses a compound cursor to preserve stable ordering when multiple conversations
+// share the same updatedAt ms timestamp.
 // - Index queries use `lte('updatedAt', cursorTs)` (inclusive boundary) so ties
 //   are never dropped.
 // - After dedup+sort, rows from the previous page are filtered out by
 //   (updatedAt === cursorTs && _id <= cursorId), using Convex ID lexicographic order.
-// Both by_buyer and by_seller indexes include updatedAt, so the range is index-native
-// and every conversation is reachable regardless of collection size.
+// - Adaptive overfetch expands query windows under same-timestamp bursts to reduce
+//   skip risk while keeping a hard cap to avoid unbounded scans.
 //
 // FAN-OUT: all per-page I/O (profiles, previews, unread counts) is fired in a
 // single Promise.all to eliminate sequential round trips.
@@ -293,46 +307,61 @@ export const listUserConversations = query({
     const cursorTs = parsedCursor?.updatedAt ?? 0;
     const cursorId = parsedCursor?.id ?? '';
 
-    // Overfetch per side to survive dedup and still fill a full page.
-    // lte boundary may pull extra same-ts rows that get filtered below.
-    const FETCH = limit * 4 + 20;
-
-    const [buyerConvos, sellerConvos] = await Promise.all([
-      hasValidCursor
-        ? ctx.db
-            .query('conversations')
-            .withIndex('by_buyer', (q) => q.eq('buyerId', userId).lte('updatedAt', cursorTs))
-            .order('desc')
-            .take(FETCH)
-        : ctx.db
-            .query('conversations')
-            .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
-            .order('desc')
-            .take(FETCH),
-      hasValidCursor
-        ? ctx.db
-            .query('conversations')
-            .withIndex('by_seller', (q) => q.eq('sellerId', userId).lte('updatedAt', cursorTs))
-            .order('desc')
-            .take(FETCH)
-        : ctx.db
-            .query('conversations')
-            .withIndex('by_seller', (q) => q.eq('sellerId', userId))
-            .order('desc')
-            .take(FETCH),
-    ]);
-
-    // Deduplicate (user can be buyer and seller simultaneously) and sort desc
-    const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
-    let sorted = [...deduped.values()].sort(
-      (a, b) => b.updatedAt - a.updatedAt || (a._id < b._id ? 1 : -1)
+    let fetchSize = Math.min(
+      MAX_CURSOR_WINDOW_FETCH,
+      limit * CURSOR_WINDOW_FETCH_MULTIPLIER + CURSOR_WINDOW_FETCH_PADDING
     );
+    let sorted: Doc<'conversations'>[] = [];
 
-    // Drop rows already delivered on the previous page (same-ts tiebreaker)
-    if (hasValidCursor) {
-      sorted = sorted.filter(
-        (c) => c.updatedAt < cursorTs || (c.updatedAt === cursorTs && c._id < cursorId)
+    for (;;) {
+      const [buyerConvos, sellerConvos] = await Promise.all([
+        hasValidCursor
+          ? ctx.db
+              .query('conversations')
+              .withIndex('by_buyer', (q) => q.eq('buyerId', userId).lte('updatedAt', cursorTs))
+              .order('desc')
+              .take(fetchSize)
+          : ctx.db
+              .query('conversations')
+              .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
+              .order('desc')
+              .take(fetchSize),
+        hasValidCursor
+          ? ctx.db
+              .query('conversations')
+              .withIndex('by_seller', (q) => q.eq('sellerId', userId).lte('updatedAt', cursorTs))
+              .order('desc')
+              .take(fetchSize)
+          : ctx.db
+              .query('conversations')
+              .withIndex('by_seller', (q) => q.eq('sellerId', userId))
+              .order('desc')
+              .take(fetchSize),
+      ]);
+
+      // Deduplicate (user can be buyer and seller simultaneously) and sort desc
+      const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
+      sorted = [...deduped.values()].sort(
+        (a, b) => b.updatedAt - a.updatedAt || (a._id < b._id ? 1 : -1)
       );
+
+      // Drop rows already delivered on the previous page (same-ts tiebreaker)
+      if (hasValidCursor) {
+        sorted = sorted.filter(
+          (c) => c.updatedAt < cursorTs || (c.updatedAt === cursorTs && c._id < cursorId)
+        );
+      }
+
+      const hasEnoughForPage = sorted.length > limit;
+      const buyerExhausted = buyerConvos.length < fetchSize;
+      const sellerExhausted = sellerConvos.length < fetchSize;
+      const reachedFetchCap = fetchSize >= MAX_CURSOR_WINDOW_FETCH;
+
+      if (hasEnoughForPage || (buyerExhausted && sellerExhausted) || reachedFetchCap) {
+        break;
+      }
+
+      fetchSize = Math.min(MAX_CURSOR_WINDOW_FETCH, fetchSize * 2);
     }
 
     const page = sorted.slice(0, limit);
@@ -658,32 +687,81 @@ export const messagesByConversationPaginated = query({
       1,
       Math.min(args.limit ?? DEFAULT_MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE)
     );
-    const parsedCursor = parseMessageCursor(args.cursor);
-    const FETCH = limit * 3 + 20;
+    const rawCursor = args.cursor;
+    const useLegacyCursor = isLegacyCompoundCursor(rawCursor);
 
-    const rows = parsedCursor
-      ? await ctx.db
-          .query('messages')
-          .withIndex('by_conversation_createdAt', (q) =>
-            q.eq('conversationId', args.conversationId).lte('createdAt', parsedCursor.createdAt)
-          )
-          .order('desc')
-          .take(FETCH)
-      : await ctx.db
+    if (!useLegacyCursor) {
+      const makeMessagesQuery = () =>
+        ctx.db
           .query('messages')
           .withIndex('by_conversation_createdAt', (q) =>
             q.eq('conversationId', args.conversationId)
           )
-          .order('desc')
-          .take(FETCH);
+          .order('desc');
+      let page;
+      try {
+        page = await makeMessagesQuery().paginate({
+          numItems: limit,
+          cursor: rawCursor ?? null,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (rawCursor !== undefined && /cursor/i.test(message)) {
+          throw new ConvexError('Invalid cursor');
+        }
+        throw error;
+      }
 
-    let sorted = [...rows].sort((a, b) => b.createdAt - a.createdAt || (a._id < b._id ? 1 : -1));
-    if (parsedCursor) {
+      let nextCursor: string | null = null;
+      if (!page.isDone) {
+        if (page.page.length < limit) {
+          nextCursor = null;
+        } else {
+          const probePage = await makeMessagesQuery().paginate({
+            numItems: 1,
+            cursor: page.continueCursor,
+          });
+          nextCursor = probePage.page.length === 0 ? null : page.continueCursor;
+        }
+      }
+
+      return {
+        items: page.page.reverse(),
+        nextCursor,
+      };
+    }
+
+    const parsedCursor = parseMessageCursor(rawCursor);
+    let fetchSize = Math.min(
+      MAX_CURSOR_WINDOW_FETCH,
+      limit * CURSOR_WINDOW_FETCH_MULTIPLIER + CURSOR_WINDOW_FETCH_PADDING
+    );
+    let sorted: Doc<'messages'>[] = [];
+
+    for (;;) {
+      const rows = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation_createdAt', (q) =>
+          q.eq('conversationId', args.conversationId).lte('createdAt', parsedCursor!.createdAt)
+        )
+        .order('desc')
+        .take(fetchSize);
+
+      sorted = [...rows].sort((a, b) => b.createdAt - a.createdAt || (a._id < b._id ? 1 : -1));
       sorted = sorted.filter(
         (m) =>
-          m.createdAt < parsedCursor.createdAt ||
-          (m.createdAt === parsedCursor.createdAt && m._id < parsedCursor.id)
+          m.createdAt < parsedCursor!.createdAt ||
+          (m.createdAt === parsedCursor!.createdAt && m._id < parsedCursor!.id)
       );
+
+      const hasEnoughForPage = sorted.length > limit;
+      const exhausted = rows.length < fetchSize;
+      const reachedFetchCap = fetchSize >= MAX_CURSOR_WINDOW_FETCH;
+      if (hasEnoughForPage || exhausted || reachedFetchCap) {
+        break;
+      }
+
+      fetchSize = Math.min(MAX_CURSOR_WINDOW_FETCH, fetchSize * 2);
     }
 
     const pageDesc = sorted.slice(0, limit);

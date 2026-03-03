@@ -447,6 +447,64 @@ describe('Reports mutations', () => {
     expect(listing?.isHidden).toBeUndefined();
   });
 
+  it('auto-hide threshold counts unique reporters even if duplicate rows exist', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+    const now = Date.now();
+
+    await t.run(async (ctx: any) => {
+      await ctx.db.insert('reports', {
+        targetId: listingId,
+        targetType: 'listing',
+        reporterId: 'duplicate-reporter',
+        reportKey: `listing|${listingId}|duplicate-reporter`,
+        reason: 'spam',
+        createdAt: now - 2000,
+      });
+      await ctx.db.insert('reports', {
+        targetId: listingId,
+        targetType: 'listing',
+        reporterId: 'duplicate-reporter',
+        reportKey: `listing|${listingId}|duplicate-reporter`,
+        reason: 'spam',
+        createdAt: now - 1000,
+      });
+    });
+
+    const asUniqueReporter2 = t.withIdentity({
+      name: 'Reporter2',
+      subject: 'reporter2-subject',
+      email: 'reporter2@calpoly.edu',
+    });
+    await asUniqueReporter2.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'spam',
+    });
+
+    let listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+    expect(listing?.isHidden).not.toBe(true);
+
+    const asUniqueReporter3 = t.withIdentity({
+      name: 'Reporter3',
+      subject: 'reporter3-subject',
+      email: 'reporter3@calpoly.edu',
+    });
+    await asUniqueReporter3.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'inappropriate',
+    });
+
+    listing = await t.run(async (ctx: any) => {
+      return await ctx.db.get(listingId);
+    });
+    expect(listing?.isHidden).toBe(true);
+  });
+
   it('profile auto-hidden after 3rd unique report', async () => {
     const t = convexTest(schema as any, modules);
 

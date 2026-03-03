@@ -13,6 +13,11 @@ export const PAYLOAD_BOUNDS = {
 };
 
 const MAX_PROFILE_NAME_MATCHES = 100;
+const PROFILE_PAGE_SIZE = {
+  MIN: 1,
+  MAX: 100,
+} as const;
+const INVALID_CURSOR_FORMAT_MESSAGE = 'invalid cursor format';
 const YEAR_BOUNDS = {
   MIN: 1900,
   MAX: 9999,
@@ -27,6 +32,28 @@ const PROFILE_UPLOAD_RATE_LIMIT = {
 function validateYear(year: number) {
   if (!Number.isInteger(year) || year < YEAR_BOUNDS.MIN || year > YEAR_BOUNDS.MAX) {
     throw new ConvexError(`Year must be between ${YEAR_BOUNDS.MIN} and ${YEAR_BOUNDS.MAX}`);
+  }
+}
+
+function isLikelyConvexNativeCursor(cursor: string) {
+  return cursor === '_end_cursor' || /^[A-Za-z0-9]+$/.test(cursor);
+}
+
+function validateProfilePaginationOrThrow(paginationOpts: {
+  numItems: number;
+  cursor: string | null;
+}) {
+  if (
+    paginationOpts.numItems < PROFILE_PAGE_SIZE.MIN ||
+    paginationOpts.numItems > PROFILE_PAGE_SIZE.MAX
+  ) {
+    throw new ConvexError(
+      `numItems must be between ${PROFILE_PAGE_SIZE.MIN} and ${PROFILE_PAGE_SIZE.MAX}`
+    );
+  }
+
+  if (paginationOpts.cursor !== null && !isLikelyConvexNativeCursor(paginationOpts.cursor)) {
+    throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
   }
 }
 
@@ -52,13 +79,24 @@ function toPublicProfile(profile: Doc<'profiles'>) {
 export const getProfiles = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
+    validateProfilePaginationOrThrow(args.paginationOpts);
+
     // Filter hidden profiles at the DB level so pagination page sizes are accurate.
     // Post-paginate filtering would silently return fewer than numItems per page,
     // breaking infinite-scroll consumers.
-    const result = await ctx.db
-      .query('profiles')
-      .filter((q) => q.neq(q.field('isHidden'), true))
-      .paginate(args.paginationOpts);
+    let result;
+    try {
+      result = await ctx.db
+        .query('profiles')
+        .filter((q) => q.neq(q.field('isHidden'), true))
+        .paginate(args.paginationOpts);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (args.paginationOpts.cursor !== null && /cursor/i.test(message)) {
+        throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
+      }
+      throw error;
+    }
 
     // Sanitize PII before returning
     const publicProfiles = result.page.map(toPublicProfile);

@@ -87,3 +87,44 @@ describe('Profiles mutations', () => {
     }).rejects.toThrowError('Year must be between 1900 and 9999');
   });
 });
+
+describe('Profiles pagination hardening', () => {
+  it('getProfiles rejects numItems above the maximum bound', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await expect(async () => {
+      await t.query(api.profiles.getProfiles, {
+        paginationOpts: {
+          numItems: 101,
+          cursor: null,
+        },
+      });
+    }).rejects.toThrow('numItems must be between 1 and 100');
+  });
+
+  it('getProfiles rejects numItems below the minimum bound', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await expect(async () => {
+      await t.query(api.profiles.getProfiles, {
+        paginationOpts: {
+          numItems: 0,
+          cursor: null,
+        },
+      });
+    }).rejects.toThrow('numItems must be between 1 and 100');
+  });
+
+  it('getProfiles rejects malformed cursors', async () => {
+    const t = convexTest(schema as any, modules);
+
+    await expect(async () => {
+      await t.query(api.profiles.getProfiles, {
+        paginationOpts: {
+          numItems: 20,
+          cursor: 'bad-cursor!',
+        },
+      });
+    }).rejects.toThrow('invalid cursor format');
+  });
+});

@@ -11,6 +11,7 @@ export type Listing = Doc<'listings'> & {
   condition: ListingCondition;
   status: ListingStatus;
 };
+type PublicListing = Omit<Doc<'listings'>, 'sellerEmail'>;
 
 export const TAG_CONSTRAINTS = {
   MAX_TAGS: 5,
@@ -552,6 +553,12 @@ function normalizeSearchTags(tags: string[]): string[] {
   ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
 }
 
+function toPublicListing(listing: Doc<'listings'>): PublicListing {
+  const { sellerEmail, ...publicListing } = listing;
+  void sellerEmail;
+  return publicListing;
+}
+
 // Get a single listing by ID
 // Owners can see their own hidden listings, others cannot
 export const getListing = query({
@@ -573,7 +580,7 @@ export const getListing = query({
       return null;
     }
 
-    return listing;
+    return toPublicListing(listing);
   },
 });
 
@@ -672,7 +679,7 @@ export const searchAndFilterListings = query({
       });
 
       return {
-        page: manualPage.page,
+        page: manualPage.page.map(toPublicListing),
         continueCursor: manualPage.continueCursor,
         isDone: manualPage.isDone,
         resultsTruncated,
@@ -792,7 +799,7 @@ export const searchAndFilterListings = query({
       });
       const resultsTruncated = allResults.length === MAX_MANUAL_COLLECT;
       return {
-        page: manualPage.page,
+        page: manualPage.page.map(toPublicListing),
         continueCursor: manualPage.continueCursor,
         isDone: manualPage.isDone,
         resultsTruncated,
@@ -803,11 +810,15 @@ export const searchAndFilterListings = query({
     if (!needsPostFiltering) {
       if (useFilterScanCursor) {
         // Compatibility path for prior scan cursors; do not pass scan cursors into paginate().
-        return await paginatePostFilteredListings({
+        const paginated = await paginatePostFilteredListings({
           makeDbQuery,
           paginationOpts: args.paginationOpts,
           shouldInclude,
         });
+        return {
+          ...paginated,
+          page: paginated.page.map(toPublicListing),
+        };
       }
 
       let dbQuery = makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
@@ -829,7 +840,7 @@ export const searchAndFilterListings = query({
       }
 
       return {
-        page: paginationResult.page,
+        page: paginationResult.page.map(toPublicListing),
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
         resultsTruncated: false,
@@ -839,11 +850,15 @@ export const searchAndFilterListings = query({
     if (!useFilterScanCursor && rawCursor !== null) {
       throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
     }
-    return await paginatePostFilteredListings({
+    const paginated = await paginatePostFilteredListings({
       makeDbQuery,
       paginationOpts: args.paginationOpts,
       shouldInclude,
     });
+    return {
+      ...paginated,
+      page: paginated.page.map(toPublicListing),
+    };
   },
 });
 
@@ -922,7 +937,7 @@ export const getListings = query({
       });
       const resultsTruncated = allResults.length === MAX_MANUAL_COLLECT;
       return {
-        page: manualPage.page,
+        page: manualPage.page.map(toPublicListing),
         continueCursor: manualPage.continueCursor,
         isDone: manualPage.isDone,
         resultsTruncated,
@@ -933,11 +948,15 @@ export const getListings = query({
     if (!hasTags && !hasPriceFilters) {
       if (useFilterScanCursor) {
         // Compatibility path for prior scan cursors; do not pass scan cursors into paginate().
-        return await paginatePostFilteredListings({
+        const paginated = await paginatePostFilteredListings({
           makeDbQuery,
           paginationOpts: args.paginationOpts,
           shouldInclude,
         });
+        return {
+          ...paginated,
+          page: paginated.page.map(toPublicListing),
+        };
       }
 
       let paginationResult;
@@ -954,7 +973,7 @@ export const getListings = query({
       }
 
       return {
-        page: paginationResult.page,
+        page: paginationResult.page.map(toPublicListing),
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
         resultsTruncated: false,
@@ -964,11 +983,15 @@ export const getListings = query({
     if (!useFilterScanCursor && rawCursor !== null) {
       throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
     }
-    return await paginatePostFilteredListings({
+    const paginated = await paginatePostFilteredListings({
       makeDbQuery,
       paginationOpts: args.paginationOpts,
       shouldInclude,
     });
+    return {
+      ...paginated,
+      page: paginated.page.map(toPublicListing),
+    };
   },
 });
 

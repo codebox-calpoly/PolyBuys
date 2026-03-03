@@ -1,12 +1,16 @@
 import { v, ConvexError } from 'convex/values';
 import { mutation } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import type { MutationCtx } from './_generated/server';
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_REPORTS_PER_DAY = 10;
 const MAX_TARGET_REPORTS_PER_DAY = 30;
 const REPORT_THRESHOLD = 3; // Number of unique reporters before auto-hide
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_REPORT_KEY_DUPLICATE_SCAN = 25;
+const UNIQUE_REPORTER_SCAN_BATCH_SIZE = 50;
+const MAX_UNIQUE_REPORTER_SCAN = 500;
 
 function isMalformedIdLookupError(error: unknown) {
   if (!(error instanceof Error)) {
@@ -16,6 +20,127 @@ function isMalformedIdLookupError(error: unknown) {
   return /invalid\s+.*id|id\s+.*invalid|unable to decode id|not a valid id|malformed id|document id/i.test(
     error.message
   );
+}
+
+function buildReportKey(targetType: 'listing' | 'profile', targetId: string, reporterId: string) {
+  return `${targetType}|${targetId}|${reporterId}`;
+}
+
+async function hasAtLeastUniqueReportersForTarget(args: {
+  ctx: MutationCtx;
+  targetId: string;
+  targetType: 'listing' | 'profile';
+  minimumUniqueReporters: number;
+}) {
+  let cursor: string | null = null;
+  let scanned = 0;
+  const uniqueReporterIds = new Set<string>();
+
+  while (
+    uniqueReporterIds.size < args.minimumUniqueReporters &&
+    scanned < MAX_UNIQUE_REPORTER_SCAN
+  ) {
+    const page = await args.ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) =>
+        q.eq('targetId', args.targetId).eq('targetType', args.targetType)
+      )
+      .paginate({
+        numItems: UNIQUE_REPORTER_SCAN_BATCH_SIZE,
+        cursor,
+      });
+
+    for (const report of page.page) {
+      uniqueReporterIds.add(report.reporterId);
+      if (uniqueReporterIds.size >= args.minimumUniqueReporters) {
+        return true;
+      }
+    }
+
+    scanned += page.page.length;
+    if (page.isDone) {
+      return false;
+    }
+    cursor = page.continueCursor;
+  }
+
+  return uniqueReporterIds.size >= args.minimumUniqueReporters;
+}
+
+async function hasAtLeastUniqueReportersForTargetSince(args: {
+  ctx: MutationCtx;
+  targetId: string;
+  targetType: 'listing' | 'profile';
+  minimumCreatedAtExclusive: number;
+  minimumUniqueReporters: number;
+}) {
+  let cursor: string | null = null;
+  let scanned = 0;
+  const uniqueReporterIds = new Set<string>();
+
+  while (
+    uniqueReporterIds.size < args.minimumUniqueReporters &&
+    scanned < MAX_UNIQUE_REPORTER_SCAN
+  ) {
+    const page = await args.ctx.db
+      .query('reports')
+      .withIndex('by_target_createdAt', (q) =>
+        q
+          .eq('targetId', args.targetId)
+          .eq('targetType', args.targetType)
+          .gt('createdAt', args.minimumCreatedAtExclusive)
+      )
+      .paginate({
+        numItems: UNIQUE_REPORTER_SCAN_BATCH_SIZE,
+        cursor,
+      });
+
+    for (const report of page.page) {
+      uniqueReporterIds.add(report.reporterId);
+      if (uniqueReporterIds.size >= args.minimumUniqueReporters) {
+        return true;
+      }
+    }
+
+    scanned += page.page.length;
+    if (page.isDone) {
+      return false;
+    }
+    cursor = page.continueCursor;
+  }
+
+  return uniqueReporterIds.size >= args.minimumUniqueReporters;
+}
+
+async function reconcileReportKeyDuplicates(args: {
+  ctx: MutationCtx;
+  reportKey: string;
+  insertedReportId: Id<'reports'>;
+}) {
+  const matches = await args.ctx.db
+    .query('reports')
+    .withIndex('by_report_key', (q) => q.eq('reportKey', args.reportKey))
+    .take(MAX_REPORT_KEY_DUPLICATE_SCAN);
+
+  if (matches.length <= 1) {
+    return args.insertedReportId;
+  }
+
+  const sorted = [...matches].sort((a, b) => a.createdAt - b.createdAt || (a._id < b._id ? -1 : 1));
+  const canonical = sorted[0];
+
+  for (const duplicate of sorted.slice(1)) {
+    if (duplicate._id === canonical._id) {
+      continue;
+    }
+    try {
+      await args.ctx.db.delete(duplicate._id);
+    } catch {
+      // Best-effort cleanup in concurrent report submissions.
+    }
+  }
+
+  return canonical._id;
 }
 
 /**
@@ -73,18 +198,26 @@ export const createReport = mutation({
       throw error;
     }
 
-    // 6. Check for duplicate report (same user + same target) — O(1) via compound index
-    const existingReport = await ctx.db
-      .query('reports')
-      .withIndex('by_target_reporter', (q) =>
-        q
-          .eq('targetId', args.targetId)
-          .eq('targetType', args.targetType)
-          .eq('reporterId', reporterId)
-      )
-      .first();
+    const reportKey = buildReportKey(args.targetType, args.targetId, reporterId);
 
-    if (existingReport) {
+    // 6. Check for duplicate report (same user + same target) — O(1) via compound index
+    const [existingReportByKey, existingReportByTuple] = await Promise.all([
+      ctx.db
+        .query('reports')
+        .withIndex('by_report_key', (q) => q.eq('reportKey', reportKey))
+        .first(),
+      ctx.db
+        .query('reports')
+        .withIndex('by_target_reporter', (q) =>
+          q
+            .eq('targetId', args.targetId)
+            .eq('targetType', args.targetType)
+            .eq('reporterId', reporterId)
+        )
+        .first(),
+    ]);
+
+    if (existingReportByKey || existingReportByTuple) {
       throw new ConvexError('You have already reported this content');
     }
 
@@ -104,40 +237,49 @@ export const createReport = mutation({
     }
 
     // 7. Guard against flood attacks on a single target.
-    const recentTargetReports = await ctx.db
-      .query('reports')
-      .withIndex('by_target_createdAt', (q) =>
-        q.eq('targetId', args.targetId).eq('targetType', args.targetType).gt('createdAt', oneDayAgo)
-      )
-      .take(MAX_TARGET_REPORTS_PER_DAY + 1);
+    const targetDailyUniqueLimitReached = await hasAtLeastUniqueReportersForTargetSince({
+      ctx,
+      targetId: args.targetId,
+      targetType: args.targetType,
+      minimumCreatedAtExclusive: oneDayAgo,
+      minimumUniqueReporters: MAX_TARGET_REPORTS_PER_DAY,
+    });
 
-    if (recentTargetReports.length >= MAX_TARGET_REPORTS_PER_DAY) {
+    if (targetDailyUniqueLimitReached) {
       throw new ConvexError('This content is already under review. Please try again later.');
     }
 
     // 8. Create the report
-    const reportId = await ctx.db.insert('reports', {
+    const insertedReportId = await ctx.db.insert('reports', {
       targetId: args.targetId,
       targetType: args.targetType,
       reporterId: reporterId,
+      reportKey,
       reason: args.reason,
       notes: args.notes,
       createdAt: Date.now(),
     });
 
+    const canonicalReportId = await reconcileReportKeyDuplicates({
+      ctx,
+      reportKey,
+      insertedReportId,
+    });
+
+    if (canonicalReportId !== insertedReportId) {
+      throw new ConvexError('You have already reported this content');
+    }
+
     // 9. Check if content should be auto-hidden
-    // Use take(REPORT_THRESHOLD) — the dedup check above guarantees one row per
-    // reporter per target, so row count == unique-reporter count. O(threshold)
-    // instead of O(all reports on this target).
-    const reportSample = await ctx.db
-      .query('reports')
-      .withIndex('by_target', (q) =>
-        q.eq('targetId', args.targetId).eq('targetType', args.targetType)
-      )
-      .take(REPORT_THRESHOLD);
+    const thresholdReached = await hasAtLeastUniqueReportersForTarget({
+      ctx,
+      targetId: args.targetId,
+      targetType: args.targetType,
+      minimumUniqueReporters: REPORT_THRESHOLD,
+    });
 
     // If threshold reached, hide the content
-    if (reportSample.length >= REPORT_THRESHOLD && !isAlreadyHidden) {
+    if (thresholdReached && !isAlreadyHidden) {
       if (args.targetType === 'listing') {
         await ctx.db.patch(args.targetId as Id<'listings'>, {
           isHidden: true,
@@ -153,6 +295,6 @@ export const createReport = mutation({
       }
     }
 
-    return reportId;
+    return insertedReportId;
   },
 });

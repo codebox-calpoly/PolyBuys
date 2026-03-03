@@ -845,6 +845,35 @@ describe('Listings queries', () => {
     expect(inactiveListing?.status).toBe('inactive');
     expect(deletedListing?.status).toBe('deleted');
   });
+
+  it('public listing APIs never expose sellerEmail', async () => {
+    const t = await setupTestWithProfiles();
+    const owner = t.withIdentity(ownerIdentity);
+    const nonOwner = t.withIdentity(otherIdentity);
+
+    const listingId = await owner.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Privacy-preserving listing',
+    });
+
+    const ownerDetail = await owner.query(api.listings.getListing, { id: listingId });
+    const publicDetail = await nonOwner.query(api.listings.getListing, { id: listingId });
+    expect(ownerDetail).toBeTruthy();
+    expect(publicDetail).toBeTruthy();
+    expect(ownerDetail && 'sellerEmail' in ownerDetail).toBe(false);
+    expect(publicDetail && 'sellerEmail' in publicDetail).toBe(false);
+
+    const listResult = await t.query(api.listings.getListings, {
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(listResult.page.some((listing: any) => 'sellerEmail' in listing)).toBe(false);
+
+    const searchResult = await t.query(api.listings.searchAndFilterListings, {
+      filters: { searchTerm: 'privacy-preserving' },
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(searchResult.page.some((listing: any) => 'sellerEmail' in listing)).toBe(false);
+  });
 });
 
 describe('Pagination bounds validation', () => {
