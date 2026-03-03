@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 
 interface ListingCardProps {
   listing: {
@@ -28,7 +29,8 @@ export default function ListingCard({ listing }: ListingCardProps) {
   const displayTags = listing.tags?.slice(0, 2) || [];
   const uniqueTags = Array.from(new Set(displayTags));
   const hasMoreTags = listing.tags && listing.tags.length > 2;
-  const firstImage = listing.images?.[0];
+  const { mappedUrls } = useResolvedImageUrls(listing.images ?? []);
+  const firstImage = mappedUrls[0] ?? null;
 
   return (
     <TouchableOpacity

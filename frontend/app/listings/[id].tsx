@@ -16,9 +16,11 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import HiddenBanner from '../../components/HiddenBanner';
+import { ReportModal } from '../../components/ReportModal';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
@@ -34,6 +36,8 @@ export default function ListingDetailScreen() {
     isAuthenticated ? {} : 'skip'
   );
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -149,7 +153,7 @@ export default function ListingDetailScreen() {
           {listing.images.map((imageUrl, index) => (
             <Image
               key={index}
-              source={{ uri: imageUrl }}
+              source={{ uri: mappedUrls[index] ?? imageUrl }}
               style={styles.carouselImage}
               resizeMode="cover"
             />
@@ -210,6 +214,21 @@ export default function ListingDetailScreen() {
           </TouchableOpacity>
         </View>
       ) : null}
+
+      {isAuthenticated && !isOwner && (
+        <View style={styles.reportButtonContainer}>
+          <TouchableOpacity style={styles.reportButton} onPress={() => setShowReportModal(true)}>
+            <Text style={styles.reportButtonText}>Report Listing</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ReportModal
+        isVisible={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetId={listing._id}
+        targetType="listing"
+      />
     </ScrollView>
   );
 }
@@ -307,6 +326,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reportButtonContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  reportButton: {
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  reportButtonText: {
+    color: '#FF3B30',
+    fontSize: 15,
+    fontWeight: '500',
   },
   webBannerContainer: {
     backgroundColor: '#f5f5f5',

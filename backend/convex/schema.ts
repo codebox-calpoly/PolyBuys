@@ -118,7 +118,7 @@ export default defineSchema({
     senderId: v.string(), // Auth identity subject
     recipientId: v.string(), // Auth identity subject
     body: v.string(),
-    type: v.optional(v.string()),
+    type: v.optional(v.union(v.literal('text'), v.literal('system'))),
     createdAt: v.number(),
     readAt: v.number(),
   })

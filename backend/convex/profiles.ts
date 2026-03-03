@@ -33,10 +33,16 @@ function toPublicProfile(profile: Doc<'profiles'>) {
 export const getProfiles = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const result = await ctx.db.query('profiles').paginate(args.paginationOpts);
+    // Filter hidden profiles at the DB level so pagination page sizes are accurate.
+    // Post-paginate filtering would silently return fewer than numItems per page,
+    // breaking infinite-scroll consumers.
+    const result = await ctx.db
+      .query('profiles')
+      .filter((q) => q.neq(q.field('isHidden'), true))
+      .paginate(args.paginationOpts);
 
-    // Filter out hidden profiles and sanitize
-    const publicProfiles = result.page.filter((profile) => !profile.isHidden).map(toPublicProfile);
+    // Sanitize PII before returning
+    const publicProfiles = result.page.map(toPublicProfile);
 
     return {
       ...result,
@@ -60,6 +66,19 @@ export const getProfilebyName = query({
     const publicProfiles = profiles.filter((profile) => !profile.isHidden).map(toPublicProfile);
 
     return publicProfiles.length > 0 ? publicProfiles : null;
+  },
+});
+
+// Get the current authenticated user's own full profile (includes hidden/hiddenReason)
+export const getMyProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .unique();
   },
 });
 

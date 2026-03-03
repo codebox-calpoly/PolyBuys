@@ -215,6 +215,10 @@ export default function ImageUploader({
         onProgress(event.loaded / event.total);
       };
 
+      // 30-second hard timeout on XHR upload (DECISIONS.md: upload timeout handling)
+      xhr.timeout = 30_000;
+      xhr.ontimeout = () => reject(new Error('Upload timed out. Please retry.'));
+
       xhr.onerror = () => reject(new Error('Network error during upload.'));
       xhr.onload = () => {
         if (xhr.status < 200 || xhr.status >= 300) {

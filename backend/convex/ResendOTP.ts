@@ -73,7 +73,7 @@ If you didn't request this code, you can safely ignore this email.`,
       console.error('Error details:', {
         name: error.name,
         message: error.message,
-        statusCode: (error as any).statusCode,
+        statusCode: (error as { statusCode?: number }).statusCode,
       });
       throw new ConvexError(
         `Failed to send verification email: ${error.message || 'Unknown error'}. Please try again.`
