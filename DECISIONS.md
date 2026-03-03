@@ -48,6 +48,7 @@ Last updated: 2026-03-03
 
 - Prioritize availability with fail-open moderation.
 - Maintain reporting + moderation audit paths.
+- Moderation audit stores hash + redacted preview (not raw text) with 30-day TTL cleanup.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
 ## Branching Notes

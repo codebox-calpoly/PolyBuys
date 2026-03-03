@@ -131,12 +131,17 @@ export default defineSchema({
   moderationResults: defineTable({
     contentType: v.union(v.literal('listing'), v.literal('message')),
     contentId: v.optional(v.string()),
-    inputText: v.string(),
+    // Legacy field kept optional for migration safety; new writes use hash+preview.
+    inputText: v.optional(v.string()),
+    inputTextHash: v.optional(v.string()),
+    inputTextPreview: v.optional(v.string()),
     flagged: v.boolean(),
     categories: v.optional(v.string()), // JSON-stringified category results
     userId: v.string(),
     createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
   })
     .index('by_userId', ['userId'])
-    .index('by_contentType', ['contentType', 'createdAt']),
+    .index('by_contentType', ['contentType', 'createdAt'])
+    .index('by_expiresAt', ['expiresAt']),
 });
