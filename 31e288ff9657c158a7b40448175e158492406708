@@ -1,0 +1,23 @@
+frontend/app/auth/login.tsx
+  e7e0a8757cd0d00b 115,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "31e288ff9657c158a7b40448175e158492406708",
+  "prompts": {
+    "e7e0a8757cd0d00b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2e6deb66-5125-42fa-8310-d9db030af625",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
