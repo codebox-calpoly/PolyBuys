@@ -56,7 +56,7 @@ export default function ListingDetailScreen() {
   );
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
   const [reportOpen, setReportOpen] = useState(false);
-  const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
+  const { mappedUrls } = useResolvedImageUrls(listing?.images ?? [], listing?._id);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({

@@ -7,7 +7,7 @@ function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
 }
 
-export function useResolvedImageUrls(imageIds: string[]) {
+export function useResolvedImageUrls(imageIds: string[], listingId?: Id<'listings'>) {
   const convex = useConvex();
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string | null>>({});
   const resolvedUrlsRef = useRef<Record<string, string | null>>({});
@@ -19,7 +19,7 @@ export function useResolvedImageUrls(imageIds: string[]) {
       const unresolved = imageIds.filter(
         (storageId) => !isRemoteUrl(storageId) && resolvedUrlsRef.current[storageId] === undefined
       );
-      if (unresolved.length === 0) {
+      if (unresolved.length === 0 || !listingId) {
         return;
       }
 
@@ -27,6 +27,7 @@ export function useResolvedImageUrls(imageIds: string[]) {
         unresolved.map(async (storageId) => {
           try {
             const url = await convex.query(api.listings.getListingImageUrl, {
+              listingId,
               storageId: storageId as Id<'_storage'>,
             });
             return [storageId, url ?? null] as const;
@@ -55,7 +56,7 @@ export function useResolvedImageUrls(imageIds: string[]) {
     return () => {
       cancelled = true;
     };
-  }, [convex, imageIds]);
+  }, [convex, imageIds, listingId]);
 
   const mappedUrls = useMemo(
     () =>

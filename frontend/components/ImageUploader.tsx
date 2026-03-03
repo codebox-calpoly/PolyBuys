@@ -5,10 +5,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import type { Id } from 'convex/_generated/dataModel';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 
 interface ImageUploaderProps {
   images: string[];
+  listingId?: Id<'listings'>;
   onImagesChange: Dispatch<SetStateAction<string[]>>;
   onPendingChange?: (hasPendingUploads: boolean) => void;
   maxImages?: number;
@@ -34,6 +36,7 @@ type PickedImage = {
 
 export default function ImageUploader({
   images,
+  listingId,
   onImagesChange,
   onPendingChange,
   maxImages = 8,
@@ -41,8 +44,12 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const generateUploadUrl = useMutation(api.listings.generateListingImageUploadUrl);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [localPreviewByStorageId, setLocalPreviewByStorageId] = useState<Record<string, string>>(
+    {}
+  );
   const objectUrlByLocalIdRef = useRef<Record<string, string>>({});
-  const { mappedUrls } = useResolvedImageUrls(images);
+  const objectUrlByStorageIdRef = useRef<Record<string, string>>({});
+  const { mappedUrls } = useResolvedImageUrls(images, listingId);
 
   useEffect(() => {
     onPendingChange?.(pendingUploads.some((upload) => upload.status === 'uploading'));
@@ -56,7 +63,11 @@ export default function ImageUploader({
       for (const objectUrl of Object.values(objectUrlByLocalIdRef.current)) {
         URL.revokeObjectURL(objectUrl);
       }
+      for (const objectUrl of Object.values(objectUrlByStorageIdRef.current)) {
+        URL.revokeObjectURL(objectUrl);
+      }
       objectUrlByLocalIdRef.current = {};
+      objectUrlByStorageIdRef.current = {};
     };
   }, []);
 
@@ -70,6 +81,18 @@ export default function ImageUploader({
     }
     URL.revokeObjectURL(objectUrl);
     delete objectUrlByLocalIdRef.current[localId];
+  }
+
+  function revokeStorageObjectUrl(storageId: string) {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+    const objectUrl = objectUrlByStorageIdRef.current[storageId];
+    if (!objectUrl) {
+      return;
+    }
+    URL.revokeObjectURL(objectUrl);
+    delete objectUrlByStorageIdRef.current[storageId];
   }
 
   async function getWebImageDimensions(uri: string) {
@@ -201,7 +224,11 @@ export default function ImageUploader({
   }
 
   async function uploadToConvex(blob: Blob, onProgress: (progress: number) => void) {
-    const uploadUrl = await generateUploadUrl({});
+    const uploadResult = await generateUploadUrl({});
+    if (!uploadResult.ok) {
+      throw new Error(uploadResult.message);
+    }
+    const uploadUrl = uploadResult.uploadUrl;
 
     const UPLOAD_TIMEOUT_MS = 30_000;
     return await new Promise<string>((resolve, reject) => {
@@ -245,6 +272,15 @@ export default function ImageUploader({
   }
 
   function removeImage(imageId: string) {
+    revokeStorageObjectUrl(imageId);
+    setLocalPreviewByStorageId((prev) => {
+      if (prev[imageId] === undefined) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[imageId];
+      return next;
+    });
     onImagesChange((prev) => prev.filter((id) => id !== imageId));
   }
 
@@ -257,6 +293,20 @@ export default function ImageUploader({
         );
       });
 
+      let previewUri = compressed.uri;
+      if (Platform.OS === 'web') {
+        const localObjectUrl = objectUrlByLocalIdRef.current[localId];
+        if (localObjectUrl) {
+          delete objectUrlByLocalIdRef.current[localId];
+          objectUrlByStorageIdRef.current[storageId] = localObjectUrl;
+          previewUri = localObjectUrl;
+        }
+      }
+
+      setLocalPreviewByStorageId((prev) => ({
+        ...prev,
+        [storageId]: previewUri,
+      }));
       setPendingUploads((prev) => prev.filter((upload) => upload.localId !== localId));
       revokeObjectUrl(localId);
       onImagesChange((prev) => [...prev, storageId]);
@@ -369,8 +419,11 @@ export default function ImageUploader({
       <View style={styles.grid}>
         {images.map((imageId, index) => (
           <View key={imageId} style={styles.card}>
-            {mappedUrls[index] ? (
-              <Image source={{ uri: mappedUrls[index] as string }} style={styles.image} />
+            {mappedUrls[index] || localPreviewByStorageId[imageId] ? (
+              <Image
+                source={{ uri: (mappedUrls[index] ?? localPreviewByStorageId[imageId]) as string }}
+                style={styles.image}
+              />
             ) : (
               <View style={[styles.image, styles.placeholder]}>
                 <Text style={styles.placeholderText}>Loading...</Text>

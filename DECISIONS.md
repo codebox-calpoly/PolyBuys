@@ -43,6 +43,8 @@ Last updated: 2026-03-03
 - Add upload timeout/error handling in image upload flow.
 - Use `reports.by_reporter_createdAt` for report rate-limit checks to avoid large reporter-history scans.
 - Use stable opaque cursors on manual listing pagination branches to reduce duplicate/skip behavior during concurrent writes.
+- Replace post-filter listing `take(MAX_COLLECT)` truncation with bounded scan pagination (`scan1` cursors, 5k scan ceiling) for filter paths that cannot be fully index-native.
+- Reconcile duplicate conversations in `getOrCreateConversation` by canonicalizing oldest tuple match and deleting only empty duplicates.
 
 ## Deep Linking / Sharing Decisions
 
@@ -60,6 +62,8 @@ Last updated: 2026-03-03
 - Shadow queue drains automatically via Convex cron (2-minute interval) running `moderation:processShadowModerationQueue`.
 - Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
 - Add per-conversation rapid-send throttle to reduce message flooding bursts.
+- Add per-user listing image upload rate limits (30 / 15 minutes, 120 / day) with telemetry in `imageUploadEvents`.
+- Scope listing image URL resolution to listing membership + visibility/ownership checks before returning storage URLs.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
 ## Branching Notes

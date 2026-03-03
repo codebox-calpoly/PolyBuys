@@ -183,4 +183,13 @@ export default defineSchema({
   })
     .index('by_type_createdAt', ['alertType', 'createdAt'])
     .index('by_queueId', ['queueId']),
+
+  imageUploadEvents: defineTable({
+    userId: v.string(),
+    eventType: v.union(v.literal('issued'), v.literal('blocked')),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_user_createdAt', ['userId', 'createdAt'])
+    .index('by_user_type_createdAt', ['userId', 'eventType', 'createdAt']),
 });

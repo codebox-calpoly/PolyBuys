@@ -257,6 +257,7 @@ export default function EditListingScreen() {
           <Text style={styles.label}>Images *</Text>
           <ImageUploader
             images={images}
+            listingId={listingId as Id<'listings'>}
             onImagesChange={setImages}
             onPendingChange={setHasPendingUploads}
           />

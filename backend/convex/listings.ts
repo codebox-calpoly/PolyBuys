@@ -31,6 +31,15 @@ const MAX_PAGE_SIZE = 100;
 const MAX_MANUAL_COLLECT = 1000;
 const MAX_SEARCH_TERM_LENGTH = 120;
 const OPAQUE_CURSOR_PREFIX = 'v2';
+const FILTER_SCAN_CURSOR_PREFIX = 'scan1';
+const POST_FILTER_SCAN_BATCH_SIZE = 120;
+const POST_FILTER_SCAN_MAX_ITEMS = 5000;
+const UPLOAD_RATE_LIMIT = {
+  WINDOW_MS: 15 * 60 * 1000,
+  WINDOW_MAX: 30,
+  DAY_MS: 24 * 60 * 60 * 1000,
+  DAY_MAX: 120,
+} as const;
 
 type ListingSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc';
 type ManualListingCursor = {
@@ -38,9 +47,173 @@ type ManualListingCursor = {
   metric: number;
   id: string;
 };
+type PostFilterListingQuery = {
+  paginate: (args: { numItems: number; cursor: string | null }) => Promise<{
+    page: Doc<'listings'>[];
+    isDone: boolean;
+    continueCursor: string;
+  }>;
+};
+type FilterScanCursor = {
+  cursor: string | null;
+  skip: number;
+};
 
 function isLegacyOffsetCursor(cursor: string) {
   return /^[0-9]+$/.test(cursor);
+}
+
+function isFilterScanCursor(cursor: string) {
+  return cursor.startsWith(`${FILTER_SCAN_CURSOR_PREFIX}|`);
+}
+
+function encodeFilterScanCursor(state: FilterScanCursor) {
+  if (!state.cursor && state.skip === 0) {
+    return null;
+  }
+  const payload = encodeURIComponent(
+    JSON.stringify({
+      cursor: state.cursor,
+      skip: state.skip,
+    })
+  );
+  return `${FILTER_SCAN_CURSOR_PREFIX}|${payload}`;
+}
+
+function parseFilterScanCursor(cursor: string) {
+  if (!isFilterScanCursor(cursor)) {
+    throw new ConvexError('Invalid scan cursor');
+  }
+  const encoded = cursor.slice(FILTER_SCAN_CURSOR_PREFIX.length + 1);
+  if (encoded.length === 0) {
+    throw new ConvexError('Invalid scan cursor');
+  }
+
+  // Backward compatibility for early scan cursor format: "scan1|{rawConvexCursor}".
+  if (!encoded.startsWith('%7B') && !encoded.startsWith('{')) {
+    return {
+      cursor: encoded,
+      skip: 0,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded)) as {
+      cursor?: string | null;
+      skip?: number;
+    };
+    const skip = parsed.skip ?? 0;
+    if (
+      (parsed.cursor !== null &&
+        parsed.cursor !== undefined &&
+        typeof parsed.cursor !== 'string') ||
+      !Number.isInteger(skip) ||
+      skip < 0
+    ) {
+      throw new ConvexError('Invalid scan cursor');
+    }
+    return {
+      cursor: parsed.cursor ?? null,
+      skip,
+    };
+  } catch {
+    throw new ConvexError('Invalid scan cursor');
+  }
+}
+
+async function paginatePostFilteredListings(args: {
+  makeDbQuery: () => PostFilterListingQuery;
+  paginationOpts: { numItems: number; cursor: string | null };
+  shouldInclude: (listing: Doc<'listings'>) => boolean;
+}) {
+  const requestedItems = args.paginationOpts.numItems;
+  const rawCursor = args.paginationOpts.cursor;
+  let state: FilterScanCursor = rawCursor
+    ? parseFilterScanCursor(rawCursor)
+    : { cursor: null, skip: 0 };
+  let scanned = 0;
+  const page: Doc<'listings'>[] = [];
+
+  while (page.length < requestedItems && scanned < POST_FILTER_SCAN_MAX_ITEMS) {
+    const scanBudget = POST_FILTER_SCAN_MAX_ITEMS - scanned;
+    const batchSize = Math.max(1, Math.min(POST_FILTER_SCAN_BATCH_SIZE, scanBudget));
+    const batch = await args.makeDbQuery().paginate({
+      numItems: batchSize,
+      cursor: state.cursor,
+    });
+    const startIndex = Math.min(state.skip, batch.page.length);
+    scanned += batch.page.length;
+    let consumedUntil = startIndex;
+
+    for (let i = startIndex; i < batch.page.length; i += 1) {
+      consumedUntil = i + 1;
+      const listing = batch.page[i];
+      if (!args.shouldInclude(listing)) {
+        continue;
+      }
+      page.push(listing);
+      if (page.length >= requestedItems) {
+        break;
+      }
+    }
+
+    if (page.length >= requestedItems) {
+      // If we stopped in the middle of a fetched batch, keep cursor anchored to the
+      // same batch start and advance by in-batch offset to avoid duplicates/skips.
+      if (consumedUntil < batch.page.length) {
+        return {
+          page,
+          continueCursor: encodeFilterScanCursor({
+            cursor: state.cursor,
+            skip: consumedUntil,
+          }),
+          isDone: false,
+          resultsTruncated: scanned >= POST_FILTER_SCAN_MAX_ITEMS,
+        };
+      }
+
+      if (!batch.isDone) {
+        return {
+          page,
+          continueCursor: encodeFilterScanCursor({
+            cursor: batch.continueCursor,
+            skip: 0,
+          }),
+          isDone: false,
+          resultsTruncated: scanned >= POST_FILTER_SCAN_MAX_ITEMS,
+        };
+      }
+
+      return {
+        page,
+        continueCursor: null,
+        isDone: true,
+        resultsTruncated: false,
+      };
+    }
+
+    if (batch.isDone) {
+      return {
+        page,
+        continueCursor: null,
+        isDone: true,
+        resultsTruncated: false,
+      };
+    }
+
+    state = {
+      cursor: batch.continueCursor,
+      skip: 0,
+    };
+  }
+
+  const resultsTruncated = scanned >= POST_FILTER_SCAN_MAX_ITEMS;
+  return {
+    page,
+    continueCursor: encodeFilterScanCursor(state),
+    isDone: false,
+    resultsTruncated,
+  };
 }
 
 function isDescendingSort(sortBy: ListingSortOption) {
@@ -152,6 +325,10 @@ function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: s
     if (isLegacyOffsetCursor(paginationOpts.cursor)) {
       return;
     }
+    if (isFilterScanCursor(paginationOpts.cursor)) {
+      parseFilterScanCursor(paginationOpts.cursor);
+      return;
+    }
     if (!paginationOpts.cursor.startsWith(`${OPAQUE_CURSOR_PREFIX}|`)) {
       throw new ConvexError('cursor must be a non-negative integer string or null');
     }
@@ -257,13 +434,94 @@ export const generateListingImageUploadUrl = mutation({
     if (!identity) {
       throw new ConvexError('You must be logged in to upload images');
     }
-    return await ctx.storage.generateUploadUrl();
+
+    const now = Date.now();
+    const userId = identity.subject;
+
+    const [recentWindow, recentDay] = await Promise.all([
+      ctx.db
+        .query('imageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q) =>
+          q
+            .eq('userId', userId)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - UPLOAD_RATE_LIMIT.WINDOW_MS)
+        )
+        .take(UPLOAD_RATE_LIMIT.WINDOW_MAX + 1),
+      ctx.db
+        .query('imageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q) =>
+          q
+            .eq('userId', userId)
+            .eq('eventType', 'issued')
+            .gt('createdAt', now - UPLOAD_RATE_LIMIT.DAY_MS)
+        )
+        .take(UPLOAD_RATE_LIMIT.DAY_MAX + 1),
+    ]);
+
+    if (recentWindow.length >= UPLOAD_RATE_LIMIT.WINDOW_MAX) {
+      await ctx.db.insert('imageUploadEvents', {
+        userId,
+        eventType: 'blocked',
+        reason: 'rate_limit_15m',
+        createdAt: now,
+      });
+      return {
+        ok: false as const,
+        message: 'Upload limit reached. Please wait a few minutes and try again.',
+      };
+    }
+
+    if (recentDay.length >= UPLOAD_RATE_LIMIT.DAY_MAX) {
+      await ctx.db.insert('imageUploadEvents', {
+        userId,
+        eventType: 'blocked',
+        reason: 'rate_limit_day',
+        createdAt: now,
+      });
+      return {
+        ok: false as const,
+        message: 'Daily upload limit reached. Please try again tomorrow.',
+      };
+    }
+
+    await ctx.db.insert('imageUploadEvents', {
+      userId,
+      eventType: 'issued',
+      createdAt: now,
+    });
+
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return {
+      ok: true as const,
+      uploadUrl,
+    };
   },
 });
 
 export const getListingImageUrl = query({
-  args: { storageId: v.id('_storage') },
+  args: {
+    listingId: v.id('listings'),
+    storageId: v.id('_storage'),
+  },
   handler: async (ctx, args) => {
+    const listing = await ctx.db.get(args.listingId);
+    if (!listing) {
+      return null;
+    }
+
+    if (!listing.images.includes(args.storageId)) {
+      return null;
+    }
+
+    const identity = await ctx.auth.getUserIdentity();
+    const isOwner = !!identity && identity.subject === listing.sellerId;
+    if (!isOwner) {
+      if (listing.status !== 'active' || listing.isHidden) {
+        return null;
+      }
+    }
+
     return await ctx.storage.getUrl(args.storageId);
   },
 });
@@ -406,49 +664,47 @@ export const searchAndFilterListings = query({
       // Condition filter needs post-filtering when using price-based indexes (which don't include condition)
       (filters.condition !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc'));
 
-    let query;
-
-    // Choose the best index based on filters and sort order
-    if (sortBy === 'price_asc' || sortBy === 'price_desc') {
-      // Use price-based indexes for price sorting
-      if (hasCategory) {
-        if (filters.minPrice !== undefined) {
-          query = ctx.db
-            .query('listings')
-            .withIndex('by_status_category_price', (q) =>
-              q
-                .eq('status', 'active')
-                .eq('category', filters.category!)
-                .gte('price', filters.minPrice!)
-            )
-            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
-        } else {
-          query = ctx.db
+    const makeBaseQuery = () => {
+      // Choose the best index based on filters and sort order.
+      if (sortBy === 'price_asc' || sortBy === 'price_desc') {
+        // Use price-based indexes for price sorting.
+        if (hasCategory) {
+          if (filters.minPrice !== undefined) {
+            return ctx.db
+              .query('listings')
+              .withIndex('by_status_category_price', (q) =>
+                q
+                  .eq('status', 'active')
+                  .eq('category', filters.category!)
+                  .gte('price', filters.minPrice!)
+              )
+              .order(sortBy === 'price_asc' ? 'asc' : 'desc');
+          }
+          return ctx.db
             .query('listings')
             .withIndex('by_status_category_price', (q) =>
               q.eq('status', 'active').eq('category', filters.category!)
             )
             .order(sortBy === 'price_asc' ? 'asc' : 'desc');
         }
-      } else {
+
         if (filters.minPrice !== undefined) {
-          query = ctx.db
+          return ctx.db
             .query('listings')
             .withIndex('by_status_price', (q) =>
               q.eq('status', 'active').gte('price', filters.minPrice!)
             )
             .order(sortBy === 'price_asc' ? 'asc' : 'desc');
-        } else {
-          query = ctx.db
-            .query('listings')
-            .withIndex('by_status_price', (q) => q.eq('status', 'active'))
-            .order(sortBy === 'price_asc' ? 'asc' : 'desc');
         }
+        return ctx.db
+          .query('listings')
+          .withIndex('by_status_price', (q) => q.eq('status', 'active'))
+          .order(sortBy === 'price_asc' ? 'asc' : 'desc');
       }
-    } else {
-      // Use createdAt-based indexes for date sorting (newest/oldest)
+
+      // Use createdAt-based indexes for date sorting (newest/oldest).
       if (hasCategory && hasCondition) {
-        query = ctx.db
+        return ctx.db
           .query('listings')
           .withIndex('by_status_category_condition_createdAt', (q) =>
             q
@@ -457,31 +713,32 @@ export const searchAndFilterListings = query({
               .eq('condition', filters.condition!)
           )
           .order(sortBy === 'oldest' ? 'asc' : 'desc');
-      } else if (hasCondition) {
-        query = ctx.db
+      }
+      if (hasCondition) {
+        return ctx.db
           .query('listings')
           .withIndex('by_status_condition_createdAt', (q) =>
             q.eq('status', 'active').eq('condition', filters.condition!)
           )
           .order(sortBy === 'oldest' ? 'asc' : 'desc');
-      } else if (hasCategory) {
-        query = ctx.db
+      }
+      if (hasCategory) {
+        return ctx.db
           .query('listings')
           .withIndex('by_status_category_createdAt', (q) =>
             q.eq('status', 'active').eq('category', filters.category!)
           )
           .order(sortBy === 'oldest' ? 'asc' : 'desc');
-      } else {
-        query = ctx.db
-          .query('listings')
-          .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
-          .order(sortBy === 'oldest' ? 'asc' : 'desc');
       }
-    }
+      return ctx.db
+        .query('listings')
+        .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
+        .order(sortBy === 'oldest' ? 'asc' : 'desc');
+    };
 
     // If no post-filtering needed, use direct pagination (most efficient)
     if (!needsPostFiltering) {
-      let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
+      let dbQuery = makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
 
       // Apply maxPrice filter at database level for price-sorted queries
       if (filters.maxPrice !== undefined && (sortBy === 'price_asc' || sortBy === 'price_desc')) {
@@ -498,16 +755,8 @@ export const searchAndFilterListings = query({
       };
     }
 
-    // Need post-filtering: collect with limit, filter, then paginate in-memory
-    // This is necessary because filters can't be expressed in indexes
-    const MAX_COLLECT = MAX_MANUAL_COLLECT; // Limit to prevent excessive memory usage
-
-    const allResults = await query
-      .filter((q) => q.neq(q.field('isHidden'), true))
-      .take(MAX_COLLECT);
-
-    // Apply remaining filters
-    const filtered = allResults.filter((l) => {
+    const makeDbQuery = () => makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
+    const shouldInclude = (l: Doc<'listings'>) => {
       if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
       if (
         sortBy !== 'price_asc' &&
@@ -516,26 +765,36 @@ export const searchAndFilterListings = query({
         l.price < filters.minPrice
       )
         return false;
-      // Apply condition filter if not enforced by index
       if (filters.condition && l.condition !== filters.condition) return false;
       return true;
-    });
-
-    const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, sortBy));
-    const manualPage = paginateManualSortedListings({
-      listings: sortedFiltered,
-      sortBy,
-      paginationOpts: args.paginationOpts,
-    });
-    // Detect scan ceiling for this filter branch.
-    const resultsTruncated = allResults.length === MAX_COLLECT;
-
-    return {
-      page: manualPage.page,
-      continueCursor: manualPage.continueCursor,
-      isDone: manualPage.isDone,
-      resultsTruncated,
     };
+
+    const useLegacyManualCursor =
+      args.paginationOpts.cursor !== null && !isFilterScanCursor(args.paginationOpts.cursor);
+    if (useLegacyManualCursor) {
+      // Compatibility path for old cursor formats already in client state.
+      const allResults = await makeDbQuery().take(MAX_MANUAL_COLLECT);
+      const filtered = allResults.filter(shouldInclude);
+      const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, sortBy));
+      const manualPage = paginateManualSortedListings({
+        listings: sortedFiltered,
+        sortBy,
+        paginationOpts: args.paginationOpts,
+      });
+      const resultsTruncated = allResults.length === MAX_MANUAL_COLLECT;
+      return {
+        page: manualPage.page,
+        continueCursor: manualPage.continueCursor,
+        isDone: manualPage.isDone,
+        resultsTruncated,
+      };
+    }
+
+    return await paginatePostFilteredListings({
+      makeDbQuery,
+      paginationOpts: args.paginationOpts,
+      shouldInclude,
+    });
   },
 });
 
@@ -574,25 +833,24 @@ export const getListings = query({
     const hasTags = normalizedTags.length > 0;
     const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
 
-    // Use database indexes with proper ordering
-    let query;
-    if (args.category) {
-      query = ctx.db
-        .query('listings')
-        .withIndex('by_status_category_createdAt', (q) =>
-          q.eq('status', 'active').eq('category', args.category!)
-        )
-        .order('desc');
-    } else {
-      query = ctx.db
+    const makeBaseQuery = () => {
+      if (args.category) {
+        return ctx.db
+          .query('listings')
+          .withIndex('by_status_category_createdAt', (q) =>
+            q.eq('status', 'active').eq('category', args.category!)
+          )
+          .order('desc');
+      }
+      return ctx.db
         .query('listings')
         .withIndex('by_status_createdAt', (q) => q.eq('status', 'active'))
         .order('desc');
-    }
+    };
 
     // If no tags/price filters, use direct pagination (most efficient)
     if (!hasTags && !hasPriceFilters) {
-      const paginationResult = await query
+      const paginationResult = await makeBaseQuery()
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
 
@@ -604,37 +862,40 @@ export const getListings = query({
       };
     }
 
-    // Need tags/price filtering: collect with limit, filter, then paginate in-memory
-    // This is necessary because filters can't be expressed in indexes
-    const MAX_COLLECT = MAX_MANUAL_COLLECT; // Limit to prevent excessive memory usage
-
-    const allResults = await query
-      .filter((q) => q.neq(q.field('isHidden'), true))
-      .take(MAX_COLLECT);
-
-    // Apply tag and price filters
-    const filtered = allResults.filter((l) => {
+    const makeDbQuery = () => makeBaseQuery().filter((q) => q.neq(q.field('isHidden'), true));
+    const shouldInclude = (l: Doc<'listings'>) => {
       if (hasTags && !(l.tags ?? []).some((tag) => normalizedTags.includes(tag))) return false;
       if (args.minPrice !== undefined && l.price < args.minPrice) return false;
       if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
       return true;
-    });
-
-    const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, 'newest'));
-    const manualPage = paginateManualSortedListings({
-      listings: sortedFiltered,
-      sortBy: 'newest',
-      paginationOpts: args.paginationOpts,
-    });
-    // Detect scan ceiling for this filter branch.
-    const resultsTruncated = allResults.length === MAX_COLLECT;
-
-    return {
-      page: manualPage.page,
-      continueCursor: manualPage.continueCursor,
-      isDone: manualPage.isDone,
-      resultsTruncated,
     };
+
+    const useLegacyManualCursor =
+      args.paginationOpts.cursor !== null && !isFilterScanCursor(args.paginationOpts.cursor);
+    if (useLegacyManualCursor) {
+      // Compatibility path for old cursor formats already in client state.
+      const allResults = await makeDbQuery().take(MAX_MANUAL_COLLECT);
+      const filtered = allResults.filter(shouldInclude);
+      const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, 'newest'));
+      const manualPage = paginateManualSortedListings({
+        listings: sortedFiltered,
+        sortBy: 'newest',
+        paginationOpts: args.paginationOpts,
+      });
+      const resultsTruncated = allResults.length === MAX_MANUAL_COLLECT;
+      return {
+        page: manualPage.page,
+        continueCursor: manualPage.continueCursor,
+        isDone: manualPage.isDone,
+        resultsTruncated,
+      };
+    }
+
+    return await paginatePostFilteredListings({
+      makeDbQuery,
+      paginationOpts: args.paginationOpts,
+      shouldInclude,
+    });
   },
 });
 

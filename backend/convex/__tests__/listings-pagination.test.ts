@@ -201,6 +201,39 @@ describe('Filtered pagination correctness', () => {
     expect(intersection.length).toBe(0);
   });
 
+  it('getListings tag filtering scans past the first 1000 rows without truncating matches', async () => {
+    const t = await setupTestWithProfile();
+    const now = Date.now();
+
+    await t.run(async (ctx: any) => {
+      for (let i = 0; i < 1100; i += 1) {
+        await ctx.db.insert('listings', {
+          sellerId: aliceIdentity.subject,
+          title: `Seed Listing ${i}`,
+          description: 'seed',
+          price: 25,
+          category: 'textbooks',
+          images: ['https://example.com/image.jpg'],
+          condition: 'used',
+          status: 'active',
+          tags: i < 100 ? ['needle'] : ['hay'],
+          createdAt: now + i,
+          postedOn: now + i,
+        });
+      }
+    });
+
+    const page = await t.query(api.listings.getListings, {
+      tags: ['needle'],
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(20);
+    expect(page.page.every((listing) => (listing.tags ?? []).includes('needle'))).toBe(true);
+    expect(page.resultsTruncated).toBe(false);
+    expect(page.continueCursor?.startsWith('scan1|')).toBe(true);
+  });
+
   it('searchAndFilterListings rejects malformed cursor values', async () => {
     const t = await setupTestWithProfile();
 

@@ -286,6 +286,75 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('You must complete your profile setup before creating a listing');
   });
 
+  it('generateListingImageUploadUrl enforces per-user 15 minute rate limit', async () => {
+    const t = await setupTestWithProfiles();
+    const asUser = t.withIdentity(aliceIdentity);
+    const now = Date.now();
+
+    await t.run(async (ctx: any) => {
+      for (let i = 0; i < 30; i += 1) {
+        await ctx.db.insert('imageUploadEvents', {
+          userId: aliceIdentity.subject,
+          eventType: 'issued',
+          createdAt: now - i * 1000,
+        });
+      }
+    });
+
+    const result = await asUser.mutation(api.listings.generateListingImageUploadUrl, {});
+    expect(result).toEqual({
+      ok: false,
+      message: 'Upload limit reached. Please wait a few minutes and try again.',
+    });
+
+    const blocked = await t.run(async (ctx: any) => {
+      return await ctx.db
+        .query('imageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q: any) =>
+          q.eq('userId', aliceIdentity.subject).eq('eventType', 'blocked')
+        )
+        .order('desc')
+        .take(1);
+    });
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].reason).toBe('rate_limit_15m');
+  });
+
+  it('generateListingImageUploadUrl enforces per-user daily rate limit', async () => {
+    const t = await setupTestWithProfiles();
+    const asUser = t.withIdentity(aliceIdentity);
+    const now = Date.now();
+    const sixteenMinutesMs = 16 * 60 * 1000;
+
+    await t.run(async (ctx: any) => {
+      for (let i = 0; i < 120; i += 1) {
+        await ctx.db.insert('imageUploadEvents', {
+          userId: aliceIdentity.subject,
+          eventType: 'issued',
+          createdAt: now - sixteenMinutesMs - i * 1000,
+        });
+      }
+    });
+
+    const result = await asUser.mutation(api.listings.generateListingImageUploadUrl, {});
+    expect(result).toEqual({
+      ok: false,
+      message: 'Daily upload limit reached. Please try again tomorrow.',
+    });
+
+    const blocked = await t.run(async (ctx: any) => {
+      return await ctx.db
+        .query('imageUploadEvents')
+        .withIndex('by_user_type_createdAt', (q: any) =>
+          q.eq('userId', aliceIdentity.subject).eq('eventType', 'blocked')
+        )
+        .order('desc')
+        .take(1);
+    });
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].reason).toBe('rate_limit_day');
+  });
+
   it('updateListing allows the owner to update fields', async () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);

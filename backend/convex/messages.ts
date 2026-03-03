@@ -13,6 +13,7 @@ const MAX_MESSAGE_PAGE_SIZE = 100;
 const MAX_READ_PATCH_BATCH = 1000;
 const UNREAD_CAP = 99;
 const MESSAGE_MIN_INTERVAL_MS = 1_000;
+const MAX_CONVERSATION_DUPLICATE_SCAN = 25;
 
 type MessageCursor = {
   createdAt: number;
@@ -414,6 +415,62 @@ async function requireParticipant(
   return { userId, convo, isBuyer, isSeller };
 }
 
+async function reconcileConversationDuplicates(
+  ctx: MutationCtx,
+  args: {
+    listingId: Id<'listings'>;
+    buyerId: string;
+    sellerId: string;
+  }
+): Promise<Id<'conversations'> | null> {
+  const matches = await ctx.db
+    .query('conversations')
+    .withIndex('by_listing_buyer_seller', (q) =>
+      q.eq('listingId', args.listingId).eq('buyerId', args.buyerId).eq('sellerId', args.sellerId)
+    )
+    .take(MAX_CONVERSATION_DUPLICATE_SCAN);
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  // Pick a deterministic canonical conversation: oldest createdAt, then lowest ID.
+  const sorted = [...matches].sort((a, b) => a.createdAt - b.createdAt || (a._id < b._id ? -1 : 1));
+  const canonical = sorted[0];
+
+  if (!canonical.participantIds || canonical.participantIds.length !== 2) {
+    await ctx.db.patch(canonical._id, {
+      participantIds: [args.buyerId, args.sellerId],
+    });
+  }
+
+  for (const duplicate of sorted.slice(1)) {
+    if (duplicate.lastMessageId) {
+      continue;
+    }
+
+    const hasMessages =
+      (
+        await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', duplicate._id))
+          .take(1)
+      ).length > 0;
+
+    if (hasMessages) {
+      continue;
+    }
+
+    try {
+      await ctx.db.delete(duplicate._id);
+    } catch {
+      // Best effort cleanup under concurrent dedupe calls.
+    }
+  }
+
+  return canonical._id;
+}
+
 export const getOrCreateConversation = mutation({
   args: {
     listingId: v.id('listings'),
@@ -435,17 +492,17 @@ export const getOrCreateConversation = mutation({
     const sellerId = listing.sellerId;
     if (buyerId === sellerId) throw new ConvexError("You can't message yourself");
 
-    const existing = await ctx.db
-      .query('conversations')
-      .withIndex('by_listing_buyer_seller', (q) =>
-        q.eq('listingId', args.listingId).eq('buyerId', buyerId).eq('sellerId', sellerId)
-      )
-      .first();
-
-    if (existing) return { conversationId: existing._id };
+    const canonicalBeforeInsert = await reconcileConversationDuplicates(ctx, {
+      listingId: args.listingId,
+      buyerId,
+      sellerId,
+    });
+    if (canonicalBeforeInsert) {
+      return { conversationId: canonicalBeforeInsert };
+    }
 
     const now = Date.now();
-    const conversationId = await ctx.db.insert('conversations', {
+    const insertedConversationId = await ctx.db.insert('conversations', {
       listingId: args.listingId,
       buyerId,
       sellerId,
@@ -456,7 +513,13 @@ export const getOrCreateConversation = mutation({
       sellerLastReadAt: now,
     });
 
-    return { conversationId };
+    const canonicalAfterInsert = await reconcileConversationDuplicates(ctx, {
+      listingId: args.listingId,
+      buyerId,
+      sellerId,
+    });
+
+    return { conversationId: canonicalAfterInsert ?? insertedConversationId };
   },
 });
 

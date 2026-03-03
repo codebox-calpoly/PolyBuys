@@ -619,6 +619,124 @@ describe('Messages queries and mutations', () => {
       expect(first.conversationId).toBe(second.conversationId);
     });
 
+    it('dedupes empty duplicates and returns the canonical oldest conversation', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const ids = await t.run(async (ctx: any) => {
+        const now = Date.now();
+        const olderId = await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: buyer.id,
+          sellerId: seller.id,
+          participantIds: [buyer.id, seller.id],
+          createdAt: now - 2000,
+          updatedAt: now - 2000,
+          buyerLastReadAt: now - 2000,
+          sellerLastReadAt: now - 2000,
+        });
+        const newerId = await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: buyer.id,
+          sellerId: seller.id,
+          participantIds: [buyer.id, seller.id],
+          createdAt: now - 1000,
+          updatedAt: now - 1000,
+          buyerLastReadAt: now - 1000,
+          sellerLastReadAt: now - 1000,
+        });
+        return { olderId, newerId };
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const result = await asBuyer.mutation(api.messages.getOrCreateConversation, { listingId });
+
+      expect(result.conversationId).toBe(ids.olderId);
+
+      const matches = await t.run(async (ctx: any) => {
+        return await ctx.db
+          .query('conversations')
+          .withIndex('by_listing_buyer_seller', (q: any) =>
+            q.eq('listingId', listingId).eq('buyerId', buyer.id).eq('sellerId', seller.id)
+          )
+          .take(10);
+      });
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0]._id).toBe(ids.olderId);
+    });
+
+    it('does not delete duplicates that already have messages', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      await t.run(async (ctx: any) => {
+        const now = Date.now();
+        const canonicalId = await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: buyer.id,
+          sellerId: seller.id,
+          participantIds: [buyer.id, seller.id],
+          createdAt: now - 2000,
+          updatedAt: now - 2000,
+          buyerLastReadAt: now - 2000,
+          sellerLastReadAt: now - 2000,
+        });
+        const duplicateId = await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: buyer.id,
+          sellerId: seller.id,
+          participantIds: [buyer.id, seller.id],
+          createdAt: now - 1000,
+          updatedAt: now - 1000,
+          buyerLastReadAt: now - 1000,
+          sellerLastReadAt: now - 1000,
+        });
+        await ctx.db.insert('messages', {
+          conversationId: duplicateId,
+          listingId,
+          senderId: buyer.id,
+          recipientId: seller.id,
+          body: 'existing message on duplicate',
+          type: 'text',
+          createdAt: now - 500,
+          readAt: 0,
+        });
+        await ctx.db.patch(duplicateId, {
+          lastMessageId: (
+            await ctx.db
+              .query('messages')
+              .withIndex('by_conversation_createdAt', (q: any) =>
+                q.eq('conversationId', duplicateId)
+              )
+              .order('desc')
+              .first()
+          )?._id,
+        });
+        return canonicalId;
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.messages.getOrCreateConversation, { listingId });
+
+      const matches = await t.run(async (ctx: any) => {
+        return await ctx.db
+          .query('conversations')
+          .withIndex('by_listing_buyer_seller', (q: any) =>
+            q.eq('listingId', listingId).eq('buyerId', buyer.id).eq('sellerId', seller.id)
+          )
+          .take(10);
+      });
+
+      expect(matches).toHaveLength(2);
+    });
+
     it('prevents a seller from messaging their own listing', async () => {
       const t = createConvexTest();
 
