@@ -12,10 +12,11 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useAction, useMutation, useQuery } from 'convex/react';
+import { useAction, useConvex, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import type { Id } from '../../../backend/convex/_generated/dataModel';
+import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
+import { normalizeConvexId } from '../../utils/convexId';
 
 function formatTimestamp(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, {
@@ -26,15 +27,19 @@ function formatTimestamp(timestamp: number) {
   });
 }
 
-export default function MessageThreadPlaceholderScreen() {
+export default function MessageThreadScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const conversationId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const conversationId = normalizeConvexId(id);
   const { isAuthenticated, isLoading } = useAuth();
+  const convex = useConvex();
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [olderMessages, setOlderMessages] = useState<Array<Doc<'messages'>>>([]);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
-  const messages = useQuery(
-    api.messages.messagesByConversation,
+  const latestPage = useQuery(
+    api.messages.messagesByConversationPaginated,
     isAuthenticated && conversationId
       ? { conversationId: conversationId as Id<'conversations'> }
       : 'skip'
@@ -47,22 +52,67 @@ export default function MessageThreadPlaceholderScreen() {
   const sendMessage = useAction(api.messages.sendMessage);
 
   useEffect(() => {
-    if (!isAuthenticated || !conversationId || !messages) {
+    setOlderMessages([]);
+    setOlderCursor(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!latestPage || olderMessages.length > 0 || olderCursor !== null) {
+      return;
+    }
+    setOlderCursor(latestPage.nextCursor);
+  }, [latestPage, olderCursor, olderMessages.length]);
+
+  const combinedMessages = useMemo(() => {
+    const map = new Map<string, Doc<'messages'>>();
+    const all = [...olderMessages, ...(latestPage?.items ?? [])];
+    for (const message of all) {
+      map.set(String(message._id), message);
+    }
+    return [...map.values()].sort((a, b) => {
+      const createdDiff = Number(a.createdAt) - Number(b.createdAt);
+      if (createdDiff !== 0) {
+        return createdDiff;
+      }
+      return String(a._id).localeCompare(String(b._id));
+    });
+  }, [latestPage?.items, olderMessages]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !conversationId || combinedMessages.length === 0) {
       return;
     }
 
     void markMessagesAsRead({ conversationId: conversationId as Id<'conversations'> }).catch(() => {
       // Non-blocking; unread state will reconcile on next successful refresh.
     });
-  }, [conversationId, isAuthenticated, markMessagesAsRead, messages]);
+  }, [combinedMessages.length, conversationId, isAuthenticated, markMessagesAsRead]);
 
   const hasValidConversation = conversationId !== null;
   const isQueryLoading =
     isLoading ||
     (isAuthenticated &&
       hasValidConversation &&
-      (messages === undefined || currentUserSubject === undefined));
-  const sortedMessages = useMemo(() => messages ?? [], [messages]);
+      (latestPage === undefined || currentUserSubject === undefined));
+
+  async function handleLoadOlder() {
+    if (!conversationId || !olderCursor || isLoadingOlder) {
+      return;
+    }
+    try {
+      setIsLoadingOlder(true);
+      const olderPage = await convex.query(api.messages.messagesByConversationPaginated, {
+        conversationId: conversationId as Id<'conversations'>,
+        cursor: olderCursor,
+      });
+      setOlderMessages((prev) => [...olderPage.items, ...prev]);
+      setOlderCursor(olderPage.nextCursor);
+    } catch {
+      Alert.alert('Unable to load older messages right now.');
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }
 
   async function handleSend() {
     if (!conversationId || isSending) {
@@ -122,9 +172,28 @@ export default function MessageThreadPlaceholderScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <FlatList
-        data={sortedMessages}
-        keyExtractor={(item) => item._id}
+        data={combinedMessages}
+        keyExtractor={(item) => String(item._id)}
         contentContainerStyle={styles.messagesList}
+        ListHeaderComponent={
+          olderCursor ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.loadOlderButton,
+                isLoadingOlder && styles.sendButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => {
+                void handleLoadOlder();
+              }}
+              disabled={isLoadingOlder}
+            >
+              <Text style={styles.loadOlderText}>
+                {isLoadingOlder ? 'Loading...' : 'Load older messages'}
+              </Text>
+            </Pressable>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No messages yet</Text>
@@ -152,7 +221,7 @@ export default function MessageThreadPlaceholderScreen() {
                   {item.body}
                 </Text>
                 <Text style={[styles.timestamp, isMine && styles.timestampMine]}>
-                  {formatTimestamp(item.createdAt)}
+                  {formatTimestamp(Number(item.createdAt))}
                 </Text>
               </View>
             </View>
@@ -217,6 +286,21 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
     gap: 8,
+  },
+  loadOlderButton: {
+    alignSelf: 'center',
+    backgroundColor: '#edf5f1',
+    borderWidth: 1,
+    borderColor: '#d1e2d9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  loadOlderText: {
+    color: '#1f5140',
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyState: {
     borderRadius: 14,

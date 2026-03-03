@@ -30,6 +30,118 @@ export const PAYLOAD_BOUNDS = {
 const MAX_PAGE_SIZE = 100;
 const MAX_MANUAL_COLLECT = 1000;
 const MAX_SEARCH_TERM_LENGTH = 120;
+const OPAQUE_CURSOR_PREFIX = 'v2';
+
+type ListingSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc';
+type ManualListingCursor = {
+  sortBy: ListingSortOption;
+  metric: number;
+  id: string;
+};
+
+function isLegacyOffsetCursor(cursor: string) {
+  return /^[0-9]+$/.test(cursor);
+}
+
+function isDescendingSort(sortBy: ListingSortOption) {
+  return sortBy === 'newest' || sortBy === 'price_desc';
+}
+
+function getSortMetric(listing: Doc<'listings'>, sortBy: ListingSortOption) {
+  return sortBy === 'price_asc' || sortBy === 'price_desc' ? listing.price : listing.createdAt;
+}
+
+function compareListingsBySort(a: Doc<'listings'>, b: Doc<'listings'>, sortBy: ListingSortOption) {
+  const metricDiff = getSortMetric(a, sortBy) - getSortMetric(b, sortBy);
+  if (metricDiff !== 0) {
+    return isDescendingSort(sortBy) ? -metricDiff : metricDiff;
+  }
+
+  if (a._id === b._id) {
+    return 0;
+  }
+
+  // Stable tie-break by id so cursor pagination does not duplicate/skip on ties.
+  if (isDescendingSort(sortBy)) {
+    return a._id < b._id ? 1 : -1;
+  }
+  return a._id < b._id ? -1 : 1;
+}
+
+function encodeManualCursor(sortBy: ListingSortOption, listing: Doc<'listings'>) {
+  return `${OPAQUE_CURSOR_PREFIX}|${sortBy}|${getSortMetric(listing, sortBy)}|${listing._id}`;
+}
+
+function parseManualCursor(cursor: string): ManualListingCursor {
+  const parts = cursor.split('|');
+  if (parts.length !== 4 || parts[0] !== OPAQUE_CURSOR_PREFIX) {
+    throw new ConvexError('cursor must be a non-negative integer string or null');
+  }
+
+  const sortBy = parts[1] as ListingSortOption;
+  if (!['newest', 'oldest', 'price_asc', 'price_desc'].includes(sortBy)) {
+    throw new ConvexError('cursor must be a non-negative integer string or null');
+  }
+
+  const metric = Number.parseFloat(parts[2]);
+  if (!Number.isFinite(metric) || parts[3].length === 0) {
+    throw new ConvexError('cursor must be a non-negative integer string or null');
+  }
+
+  return { sortBy, metric, id: parts[3] };
+}
+
+function isAfterManualCursor(listing: Doc<'listings'>, cursor: ManualListingCursor) {
+  const metric = getSortMetric(listing, cursor.sortBy);
+  if (isDescendingSort(cursor.sortBy)) {
+    if (metric < cursor.metric) return true;
+    if (metric > cursor.metric) return false;
+    return listing._id < cursor.id;
+  }
+  if (metric > cursor.metric) return true;
+  if (metric < cursor.metric) return false;
+  return listing._id > cursor.id;
+}
+
+function paginateManualSortedListings(args: {
+  listings: Doc<'listings'>[];
+  sortBy: ListingSortOption;
+  paginationOpts: { numItems: number; cursor: string | null };
+}) {
+  const requestedItems = args.paginationOpts.numItems;
+  const { cursor } = args.paginationOpts;
+
+  if (cursor && isLegacyOffsetCursor(cursor)) {
+    // Backward compatibility for existing offset cursors.
+    const startIndex = Number.parseInt(cursor, 10);
+    const endIndex = startIndex + requestedItems;
+    const page = args.listings.slice(startIndex, endIndex);
+    const hasMore = endIndex < args.listings.length;
+    return {
+      page,
+      continueCursor: hasMore ? String(endIndex) : null,
+      isDone: !hasMore,
+    };
+  }
+
+  let scoped = args.listings;
+  if (cursor) {
+    const parsed = parseManualCursor(cursor);
+    if (parsed.sortBy !== args.sortBy) {
+      throw new ConvexError('cursor must be a non-negative integer string or null');
+    }
+    scoped = args.listings.filter((listing) => isAfterManualCursor(listing, parsed));
+  }
+
+  const page = scoped.slice(0, requestedItems);
+  const hasMore = scoped.length > requestedItems;
+  return {
+    page,
+    continueCursor:
+      hasMore && page.length > 0 ? encodeManualCursor(args.sortBy, page[page.length - 1]) : null,
+    isDone: !hasMore,
+  };
+}
 
 function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: string | null }) {
   if (paginationOpts.numItems < 1 || paginationOpts.numItems > MAX_PAGE_SIZE) {
@@ -37,10 +149,13 @@ function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: s
   }
 
   if (paginationOpts.cursor !== null) {
-    const parsed = Number.parseInt(paginationOpts.cursor, 10);
-    if (Number.isNaN(parsed) || parsed < 0) {
+    if (isLegacyOffsetCursor(paginationOpts.cursor)) {
+      return;
+    }
+    if (!paginationOpts.cursor.startsWith(`${OPAQUE_CURSOR_PREFIX}|`)) {
       throw new ConvexError('cursor must be a non-negative integer string or null');
     }
+    parseManualCursor(paginationOpts.cursor);
   }
 }
 
@@ -266,35 +381,17 @@ export const searchAndFilterListings = query({
       // Filter out hidden content
       results = results.filter((l) => l.isHidden !== true);
 
-      // Apply sorting
-      switch (sortBy) {
-        case 'newest':
-          results.sort((a, b) => b.createdAt - a.createdAt);
-          break;
-        case 'oldest':
-          results.sort((a, b) => a.createdAt - b.createdAt);
-          break;
-        case 'price_asc':
-          results.sort((a, b) => a.price - b.price);
-          break;
-        case 'price_desc':
-          results.sort((a, b) => b.price - a.price);
-          break;
-      }
-
-      // Manual pagination for search results
-      const parsed = args.paginationOpts.cursor
-        ? Number.parseInt(args.paginationOpts.cursor, 10)
-        : 0;
-      const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-      const paginatedResults = results.slice(startIndex, startIndex + args.paginationOpts.numItems);
-      const hasMore = startIndex + args.paginationOpts.numItems < results.length;
-      const nextCursor = hasMore ? String(startIndex + args.paginationOpts.numItems) : null;
+      const sortedResults = [...results].sort((a, b) => compareListingsBySort(a, b, sortBy));
+      const manualPage = paginateManualSortedListings({
+        listings: sortedResults,
+        sortBy,
+        paginationOpts: args.paginationOpts,
+      });
 
       return {
-        page: paginatedResults,
-        continueCursor: nextCursor,
-        isDone: !hasMore,
+        page: manualPage.page,
+        continueCursor: manualPage.continueCursor,
+        isDone: manualPage.isDone,
         resultsTruncated,
       };
     }
@@ -424,24 +521,19 @@ export const searchAndFilterListings = query({
       return true;
     });
 
-    // Manual pagination on filtered results
-    const requestedItems = args.paginationOpts.numItems;
-    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
-    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-    const endIndex = startIndex + requestedItems;
-    const page = filtered.slice(startIndex, endIndex);
-    const hasMore = endIndex < filtered.length;
-    const nextCursor = hasMore ? String(endIndex) : null;
-
-    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
-    const isDone = !hasMore;
+    const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, sortBy));
+    const manualPage = paginateManualSortedListings({
+      listings: sortedFiltered,
+      sortBy,
+      paginationOpts: args.paginationOpts,
+    });
     // Detect scan ceiling for this filter branch.
     const resultsTruncated = allResults.length === MAX_COLLECT;
 
     return {
-      page,
-      continueCursor: nextCursor,
-      isDone,
+      page: manualPage.page,
+      continueCursor: manualPage.continueCursor,
+      isDone: manualPage.isDone,
       resultsTruncated,
     };
   },
@@ -528,24 +620,19 @@ export const getListings = query({
       return true;
     });
 
-    // Manual pagination on filtered results
-    const requestedItems = args.paginationOpts.numItems;
-    const parsed = args.paginationOpts.cursor ? Number.parseInt(args.paginationOpts.cursor, 10) : 0;
-    const startIndex = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-    const endIndex = startIndex + requestedItems;
-    const page = filtered.slice(startIndex, endIndex);
-    const hasMore = endIndex < filtered.length;
-    const nextCursor = hasMore ? String(endIndex) : null;
-
-    // Always mark as done when filtered results are exhausted to prevent infinite empty pages
-    const isDone = !hasMore;
+    const sortedFiltered = [...filtered].sort((a, b) => compareListingsBySort(a, b, 'newest'));
+    const manualPage = paginateManualSortedListings({
+      listings: sortedFiltered,
+      sortBy: 'newest',
+      paginationOpts: args.paginationOpts,
+    });
     // Detect scan ceiling for this filter branch.
     const resultsTruncated = allResults.length === MAX_COLLECT;
 
     return {
-      page,
-      continueCursor: nextCursor,
-      isDone,
+      page: manualPage.page,
+      continueCursor: manualPage.continueCursor,
+      isDone: manualPage.isDone,
       resultsTruncated,
     };
   },

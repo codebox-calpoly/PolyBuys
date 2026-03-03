@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConvex } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import type { Id } from '../../backend/convex/_generated/dataModel';
+import type { Id } from 'convex/_generated/dataModel';
 
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');

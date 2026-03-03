@@ -94,6 +94,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_target', ['targetId', 'targetType'])
+    .index('by_target_createdAt', ['targetId', 'targetType', 'createdAt'])
     .index('by_reporter', ['reporterId'])
     .index('by_reporter_createdAt', ['reporterId', 'createdAt'])
     // Compound index for O(1) duplicate-report check (replaces by_target scan + filter)

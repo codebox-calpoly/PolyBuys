@@ -4,6 +4,7 @@ import type { Id } from './_generated/dataModel';
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_REPORTS_PER_DAY = 10;
+const MAX_TARGET_REPORTS_PER_DAY = 30;
 const REPORT_THRESHOLD = 3; // Number of unique reporters before auto-hide
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -87,7 +88,19 @@ export const createReport = mutation({
       throw new ConvexError('Report limit reached. Please try again later.');
     }
 
-    // 7. Create the report
+    // 7. Guard against flood attacks on a single target.
+    const recentTargetReports = await ctx.db
+      .query('reports')
+      .withIndex('by_target_createdAt', (q) =>
+        q.eq('targetId', args.targetId).eq('targetType', args.targetType).gt('createdAt', oneDayAgo)
+      )
+      .take(MAX_TARGET_REPORTS_PER_DAY + 1);
+
+    if (recentTargetReports.length >= MAX_TARGET_REPORTS_PER_DAY) {
+      throw new ConvexError('This content is already under review. Please try again later.');
+    }
+
+    // 8. Create the report
     const reportId = await ctx.db.insert('reports', {
       targetId: args.targetId,
       targetType: args.targetType,
@@ -97,7 +110,7 @@ export const createReport = mutation({
       createdAt: Date.now(),
     });
 
-    // 8. Check if content should be auto-hidden
+    // 9. Check if content should be auto-hidden
     // Use take(REPORT_THRESHOLD) — the dedup check above guarantees one row per
     // reporter per target, so row count == unique-reporter count. O(threshold)
     // instead of O(all reports on this target).

@@ -17,13 +17,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import type { Id } from '../../../backend/convex/_generated/dataModel';
+import type { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
 import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import { normalizeConvexId } from '../../utils/convexId';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -39,7 +40,7 @@ function getAppOrigin() {
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const listingId = normalizeConvexId(id);
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const entranceStyle = useEntranceAnimation();

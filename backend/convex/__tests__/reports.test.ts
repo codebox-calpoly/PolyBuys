@@ -230,6 +230,38 @@ describe('Reports mutations', () => {
     }).rejects.toThrow('Report limit reached. Please try again later.');
   });
 
+  it('createReport throttles report floods on a single target', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    for (let i = 0; i < 30; i += 1) {
+      const asUser = t.withIdentity({
+        name: `Reporter${i}`,
+        subject: `reporter-${i}`,
+        email: `reporter-${i}@calpoly.edu`,
+      });
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'spam',
+      });
+    }
+
+    const asUser31 = t.withIdentity({
+      name: 'Reporter31',
+      subject: 'reporter-31',
+      email: 'reporter-31@calpoly.edu',
+    });
+    await expect(async () => {
+      await asUser31.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'spam',
+      });
+    }).rejects.toThrow('This content is already under review. Please try again later.');
+  });
+
   it('createReport rejects invalid listing targetId', async () => {
     const t = convexTest(schema as any, modules);
 

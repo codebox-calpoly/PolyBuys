@@ -7,6 +7,7 @@ const PREVIEW_MAX_CHARS = 160;
 const RETENTION_DAYS = 30;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 const CLEANUP_BATCH = 200;
+const LEGACY_CONTENT_TYPES = ['listing', 'message'] as const;
 
 const REDACTION_PATTERNS: Array<[RegExp, string]> = [
   [/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]'],
@@ -155,8 +156,25 @@ export const logModerationResult = internalMutation({
       .query('moderationResults')
       .withIndex('by_expiresAt', (q) => q.lte('expiresAt', now))
       .take(CLEANUP_BATCH);
-    for (const row of expired) {
-      await ctx.db.delete(row._id);
+
+    // Legacy rows may have no expiresAt. Enforce retention by createdAt as fallback.
+    const retentionCutoff = now - RETENTION_MS;
+    const legacy = (
+      await Promise.all(
+        LEGACY_CONTENT_TYPES.map((contentType) =>
+          ctx.db
+            .query('moderationResults')
+            .withIndex('by_contentType', (q) =>
+              q.eq('contentType', contentType).lt('createdAt', retentionCutoff)
+            )
+            .take(CLEANUP_BATCH)
+        )
+      )
+    ).flat();
+
+    const idsToDelete = new Set([...expired, ...legacy].map((row) => row._id));
+    for (const rowId of idsToDelete) {
+      await ctx.db.delete(rowId);
     }
   },
 });

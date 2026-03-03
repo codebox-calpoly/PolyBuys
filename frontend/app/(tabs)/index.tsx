@@ -21,10 +21,17 @@ import { PriceRangePicker } from '../../components/PriceRangePicker';
 import ListingCard from '../../components/ListingCard';
 import type { Filters, Category } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
-import type { Doc } from '../../../backend/convex/_generated/dataModel';
+import type { Doc } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const PAGE_SIZE = 20;
+
+function getResultsTruncatedFlag(result: unknown): boolean {
+  if (!result || typeof result !== 'object' || !('resultsTruncated' in result)) {
+    return false;
+  }
+  return Boolean((result as { resultsTruncated?: boolean }).resultsTruncated);
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -86,8 +93,7 @@ export default function HomeScreen() {
       if (!processedCursorsRef.current.has(cursorId)) {
         if (cursor === null) {
           setAllListings(listingsResult.page);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setResultsTruncated(!!(listingsResult as any).resultsTruncated);
+          setResultsTruncated(getResultsTruncatedFlag(listingsResult));
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }

@@ -392,6 +392,7 @@ describe('Messages queries and mutations', () => {
       });
 
       expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(oldBuyerLastReadAt);
+      expect(conversationAfter!.updatedAt).toBe(conversationBefore!.updatedAt);
     });
 
     it('updates sellerLastReadAt when seller marks as read', async () => {
@@ -551,6 +552,51 @@ describe('Messages queries and mutations', () => {
       expect(messages).toHaveLength(2);
       expect(messages[0].body).toBe('Message 1');
       expect(messages[1].body).toBe('Message 2');
+    });
+  });
+
+  describe('messagesByConversationPaginated', () => {
+    it('returns latest messages first with a stable cursor', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      await t.run(async (ctx) => {
+        const base = Date.now();
+        for (let i = 1; i <= 4; i += 1) {
+          await ctx.db.insert('messages', {
+            conversationId,
+            listingId,
+            senderId: i % 2 === 0 ? seller.id : buyer.id,
+            recipientId: i % 2 === 0 ? buyer.id : seller.id,
+            type: 'text',
+            body: `Message ${i}`,
+            createdAt: base + i,
+            readAt: 0,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const firstPage = await asBuyer.query(api.messages.messagesByConversationPaginated, {
+        conversationId,
+        limit: 2,
+      });
+
+      expect(firstPage.items.map((m) => m.body)).toEqual(['Message 3', 'Message 4']);
+      expect(firstPage.nextCursor).not.toBeNull();
+
+      const secondPage = await asBuyer.query(api.messages.messagesByConversationPaginated, {
+        conversationId,
+        limit: 2,
+        cursor: firstPage.nextCursor!,
+      });
+
+      expect(secondPage.items.map((m) => m.body)).toEqual(['Message 1', 'Message 2']);
+      expect(secondPage.nextCursor).toBeNull();
     });
   });
 

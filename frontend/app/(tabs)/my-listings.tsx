@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { api } from 'convex/_generated/api';
-import type { Doc } from '../../../backend/convex/_generated/dataModel';
+import type { Doc } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 

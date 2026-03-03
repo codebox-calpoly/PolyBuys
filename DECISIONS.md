@@ -27,6 +27,8 @@ Last updated: 2026-03-03
 - **Participants:** explicit participant IDs in conversation model.
 - **Inbox snapshots:** keep last-message snapshot fields for fast inbox rendering.
 - **Read/unread strategy:** optimize for fast inbox counts with precise message-state behavior.
+- **Conversation ordering:** read acknowledgements do not bump conversation `updatedAt`; only message activity changes inbox order.
+- **History loading:** message thread history uses cursor pagination (`messagesByConversationPaginated`) rather than fixed caps.
 - **Migration strategy:** staged rollout + backfill/reconciliation, avoid hard cutovers.
 - **Retention:** keep all messages for now.
 
@@ -37,6 +39,7 @@ Last updated: 2026-03-03
 - Use batched backfill for large-table migrations.
 - Add upload timeout/error handling in image upload flow.
 - Use `reports.by_reporter_createdAt` for report rate-limit checks to avoid large reporter-history scans.
+- Use stable opaque cursors on manual listing pagination branches to reduce duplicate/skip behavior during concurrent writes.
 
 ## Deep Linking / Sharing Decisions
 
@@ -49,6 +52,8 @@ Last updated: 2026-03-03
 - Prioritize availability with fail-open moderation.
 - Maintain reporting + moderation audit paths.
 - Moderation audit stores hash + redacted preview (not raw text) with 30-day TTL cleanup.
+- Legacy moderation rows without TTL are pruned using createdAt retention fallback.
+- Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
 - Continue hardening against abusive query/resource patterns and report brigading.
 
 ## Branching Notes

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ListingCard from '../../components/ListingCard';
-import type { Doc } from '../../../backend/convex/_generated/dataModel';
+import type { Doc } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const PAGE_SIZE = 20;

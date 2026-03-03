@@ -8,9 +8,78 @@ export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
 
-const MAX_CONVERSATION_HISTORY = 500;
+const DEFAULT_MESSAGE_PAGE_SIZE = 50;
+const MAX_MESSAGE_PAGE_SIZE = 100;
 const MAX_READ_PATCH_BATCH = 1000;
 const UNREAD_CAP = 99;
+
+type MessageCursor = {
+  createdAt: number;
+  id: string;
+};
+
+function encodeMessageCursor(createdAt: number, id: string) {
+  return `${createdAt}|${id}`;
+}
+
+function parseMessageCursor(cursor: string | undefined): MessageCursor | null {
+  if (!cursor) {
+    return null;
+  }
+  const sep = cursor.indexOf('|');
+  if (sep === -1) {
+    throw new ConvexError('Invalid cursor');
+  }
+  const createdAt = Number.parseInt(cursor.slice(0, sep), 10);
+  const id = cursor.slice(sep + 1);
+  if (Number.isNaN(createdAt) || createdAt <= 0 || id.length === 0) {
+    throw new ConvexError('Invalid cursor');
+  }
+  return { createdAt, id };
+}
+
+async function runMessagingBackfillBatch(
+  ctx: MutationCtx,
+  args: {
+    convoCursor?: string;
+    messageCursor?: string;
+    batchSize: number;
+  }
+) {
+  const convoPage = await ctx.db.query('conversations').paginate({
+    cursor: args.convoCursor ?? null,
+    numItems: args.batchSize,
+  });
+
+  let conversationPatches = 0;
+  for (const convo of convoPage.page) {
+    if (!convo.participantIds || convo.participantIds.length !== 2) {
+      await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
+      conversationPatches += 1;
+    }
+  }
+
+  const messagePage = await ctx.db.query('messages').paginate({
+    cursor: args.messageCursor ?? null,
+    numItems: args.batchSize,
+  });
+
+  let messagePatches = 0;
+  for (const message of messagePage.page) {
+    if (!message.type) {
+      await ctx.db.patch(message._id, { type: 'text' });
+      messagePatches += 1;
+    }
+  }
+
+  return {
+    conversationPatches,
+    messagePatches,
+    nextConvoCursor: convoPage.isDone ? null : convoPage.continueCursor,
+    nextMessageCursor: messagePage.isDone ? null : messagePage.continueCursor,
+    done: convoPage.isDone && messagePage.isDone,
+  };
+}
 
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
 export const internalGetConversation = internalQuery({
@@ -346,9 +415,9 @@ export const markMessagesAsRead = mutation({
     const now = Date.now();
 
     if (isBuyer) {
-      await ctx.db.patch(convo._id, { buyerLastReadAt: now, updatedAt: now });
+      await ctx.db.patch(convo._id, { buyerLastReadAt: now });
     } else if (isSeller) {
-      await ctx.db.patch(convo._id, { sellerLastReadAt: now, updatedAt: now });
+      await ctx.db.patch(convo._id, { sellerLastReadAt: now });
     }
 
     // Drain all unread messages in batches until none remain.
@@ -384,40 +453,11 @@ export const backfillMessagingFields = internalMutation({
   },
   handler: async (ctx, args) => {
     const batchSize = Math.max(1, Math.min(args.batchSize ?? 200, 500));
-
-    const convoPage = await ctx.db.query('conversations').paginate({
-      cursor: args.convoCursor ?? null,
-      numItems: batchSize,
+    return await runMessagingBackfillBatch(ctx, {
+      convoCursor: args.convoCursor,
+      messageCursor: args.messageCursor,
+      batchSize,
     });
-
-    let conversationPatches = 0;
-    for (const convo of convoPage.page) {
-      if (!convo.participantIds || convo.participantIds.length !== 2) {
-        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
-        conversationPatches += 1;
-      }
-    }
-
-    const messagePage = await ctx.db.query('messages').paginate({
-      cursor: args.messageCursor ?? null,
-      numItems: batchSize,
-    });
-
-    let messagePatches = 0;
-    for (const message of messagePage.page) {
-      if (!message.type) {
-        await ctx.db.patch(message._id, { type: 'text' });
-        messagePatches += 1;
-      }
-    }
-
-    return {
-      conversationPatches,
-      messagePatches,
-      nextConvoCursor: convoPage.isDone ? null : convoPage.continueCursor,
-      nextMessageCursor: messagePage.isDone ? null : messagePage.continueCursor,
-      done: convoPage.isDone && messagePage.isDone,
-    };
   },
 });
 
@@ -439,36 +479,76 @@ export const driveBackfill = internalMutation({
     messageCursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const batchSize = 200;
-
-    const convoPage = await ctx.db.query('conversations').paginate({
-      cursor: args.convoCursor ?? null,
-      numItems: batchSize,
+    const result = await runMessagingBackfillBatch(ctx, {
+      convoCursor: args.convoCursor,
+      messageCursor: args.messageCursor,
+      batchSize: 200,
     });
-    for (const convo of convoPage.page) {
-      if (!convo.participantIds || convo.participantIds.length !== 2) {
-        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
-      }
-    }
-
-    const messagePage = await ctx.db.query('messages').paginate({
-      cursor: args.messageCursor ?? null,
-      numItems: batchSize,
-    });
-    for (const message of messagePage.page) {
-      if (!message.type) {
-        await ctx.db.patch(message._id, { type: 'text' });
-      }
-    }
-
-    const done = convoPage.isDone && messagePage.isDone;
-    if (!done) {
+    if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.messages.driveBackfill, {
-        convoCursor: convoPage.isDone ? undefined : convoPage.continueCursor,
-        messageCursor: messagePage.isDone ? undefined : messagePage.continueCursor,
+        convoCursor: result.nextConvoCursor ?? undefined,
+        messageCursor: result.nextMessageCursor ?? undefined,
       });
     }
-    return { done };
+    return { done: result.done };
+  },
+});
+
+export const messagesByConversationPaginated = query({
+  args: {
+    conversationId: v.id('conversations'),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireParticipant(ctx, args.conversationId);
+
+    const limit = Math.max(
+      1,
+      Math.min(args.limit ?? DEFAULT_MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE)
+    );
+    const parsedCursor = parseMessageCursor(args.cursor);
+    const FETCH = limit * 3 + 20;
+
+    const rows = parsedCursor
+      ? await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q) =>
+            q.eq('conversationId', args.conversationId).lte('createdAt', parsedCursor.createdAt)
+          )
+          .order('desc')
+          .take(FETCH)
+      : await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q) =>
+            q.eq('conversationId', args.conversationId)
+          )
+          .order('desc')
+          .take(FETCH);
+
+    let sorted = [...rows].sort((a, b) => b.createdAt - a.createdAt || (a._id < b._id ? 1 : -1));
+    if (parsedCursor) {
+      sorted = sorted.filter(
+        (m) =>
+          m.createdAt < parsedCursor.createdAt ||
+          (m.createdAt === parsedCursor.createdAt && m._id < parsedCursor.id)
+      );
+    }
+
+    const pageDesc = sorted.slice(0, limit);
+    const hasMore = sorted.length > limit;
+    const nextCursor =
+      hasMore && pageDesc.length > 0
+        ? encodeMessageCursor(
+            pageDesc[pageDesc.length - 1].createdAt,
+            pageDesc[pageDesc.length - 1]._id
+          )
+        : null;
+
+    return {
+      items: pageDesc.reverse(),
+      nextCursor,
+    };
   },
 });
 
@@ -482,6 +562,6 @@ export const messagesByConversation = query({
     return await ctx.db
       .query('messages')
       .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .take(MAX_CONVERSATION_HISTORY);
+      .take(MAX_MESSAGE_PAGE_SIZE);
   },
 });

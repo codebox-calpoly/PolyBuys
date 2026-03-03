@@ -1,88 +1,43 @@
-# Welcome to your Convex functions directory!
+# PolyBuys Convex Backend
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This directory contains all Convex schema and function code for PolyBuys.
 
-A query function that takes two arguments looks like:
+## Main Modules
 
-```ts
-// convex/myFunctions.ts
-import { query } from './_generated/server';
-import { v } from 'convex/values';
+- `schema.ts`: canonical data model and indexes.
+- `auth.ts`, `ResendOTP.ts`: Cal Poly OTP auth provider wiring.
+- `listings.ts`: listing CRUD, search/filter, and pagination.
+- `messages.ts`: conversations, message send/read, inbox queries, migrations.
+- `reports.ts`: abuse reporting, duplicate checks, auto-hide policy.
+- `moderation.ts`: OpenAI moderation calls + fail-open audit logging.
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
+## Local Commands
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query('tablename').collect();
+From repo root:
 
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
-
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
+```bash
+npm run dev:backend
+npm run typecheck --workspace=backend
+npm run build --workspace=backend
+npm run deploy --workspace=backend -- --dry-run --typecheck enable
 ```
 
-Using this query function in a React component looks like:
+## Operational Notes
 
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: 'hello',
-});
-```
+- Moderation policy is fail-open: OpenAI outages should not block listing/message flows.
+- Report auto-hide threshold is 3 unique reporters.
+- Messaging schema supports `text` + `system` message types.
+- Backfill entrypoint for messaging compatibility fields:
+  - `npx convex run messages:startBackfill`
 
-A mutation function looks like:
+## Security and Data Handling
 
-```ts
-// convex/myFunctions.ts
-import { mutation } from './_generated/server';
-import { v } from 'convex/values';
+- Authenticated access is required for write operations.
+- Report and message/listing payloads are bounded to prevent runaway resource use.
+- Moderation audit stores a text hash + redacted preview with TTL cleanup.
+- Never store secrets in repo files. Configure env vars in deployment/runtime.
 
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
+## Troubleshooting
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert('messages', message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get('messages', id);
-  },
-});
-```
-
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: 'Hello!', second: 'me' });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: 'Hello!', second: 'me' }).then((result) => console.log(result));
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.
+- If deploy dry-run fails with network/DNS errors, verify runner egress and Convex endpoint reachability.
+- If generated API types drift, run `npm run dev:backend` to regenerate `convex/_generated`.

@@ -13,11 +13,12 @@ import {
 import { useAction, useQuery } from 'convex/react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
-import type { Id } from '../../../../backend/convex/_generated/dataModel';
+import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { normalizeConvexId } from '../../../utils/convexId';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
@@ -42,7 +43,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 export default function EditListingScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
+  const listingId = normalizeConvexId(id);
   const listing = useQuery(
     api.listings.getListing,
     listingId ? { id: listingId as Id<'listings'> } : 'skip'
