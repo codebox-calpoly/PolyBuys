@@ -48,7 +48,6 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
-    .index('by_seller_createdAt', ['sellerId', 'createdAt'])
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])
@@ -119,7 +118,7 @@ export default defineSchema({
     senderId: v.string(), // Auth identity subject
     recipientId: v.string(), // Auth identity subject
     body: v.string(),
-    type: v.optional(v.string()),
+    type: v.optional(v.union(v.literal('text'), v.literal('system'))),
     createdAt: v.number(),
     readAt: v.number(),
   })

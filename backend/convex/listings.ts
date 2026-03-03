@@ -3,6 +3,7 @@ import { query, mutation, action, internalMutation, internalQuery } from './_gen
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
+import { isCalPolyEmail } from '@polybuys/shared';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -568,8 +569,15 @@ export const internalCreateListing = internalMutation({
     condition: conditionValidator,
     tags: v.optional(v.array(v.string())),
     sellerId: v.string(),
+    sellerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Defense-in-depth: verify sellerEmail is a Cal Poly address if supplied.
+    // The OTP flow already enforces this, but guard here too so the field can
+    // never be written with an invalid domain (e.g. via internal callers).
+    if (args.sellerEmail && !isCalPolyEmail(args.sellerEmail)) {
+      throw new ConvexError('Seller email must be a @calpoly.edu address');
+    }
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
       title: args.title,
@@ -580,6 +588,7 @@ export const internalCreateListing = internalMutation({
       condition: args.condition,
       tags: args.tags,
       sellerId: args.sellerId,
+      sellerEmail: args.sellerEmail,
       status: 'active',
       createdAt: now,
       postedOn: now,
@@ -648,6 +657,7 @@ export const createListing = action({
       condition: args.condition,
       tags: normalizedTags,
       sellerId: identity.subject,
+      sellerEmail: identity.email ?? undefined,
     });
 
     return listingId;
@@ -691,10 +701,7 @@ export const updateListing = action({
     category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
   },
-  handler: async (
-    ctx,
-    args
-  ): Promise<{ ok: true } | { ok: false; reason: 'moderation_blocked' }> => {
+  handler: async (ctx, args): Promise<void> => {
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -770,7 +777,9 @@ export const updateListing = action({
     });
 
     if (moderationResult.flagged) {
-      return { ok: false, reason: 'moderation_blocked' };
+      throw new ConvexError(
+        'Your listing contains content that violates our community guidelines. Please revise and try again.'
+      );
     }
 
     // Persist via internal mutation
@@ -792,8 +801,6 @@ export const updateListing = action({
         tags: update.tags as string[] | undefined,
       },
     });
-
-    return { ok: true };
   },
 });
 
@@ -858,25 +865,6 @@ export const getMyHiddenListings = query({
         q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
-  },
-});
-
-// Get current user's listings for management (includes hidden/inactive/sold, excludes deleted)
-export const getMyListings = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to view your listings');
-    }
-
-    const listings = await ctx.db
-      .query('listings')
-      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', identity.subject))
-      .order('desc')
-      .collect();
-
-    return listings.filter((listing) => listing.status !== 'deleted');
   },
 });
 

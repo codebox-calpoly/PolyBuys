@@ -9,7 +9,9 @@ export const PAYLOAD_BOUNDS = {
 };
 
 const MAX_CONVERSATION_HISTORY = 500;
-const MAX_USER_CONVERSATIONS = 400;
+// Per-side inbox fetch cap. Each user can be buyer OR seller, so up to 2x this
+// many rows are merged in memory. Keep small to stay within Convex query budget.
+const MAX_INBOX_PER_SIDE = 50;
 const MAX_READ_PATCH_BATCH = 1000;
 
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
@@ -28,7 +30,7 @@ export const internalSendMessage = internalMutation({
     senderId: v.string(),
     recipientId: v.string(),
     body: v.string(),
-    type: v.string(),
+    type: v.union(v.literal('text'), v.literal('system')),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -57,7 +59,7 @@ export const sendMessage = action({
   args: {
     conversationId: v.id('conversations'),
     body: v.string(),
-    type: v.optional(v.string()),
+    type: v.optional(v.union(v.literal('text'), v.literal('system'))),
   },
   handler: async (ctx, args): Promise<{ messageId: string }> => {
     // Validate message body length
@@ -118,31 +120,6 @@ export const sendMessage = action({
   },
 });
 
-//Debug helper for local testing
-export const debugCreateConversationID = internalMutation({
-  args: {
-    listingId: v.id('listings'),
-    buyerId: v.id('users'),
-    sellerId: v.id('users'),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-
-    const conversationId = await ctx.db.insert('conversations', {
-      listingId: args.listingId,
-      buyerId: args.buyerId,
-      sellerId: args.sellerId,
-      participantIds: [args.buyerId, args.sellerId],
-      createdAt: now,
-      updatedAt: now,
-      buyerLastReadAt: now,
-      sellerLastReadAt: now,
-    });
-
-    return { conversationId };
-  },
-});
-
 //Retrieve all messages for a conversation with conversationID in chronological order
 export const getConversationHistory = query({
   args: {
@@ -176,18 +153,18 @@ export const listUserConversations = query({
       .query('conversations')
       .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
       .order('desc')
-      .take(MAX_USER_CONVERSATIONS);
+      .take(MAX_INBOX_PER_SIDE);
 
     const sellerConvos = await ctx.db
       .query('conversations')
       .withIndex('by_seller', (q) => q.eq('sellerId', userId))
       .order('desc')
-      .take(MAX_USER_CONVERSATIONS);
+      .take(MAX_INBOX_PER_SIDE);
 
     const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
     const sorted = [...deduped.values()]
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, MAX_USER_CONVERSATIONS);
+      .slice(0, MAX_INBOX_PER_SIDE * 2);
 
     const page = sorted.slice(offset, offset + limit);
     const items = [];

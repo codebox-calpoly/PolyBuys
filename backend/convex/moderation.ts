@@ -29,6 +29,11 @@ export const moderateContent = internalAction({
     let flagged = false;
     let categories: Record<string, boolean> = {};
 
+    // 8-second timeout — consistent with fail-open policy: a hung API must never
+    // block a listing or message from going through (DECISIONS.md: fail-open).
+    const controller = new AbortController();
+    const moderationTimeout = setTimeout(() => controller.abort(), 8_000);
+
     try {
       const response = await fetch(OPENAI_MODERATION_URL, {
         method: 'POST',
@@ -40,7 +45,9 @@ export const moderateContent = internalAction({
           model: 'omni-moderation-latest',
           input: args.text,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(moderationTimeout);
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => 'unknown');
@@ -61,7 +68,8 @@ export const moderateContent = internalAction({
       flagged = result.flagged ?? false;
       categories = result.categories ?? {};
     } catch (error) {
-      // Graceful degradation: API unreachable, network error, etc.
+      clearTimeout(moderationTimeout);
+      // Graceful degradation: timeout (AbortError), network failure, etc.
       console.warn('[moderation] OpenAI API call failed — allowing content through:', error);
       return { flagged: false, categories: {} };
     }

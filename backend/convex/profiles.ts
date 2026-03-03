@@ -9,20 +9,7 @@ export const PAYLOAD_BOUNDS = {
   BIO_MAX: 500,
   MAJOR_MIN: 1,
   MAJOR_MAX: 100,
-  HIDDEN_REASON_MAX: 500,
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
-  MIN_RATING: 0,
-  MAX_RATING: 5,
 };
-
-function normalizeEmailInput(email: string) {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized || !normalized.includes('@')) {
-    throw new ConvexError('Please provide a valid email address');
-  }
-  return normalized;
-}
 
 /**
  * Sanitizes a profile to only include public fields.
@@ -46,10 +33,16 @@ function toPublicProfile(profile: Doc<'profiles'>) {
 export const getProfiles = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const result = await ctx.db.query('profiles').paginate(args.paginationOpts);
+    // Filter hidden profiles at the DB level so pagination page sizes are accurate.
+    // Post-paginate filtering would silently return fewer than numItems per page,
+    // breaking infinite-scroll consumers.
+    const result = await ctx.db
+      .query('profiles')
+      .filter((q) => q.neq(q.field('isHidden'), true))
+      .paginate(args.paginationOpts);
 
-    // Filter out hidden profiles and sanitize
-    const publicProfiles = result.page.filter((profile) => !profile.isHidden).map(toPublicProfile);
+    // Sanitize PII before returning
+    const publicProfiles = result.page.map(toPublicProfile);
 
     return {
       ...result,
@@ -76,15 +69,12 @@ export const getProfilebyName = query({
   },
 });
 
-// Get the current authenticated user's full profile (including non-public fields)
-export const getCurrentProfile = query({
+// Get the current authenticated user's own full profile (includes hidden/hiddenReason)
+export const getMyProfile = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
+    if (!identity) return null;
     return await ctx.db
       .query('profiles')
       .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
@@ -96,7 +86,6 @@ export const getCurrentProfile = query({
 export const createProfile = mutation({
   args: {
     name: v.string(),
-    email: v.optional(v.string()),
     bio: v.optional(v.string()),
     picture: v.optional(v.id('_storage')),
     major: v.string(),
@@ -107,10 +96,13 @@ export const createProfile = mutation({
     if (!identity) {
       throw new ConvexError('You must be logged in to create a profile');
     }
-    const emailFromIdentity = identity.email?.toLowerCase().trim();
-    const email = args.email ? normalizeEmailInput(args.email) : emailFromIdentity;
+    if (!identity.email) {
+      throw new ConvexError('Authenticated user email is required to create a profile');
+    }
+
+    const email = identity.email.toLowerCase().trim();
     if (!email) {
-      throw new ConvexError('Email is required to create a profile');
+      throw new ConvexError('Authenticated user email is required to create a profile');
     }
 
     // Validate inputs
@@ -141,15 +133,11 @@ export const createProfile = mutation({
 
     const profileId = await ctx.db.insert('profiles', {
       userId: identity.subject,
-      name: args.name,
-      email,
-      bio: args.bio,
-      picture: args.picture,
-      major: args.major,
-      year: args.year,
       joinDate: Date.now(),
       rating: 0,
       review_count: 0,
+      email,
+      ...args,
     });
 
     return profileId;
@@ -160,17 +148,10 @@ export const createProfile = mutation({
 export const updateProfile = mutation({
   args: {
     name: v.optional(v.string()),
-    email: v.optional(v.string()),
     bio: v.optional(v.string()),
     picture: v.optional(v.id('_storage')),
     major: v.optional(v.string()),
     year: v.optional(v.number()),
-    joinDate: v.optional(v.number()),
-    rating: v.optional(v.number()),
-    review_count: v.optional(v.number()),
-    isHidden: v.optional(v.boolean()),
-    hiddenAt: v.optional(v.number()),
-    hiddenReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -196,9 +177,6 @@ export const updateProfile = mutation({
       }
       update.name = args.name;
     }
-    if (args.email !== undefined) {
-      update.email = normalizeEmailInput(args.email);
-    }
     if (args.bio !== undefined) {
       if (args.bio.length > PAYLOAD_BOUNDS.BIO_MAX) {
         throw new ConvexError(`Bio must be ${PAYLOAD_BOUNDS.BIO_MAX} characters or less`);
@@ -217,59 +195,7 @@ export const updateProfile = mutation({
       }
       update.major = args.major;
     }
-    if (args.year !== undefined) {
-      if (
-        !Number.isInteger(args.year) ||
-        args.year < PAYLOAD_BOUNDS.MIN_YEAR ||
-        args.year > PAYLOAD_BOUNDS.MAX_YEAR
-      ) {
-        throw new ConvexError(
-          `Year must be an integer between ${PAYLOAD_BOUNDS.MIN_YEAR} and ${PAYLOAD_BOUNDS.MAX_YEAR}`
-        );
-      }
-      update.year = args.year;
-    }
-    if (args.joinDate !== undefined) {
-      if (!Number.isFinite(args.joinDate) || args.joinDate < 0) {
-        throw new ConvexError('Join date must be a valid timestamp');
-      }
-      update.joinDate = args.joinDate;
-    }
-    if (args.rating !== undefined) {
-      if (
-        !Number.isFinite(args.rating) ||
-        args.rating < PAYLOAD_BOUNDS.MIN_RATING ||
-        args.rating > PAYLOAD_BOUNDS.MAX_RATING
-      ) {
-        throw new ConvexError(
-          `Rating must be between ${PAYLOAD_BOUNDS.MIN_RATING} and ${PAYLOAD_BOUNDS.MAX_RATING}`
-        );
-      }
-      update.rating = args.rating;
-    }
-    if (args.review_count !== undefined) {
-      if (!Number.isInteger(args.review_count) || args.review_count < 0) {
-        throw new ConvexError('Review count must be a non-negative integer');
-      }
-      update.review_count = args.review_count;
-    }
-    if (args.isHidden !== undefined) {
-      update.isHidden = args.isHidden;
-    }
-    if (args.hiddenAt !== undefined) {
-      if (!Number.isFinite(args.hiddenAt) || args.hiddenAt < 0) {
-        throw new ConvexError('Hidden timestamp must be a valid timestamp');
-      }
-      update.hiddenAt = args.hiddenAt;
-    }
-    if (args.hiddenReason !== undefined) {
-      if (args.hiddenReason.length > PAYLOAD_BOUNDS.HIDDEN_REASON_MAX) {
-        throw new ConvexError(
-          `Hidden reason must be ${PAYLOAD_BOUNDS.HIDDEN_REASON_MAX} characters or less`
-        );
-      }
-      update.hiddenReason = args.hiddenReason;
-    }
+    if (args.year !== undefined) update.year = args.year;
 
     if (Object.keys(update).length === 0) {
       throw new ConvexError('No valid fields to update');
@@ -303,13 +229,6 @@ export const setProfilePicture = mutation({
     if (!profile) throw new ConvexError('Profile not found');
 
     await ctx.db.patch(profile._id, { picture: args.storageId });
-  },
-});
-
-export const getProfilePictureUrl = query({
-  args: { storageId: v.id('_storage') },
-  handler: async (ctx, args) => {
-    return await ctx.storage.getUrl(args.storageId);
   },
 });
 

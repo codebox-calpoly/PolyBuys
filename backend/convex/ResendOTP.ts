@@ -9,8 +9,6 @@ import { ConvexError } from 'convex/values';
  * Resend OTP Email Provider for Cal Poly authentication
  * Sends an 8-digit verification code that expires in 15 minutes
  */
-const resendFromAddress = process.env.AUTH_RESEND_FROM ?? process.env.RESEND_FROM;
-
 export const ResendOTP = Email({
   id: 'resend-otp',
   apiKey: process.env.AUTH_RESEND_KEY,
@@ -33,19 +31,6 @@ export const ResendOTP = Email({
       throw new ConvexError('Email service not configured. Please contact support.');
     }
 
-    // Validate sender is configured to a verified domain address in Resend
-    if (!resendFromAddress) {
-      throw new ConvexError(
-        'Email sender not configured. Set AUTH_RESEND_FROM in Convex env to a verified sender address.'
-      );
-    }
-
-    if (resendFromAddress.toLowerCase().includes('onboarding@resend.dev')) {
-      throw new ConvexError(
-        'Email sender is still set to Resend test mode. Use AUTH_RESEND_FROM with your verified domain (for example: PolyBuys <noreply@polybuys.com>).'
-      );
-    }
-
     // Validate Cal Poly email domain
     if (!isCalPolyEmail(email)) {
       throw new ConvexError('Email must be a @calpoly.edu address');
@@ -54,7 +39,7 @@ export const ResendOTP = Email({
     const resend = new ResendAPI(provider.apiKey);
 
     const { error } = await resend.emails.send({
-      from: resendFromAddress,
+      from: 'PolyBuys <onboarding@resend.dev>',
       to: [email],
       subject: 'Your PolyBuys verification code',
       text: `Your verification code is: ${token}
@@ -84,8 +69,15 @@ If you didn't request this code, you can safely ignore this email.`,
     });
 
     if (error) {
-      console.error('Resend error:', error);
-      throw new ConvexError('Failed to send verification email. Please try again.');
+      console.error('Resend API error:', JSON.stringify(error, null, 2));
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        statusCode: (error as { statusCode?: number }).statusCode,
+      });
+      throw new ConvexError(
+        `Failed to send verification email: ${error.message || 'Unknown error'}. Please try again.`
+      );
     }
   },
 });

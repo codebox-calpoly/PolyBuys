@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { api, internal } from '../_generated/api';
+import { api } from '../_generated/api';
 import {
   createConvexTest,
   createTestUser,
@@ -647,19 +647,16 @@ describe('Messages queries and mutations', () => {
     });
   });
 
-  describe('debugCreateConversationID', () => {
-    it('creates a conversation with provided IDs', async () => {
+  describe('getOrCreateConversation', () => {
+    it('creates a conversation with explicit participantIds (per DECISIONS.md)', async () => {
       const t = createConvexTest();
 
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
 
-      const result = await t.mutation(internal.messages.debugCreateConversationID, {
-        listingId,
-        buyerId: buyer.id,
-        sellerId: seller.id,
-      });
+      const asBuyer = t.withIdentity(buyer.identity);
+      const result = await asBuyer.mutation(api.messages.getOrCreateConversation, { listingId });
 
       expect(result.conversationId).toBeDefined();
 
@@ -672,6 +669,35 @@ describe('Messages queries and mutations', () => {
         buyerId: buyer.id,
         sellerId: seller.id,
       });
+      // DECISIONS.md: explicit participant IDs must be stored on the conversation
+      expect(conversation?.participantIds).toEqual(expect.arrayContaining([buyer.id, seller.id]));
+      expect(conversation?.participantIds).toHaveLength(2);
+    });
+
+    it('is idempotent — returns the same conversationId on repeat calls', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const first = await asBuyer.mutation(api.messages.getOrCreateConversation, { listingId });
+      const second = await asBuyer.mutation(api.messages.getOrCreateConversation, { listingId });
+
+      expect(first.conversationId).toBe(second.conversationId);
+    });
+
+    it('prevents a seller from messaging their own listing', async () => {
+      const t = createConvexTest();
+
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asSeller = t.withIdentity(seller.identity);
+      await expect(
+        asSeller.mutation(api.messages.getOrCreateConversation, { listingId })
+      ).rejects.toThrow("You can't message yourself");
     });
   });
 });
