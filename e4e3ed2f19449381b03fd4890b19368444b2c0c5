@@ -1,0 +1,23 @@
+.github/workflows/ci.yml
+  68805151f4fc8bb2 29-31,65-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "e4e3ed2f19449381b03fd4890b19368444b2c0c5",
+  "prompts": {
+    "68805151f4fc8bb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0c13fe96-d503-4235-8cb8-6d5332549ee9",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 2,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
