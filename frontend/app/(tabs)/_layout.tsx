@@ -1,5 +1,5 @@
 import { Link, Slot, usePathname } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 type WebTab = {
@@ -79,28 +79,32 @@ export default function TabsLayout() {
     >
       <NativeTabs.Trigger name="index" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Label>Home</Label>
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="search" role="search" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Label>Search</Label>
-        <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />
+        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="my-listings" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Label>My Listings</Label>
-        <Icon sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }} />
+        <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }}
+        />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="inbox" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Label>Inbox</Label>
-        <Icon sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }} />
+        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings" disableScrollToTop>
         {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Label>Profile</Label>
-        <Icon sf={{ default: 'person.circle', selected: 'person.circle.fill' }} />
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.circle', selected: 'person.circle.fill' }}
+        />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
