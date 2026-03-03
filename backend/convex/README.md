@@ -25,10 +25,14 @@ npm run deploy --workspace=backend -- --dry-run --typecheck enable
 ## Operational Notes
 
 - Moderation policy is fail-open: OpenAI outages should not block listing/message flows.
+- Degraded moderation events are enqueued in `shadowModerationQueue` for retry checks and alerting.
 - Report auto-hide threshold is 3 unique reporters.
 - Messaging schema supports `text` + `system` message types.
 - Backfill entrypoint for messaging compatibility fields:
   - `npx convex run messages:startBackfill`
+- Shadow moderation queue drain entrypoint:
+  - `npx convex run moderation:processShadowModerationQueue`
+  - Run this on a periodic job (or via Convex cron) to process pending retries.
 
 ## Security and Data Handling
 

@@ -6,6 +6,7 @@ Last updated: 2026-03-03
 
 - **Access policy:** Cal Poly email requirement is mandatory.
 - **Moderation policy:** fail-open (if moderation provider is unavailable, core flows continue).
+- **Fail-open control:** degraded moderation events enqueue shadow re-checks with retry + alerting.
 - **Reporting policy:** auto-hide content at 3 unique reporter threshold.
 - **Demo scope:** full marketplace demo includes listings, messaging, reports, shareable links, and deep linking.
 
@@ -53,6 +54,8 @@ Last updated: 2026-03-03
 - Maintain reporting + moderation audit paths.
 - Moderation audit stores hash + redacted preview (not raw text) with 30-day TTL cleanup.
 - Legacy moderation rows without TTL are pruned using createdAt retention fallback.
+- Degraded moderation now enqueues content into `shadowModerationQueue` for retries and emits `moderationAlerts`.
+- Shadow queue should be processed by a periodic runner (`moderation:processShadowModerationQueue`) for retry drain.
 - Add per-target daily report flood cap to reduce brigading pressure on a single item/profile.
 - Continue hardening against abusive query/resource patterns and report brigading.
 

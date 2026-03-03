@@ -145,4 +145,42 @@ export default defineSchema({
     .index('by_userId', ['userId'])
     .index('by_contentType', ['contentType', 'createdAt'])
     .index('by_expiresAt', ['expiresAt']),
+
+  shadowModerationQueue: defineTable({
+    contentType: v.union(v.literal('listing'), v.literal('message')),
+    contentId: v.string(),
+    userId: v.string(),
+    reason: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('completed'),
+      v.literal('flagged'),
+      v.literal('failed')
+    ),
+    attemptCount: v.number(),
+    nextAttemptAt: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    processingStartedAt: v.optional(v.number()),
+  })
+    .index('by_content', ['contentType', 'contentId'])
+    .index('by_status_nextAttemptAt', ['status', 'nextAttemptAt'])
+    .index('by_createdAt', ['createdAt']),
+
+  moderationAlerts: defineTable({
+    alertType: v.union(
+      v.literal('provider_degraded'),
+      v.literal('shadow_flagged'),
+      v.literal('shadow_failed')
+    ),
+    contentType: v.optional(v.union(v.literal('listing'), v.literal('message'))),
+    contentId: v.optional(v.string()),
+    queueId: v.optional(v.id('shadowModerationQueue')),
+    detail: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_type_createdAt', ['alertType', 'createdAt'])
+    .index('by_queueId', ['queueId']),
 });

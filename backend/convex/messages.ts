@@ -182,6 +182,20 @@ export const sendMessage = action({
       type: 'text',
     });
 
+    if (moderationResult.degraded) {
+      try {
+        await ctx.runMutation(internal.moderation.enqueueShadowModeration, {
+          contentType: 'message',
+          contentId: result.messageId,
+          userId,
+          reason: moderationResult.degradeReason ?? 'provider_degraded',
+        });
+      } catch (error) {
+        // Keep messaging fail-open even if queueing fails.
+        console.warn('[moderation] unable to enqueue shadow moderation for message:', error);
+      }
+    }
+
     return result;
   },
 });

@@ -759,6 +759,20 @@ export const createListing = action({
       sellerEmail: identity.email ?? undefined,
     });
 
+    if (moderationResult.degraded) {
+      try {
+        await ctx.runMutation(internal.moderation.enqueueShadowModeration, {
+          contentType: 'listing',
+          contentId: listingId,
+          userId: identity.subject,
+          reason: moderationResult.degradeReason ?? 'provider_degraded',
+        });
+      } catch (error) {
+        // Keep listing creation fail-open even if queueing fails.
+        console.warn('[moderation] unable to enqueue shadow moderation for listing create:', error);
+      }
+    }
+
     return listingId;
   },
 });
@@ -900,6 +914,20 @@ export const updateListing = action({
         tags: update.tags as string[] | undefined,
       },
     });
+
+    if (moderationResult.degraded) {
+      try {
+        await ctx.runMutation(internal.moderation.enqueueShadowModeration, {
+          contentType: 'listing',
+          contentId: args.id,
+          userId: identity.subject,
+          reason: moderationResult.degradeReason ?? 'provider_degraded',
+        });
+      } catch (error) {
+        // Keep listing updates fail-open even if queueing fails.
+        console.warn('[moderation] unable to enqueue shadow moderation for listing update:', error);
+      }
+    }
   },
 });
 

@@ -168,7 +168,7 @@ export default function ListingDetailScreen() {
               style={styles.imageCarouselScroll}
               contentContainerStyle={styles.imageCarouselContent}
             >
-              {listing.images.map((_, i) =>
+              {listing.images.map((_imageId: string, i: number) =>
                 mappedUrls[i] ? (
                   <Image
                     key={i}
@@ -225,7 +225,7 @@ export default function ListingDetailScreen() {
 
         {listing.tags && listing.tags.length > 0 && (
           <View style={styles.tagContainer}>
-            {listing.tags.map((tag) => (
+            {listing.tags.map((tag: string) => (
               <Pressable
                 key={tag}
                 style={({ pressed }) => [styles.tag, pressed && styles.tagPressed]}
