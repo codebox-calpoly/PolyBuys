@@ -1,0 +1,57 @@
+frontend/app/listings/new.tsx
+  e7e0a8757cd0d00b 23-39,114-115
+frontend/app/(tabs)/inbox.tsx
+  68805151f4fc8bb2 1
+  e7e0a8757cd0d00b 2-68
+frontend/app/(tabs)/my-listings.tsx
+  e7e0a8757cd0d00b 1-290
+frontend/app/listings/[id].tsx
+  e7e0a8757cd0d00b 26,58,164-169
+frontend/app/(tabs)/_layout.tsx
+  e7e0a8757cd0d00b 6-7,13-15,47,95-110,116
+backend/convex/profiles.ts
+  e7e0a8757cd0d00b 12-16,19-26,79-91,99,110-111,113,144-149,163,168-173,199-200,220-230,232-272,309-312
+backend/convex/listings.ts
+  e7e0a8757cd0d00b 680,756,778-779,847-865
+backend/convex/schema.ts
+  e7e0a8757cd0d00b 51
+frontend/app/auth/login.tsx
+  e7e0a8757cd0d00b 14,35,39,65-66,80,113
+frontend/app/listings/[id]/edit.tsx
+  e7e0a8757cd0d00b 24-40,109,119-125,129-130
+frontend/app/(tabs)/settings.tsx
+  e7e0a8757cd0d00b 1,3,10-13,15-16,20-24,30-73,75-82,90,95-160,175-180,196-272,290,302-309,373-389,391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "c50375c690162914b3569706f76981869c4d59ec",
+  "prompts": {
+    "68805151f4fc8bb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0c13fe96-d503-4235-8cb8-6d5332549ee9",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "e7e0a8757cd0d00b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2e6deb66-5125-42fa-8310-d9db030af625",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 1044,
+      "total_deletions": 262,
+      "accepted_lines": 836,
+      "overriden_lines": 0
+    }
+  }
+}
