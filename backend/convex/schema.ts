@@ -61,7 +61,6 @@ export default defineSchema({
       'condition',
       'createdAt',
     ])
-    .index('by_tag', ['tags'])
     .index('by_seller', ['sellerId', 'createdAt'])
     .searchIndex('search_listings', {
       searchField: 'title',

@@ -60,7 +60,9 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Report listing</Text>
+          <Text style={styles.title}>
+            Report {targetType === 'listing' ? 'listing' : 'profile'}
+          </Text>
           <Text style={styles.subtitle}>Select a reason (required)</Text>
 
           {REASONS.map((r) => (

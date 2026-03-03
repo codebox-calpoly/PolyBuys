@@ -48,6 +48,9 @@ export default function EditListingScreen() {
     listingId ? { id: listingId as Id<'listings'> } : 'skip'
   );
   const updateListing = useAction(api.listings.updateListing);
+  // Query the current user's subject to enforce owner-only access before
+  // exposing any form data. Returns null for unauthenticated users.
+  const currentUserSubject = useQuery(api.listings.getCurrentUserSubject, {});
   const entranceStyle = useEntranceAnimation();
 
   const [title, setTitle] = useState('');
@@ -141,6 +144,20 @@ export default function EditListingScreen() {
   }
 
   if (listing === null) {
+    return <ListingUnavailable />;
+  }
+
+  // Ownership guard — block non-owners from seeing pre-filled form data.
+  // currentUserSubject is undefined while loading; null means not authenticated.
+  if (currentUserSubject === undefined) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="small" color="#154734" />
+        <Text style={styles.loadingText}>Checking access...</Text>
+      </View>
+    );
+  }
+  if (currentUserSubject !== listing.sellerId) {
     return <ListingUnavailable />;
   }
 

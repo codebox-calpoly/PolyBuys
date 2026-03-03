@@ -139,7 +139,7 @@ export default function ListingDetailScreen() {
           property="og:description"
           content={`$${listing.price} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
         />
-        <meta property="og:url" content={`${appOrigin}/listings/${listing._id}`} />
+        <meta property="og:url" content={`${appOrigin}/l/${listing._id}`} />
       </Head>
 
       {Platform.OS === 'web' && (
@@ -159,11 +159,34 @@ export default function ListingDetailScreen() {
       <Animated.View style={[styles.card, entranceStyle]}>
         {isHiddenOwnerView && <HiddenBanner />}
 
-        {listing.images.length > 0 && mappedUrls[0] ? (
-          <Image source={{ uri: mappedUrls[0] }} style={styles.heroImage} resizeMode="cover" />
-        ) : listing.images.length > 0 ? (
-          <View style={styles.placeholderImage}>
-            <Text style={styles.placeholderText}>Loading image...</Text>
+        {listing.images.length > 0 ? (
+          <View style={styles.imageCarouselContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.imageCarouselScroll}
+              contentContainerStyle={styles.imageCarouselContent}
+            >
+              {listing.images.map((_, i) =>
+                mappedUrls[i] ? (
+                  <Image
+                    key={i}
+                    source={{ uri: mappedUrls[i] }}
+                    style={styles.carouselImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View key={i} style={[styles.carouselImage, styles.carouselImagePlaceholder]}>
+                    <Text style={styles.placeholderText}>Loading...</Text>
+                  </View>
+                )
+              )}
+            </ScrollView>
+            {listing.images.length > 1 && (
+              <View style={styles.imageCounterPill}>
+                <Text style={styles.imageCounterText}>{listing.images.length} photos</Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.placeholderImage}>
@@ -331,12 +354,41 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 2,
   },
-  heroImage: {
-    width: '100%',
+  imageCarouselContainer: {
+    marginBottom: 14,
+    position: 'relative',
+  },
+  imageCarouselScroll: {
+    borderRadius: 14,
+  },
+  imageCarouselContent: {
+    gap: 10,
+  },
+  carouselImage: {
+    width: 280,
     height: 280,
     borderRadius: 14,
-    marginBottom: 14,
     backgroundColor: '#e8ece9',
+  },
+  carouselImagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#dce6e1',
+  },
+  imageCounterPill: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  imageCounterText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   placeholderImage: {
     width: '100%',

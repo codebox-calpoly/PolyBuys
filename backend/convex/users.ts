@@ -58,26 +58,28 @@ export const updateUserProfile = mutation({
       throw new ConvexError('User not found');
     }
 
-    await ctx.db.patch(userId, {
-      email: normalizedUser.email,
-      name: args.name ?? undefined,
-      createdAt: authUser.createdAt ?? authUser._creationTime,
-      emailVerified: authUser.emailVerified ?? false,
-    });
-
-    const updatedUser = await ctx.db.get(userId);
-    const updatedNormalizedUser = toPublicUser(updatedUser);
-    if (!updatedNormalizedUser) {
-      throw new ConvexError('User not found');
+    const newName = args.name ?? undefined;
+    // Only patch when the name actually changed — avoids spurious reactive
+    // invalidations for all useQuery(getCurrentUser) subscribers.
+    if (authUser.name !== newName) {
+      await ctx.db.patch(userId, { name: newName });
     }
 
-    return updatedNormalizedUser;
+    // Build return from known values; no second DB round-trip needed.
+    return { ...normalizedUser, name: newName ?? null };
   },
 });
 
 /**
- * Get or create user profile after authentication
- * Called when user successfully authenticates via OTP
+ * Get or create user profile after authentication.
+ *
+ * @deprecated No longer called by the frontend — Convex Auth handles user
+ * creation automatically. Retained for backward compatibility and existing
+ * test coverage. When removing, also drop the corresponding suite in
+ * users.test.ts.
+ *
+ * Only patches fields that have drifted from the current record to avoid
+ * spurious reactive invalidations for getCurrentUser subscribers.
  */
 export const getOrCreateUser = mutation({
   args: {},
@@ -93,19 +95,22 @@ export const getOrCreateUser = mutation({
       throw new ConvexError('Auth user not found');
     }
 
-    await ctx.db.patch(userId, {
-      email: normalizedUser.email,
-      createdAt: authUser.createdAt ?? authUser._creationTime,
-      emailVerified: authUser.emailVerified ?? false,
-      name: authUser.name ?? undefined,
-    });
-
-    const updatedUser = await ctx.db.get(userId);
-    const updatedNormalizedUser = toPublicUser(updatedUser);
-    if (!updatedNormalizedUser) {
-      throw new ConvexError('Auth user not found');
+    const wantEmail = normalizedUser.email;
+    const wantCreatedAt = authUser.createdAt ?? authUser._creationTime;
+    const wantEmailVerified = authUser.emailVerified ?? false;
+    if (
+      authUser.email !== wantEmail ||
+      authUser.createdAt !== wantCreatedAt ||
+      (authUser.emailVerified ?? false) !== wantEmailVerified
+    ) {
+      await ctx.db.patch(userId, {
+        email: wantEmail,
+        createdAt: wantCreatedAt,
+        emailVerified: wantEmailVerified,
+        name: authUser.name ?? undefined,
+      });
     }
 
-    return updatedNormalizedUser;
+    return normalizedUser;
   },
 });

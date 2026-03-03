@@ -4,7 +4,10 @@
     "details": [
       {
         "appID": "B2469T42RM.com.polybuy.app",
-        "paths": ["/listings/*", "/l/*"]
+        "paths": [
+          "/listings/*",
+          "/l/*"
+        ]
       }
     ]
   }

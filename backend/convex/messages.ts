@@ -117,23 +117,6 @@ export const sendMessage = action({
   },
 });
 
-//Retrieve all messages for a conversation with conversationID in chronological order
-export const getConversationHistory = query({
-  args: {
-    conversationId: v.id('conversations'),
-  },
-  handler: async (ctx, args) => {
-    await requireParticipant(ctx, args.conversationId);
-
-    const messages = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .take(MAX_CONVERSATION_HISTORY);
-
-    return messages;
-  },
-});
-
 // List user conversations with pagination + inbox payload.
 //
 // CURSOR FORMAT: "{updatedAt}|{_id}"

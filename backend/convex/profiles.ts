@@ -11,6 +11,8 @@ export const PAYLOAD_BOUNDS = {
   MAJOR_MAX: 100,
 };
 
+const MAX_PROFILE_NAME_MATCHES = 100;
+
 /**
  * Sanitizes a profile to only include public fields.
  * Filters out PII like email, hiddenReason, hiddenAt, userId.
@@ -58,7 +60,7 @@ export const getProfilebyName = query({
     const profiles = await ctx.db
       .query('profiles')
       .withIndex('by_name', (q) => q.eq('name', args.name))
-      .collect();
+      .take(MAX_PROFILE_NAME_MATCHES);
 
     if (profiles.length === 0) return null;
 
@@ -232,20 +234,6 @@ export const setProfilePicture = mutation({
   },
 });
 
-// View own active listings
-export const viewActiveListings = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError('You must be logged in');
-    return await ctx.db
-      .query('listings')
-      .filter((q) => q.eq(q.field('sellerId'), identity.subject))
-      .filter((q) => q.eq(q.field('status'), 'active'))
-      .collect();
-  },
-});
-
 // View user's rating and review count (public, non-hidden only)
 export const viewRatingReview = query({
   args: { name: v.string() },
@@ -253,7 +241,7 @@ export const viewRatingReview = query({
     const ratingReview = await ctx.db
       .query('profiles')
       .withIndex('by_name', (q) => q.eq('name', args.name))
-      .collect();
+      .take(MAX_PROFILE_NAME_MATCHES);
 
     // Filter out hidden profiles
     return ratingReview

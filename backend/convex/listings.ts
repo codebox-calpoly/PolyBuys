@@ -844,24 +844,6 @@ export const deleteListing = mutation({
   },
 });
 
-// Search listings by title
-// @deprecated Use searchAndFilterListings instead for better filtering and pagination support
-export const searchListings = query({
-  args: { searchTerm: v.string() },
-  handler: async (ctx, args) => {
-    const MAX_SEARCH_COLLECT = MAX_MANUAL_COLLECT;
-    const results = await ctx.db
-      .query('listings')
-      .withSearchIndex('search_listings', (q) =>
-        q.search('title', args.searchTerm).eq('status', 'active')
-      )
-      .take(MAX_SEARCH_COLLECT);
-
-    // Filter out hidden content
-    return results.filter((l) => l.isHidden !== true);
-  },
-});
-
 // Get user's own hidden listings (for owner awareness)
 export const getMyHiddenListings = query({
   args: {},
