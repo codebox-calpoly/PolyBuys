@@ -46,5 +46,8 @@
     "babel-preset-expo": "^55.0.10",
     "typescript": "^5.7.2"
   },
+  "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "1.31.1"
+  },
   "private": true
 }
