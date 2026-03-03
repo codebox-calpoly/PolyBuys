@@ -1,17 +1,33 @@
-import { useQuery } from 'convex/react';
+import { useConvex, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   Animated,
   FlatList,
+  ListRenderItem,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { api } from 'convex/_generated/api';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+
+type ConversationItem = {
+  conversationId: string;
+  listingId: string;
+  lastMessageAt: number;
+  lastMessagePreview: string;
+  unreadCount: number;
+  unreadCapped: boolean;
+  otherParticipant: {
+    id: string;
+    name: string | null;
+    avatar: string | null;
+  };
+};
 
 function formatTimestamp(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, {
@@ -24,11 +40,92 @@ function formatTimestamp(timestamp: number) {
 
 export default function InboxScreen() {
   const router = useRouter();
+  const convex = useConvex();
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const conversations = useQuery(
+  const latestPage = useQuery(
     api.messages.listUserConversations,
     isAuthenticated ? { limit: 30 } : 'skip'
+  );
+  const [olderItems, setOlderItems] = useState<ConversationItem[]>([]);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOlderItems([]);
+      setOlderCursor(null);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!latestPage || olderItems.length > 0 || olderCursor !== null) {
+      return;
+    }
+    setOlderCursor(latestPage.nextCursor);
+  }, [latestPage, olderCursor, olderItems.length]);
+
+  const items = useMemo(() => {
+    const merged = [...(latestPage?.items ?? []), ...olderItems];
+    const deduped = new Map<string, ConversationItem>();
+    for (const item of merged) {
+      if (!deduped.has(String(item.conversationId))) {
+        deduped.set(String(item.conversationId), item);
+      }
+    }
+    return [...deduped.values()].sort(
+      (a, b) =>
+        b.lastMessageAt - a.lastMessageAt ||
+        String(b.conversationId).localeCompare(String(a.conversationId))
+    );
+  }, [latestPage?.items, olderItems]);
+
+  async function loadOlderConversations() {
+    if (!olderCursor || isLoadingOlder) {
+      return;
+    }
+    try {
+      setIsLoadingOlder(true);
+      const olderPage = await convex.query(api.messages.listUserConversations, {
+        limit: 30,
+        cursor: olderCursor,
+      });
+      setOlderItems((prev) => [...prev, ...(olderPage.items as ConversationItem[])]);
+      setOlderCursor(olderPage.nextCursor);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }
+
+  const renderConversation: ListRenderItem<ConversationItem> = ({ item }) => (
+    <Pressable
+      style={({ pressed }) => [styles.conversationRow, pressed && styles.buttonPressed]}
+      onPress={() =>
+        router.push({
+          pathname: '/messages/[id]',
+          params: { id: String(item.conversationId) },
+        })
+      }
+    >
+      <View style={styles.rowTop}>
+        <Text style={styles.otherName} numberOfLines={1}>
+          {item.otherParticipant.name?.trim() || 'PolyBuys user'}
+        </Text>
+        <Text style={styles.timestamp}>{formatTimestamp(item.lastMessageAt)}</Text>
+      </View>
+      <View style={styles.rowBottom}>
+        <Text style={styles.previewText} numberOfLines={1}>
+          {item.lastMessagePreview || 'No messages yet'}
+        </Text>
+        {item.unreadCount > 0 && (
+          <View style={styles.unreadPill}>
+            <Text style={styles.unreadText}>
+              {item.unreadCapped ? `${item.unreadCount}+` : String(item.unreadCount)}
+            </Text>
+          </View>
+        )}
+      </View>
+    </Pressable>
   );
 
   if (!isAuthenticated && !isLoading) {
@@ -46,7 +143,7 @@ export default function InboxScreen() {
     );
   }
 
-  if (isLoading || (isAuthenticated && conversations === undefined)) {
+  if (isLoading || (isAuthenticated && latestPage === undefined)) {
     return (
       <View style={styles.centeredState}>
         <ActivityIndicator size="small" color="#154734" />
@@ -54,8 +151,6 @@ export default function InboxScreen() {
       </View>
     );
   }
-
-  const items = conversations?.items ?? [];
 
   return (
     <FlatList
@@ -76,36 +171,26 @@ export default function InboxScreen() {
           <Text style={styles.emptyBody}>Start by messaging a seller from a listing.</Text>
         </View>
       }
-      renderItem={({ item }) => (
-        <Pressable
-          style={({ pressed }) => [styles.conversationRow, pressed && styles.buttonPressed]}
-          onPress={() =>
-            router.push({
-              pathname: '/messages/[id]',
-              params: { id: String(item.conversationId) },
-            })
-          }
-        >
-          <View style={styles.rowTop}>
-            <Text style={styles.otherName} numberOfLines={1}>
-              {item.otherParticipant.name?.trim() || 'PolyBuys user'}
+      renderItem={renderConversation}
+      ListFooterComponent={
+        olderCursor ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.loadOlderButton,
+              isLoadingOlder && styles.loadOlderButtonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => {
+              void loadOlderConversations();
+            }}
+            disabled={isLoadingOlder}
+          >
+            <Text style={styles.loadOlderText}>
+              {isLoadingOlder ? 'Loading...' : 'Load older conversations'}
             </Text>
-            <Text style={styles.timestamp}>{formatTimestamp(item.lastMessageAt)}</Text>
-          </View>
-          <View style={styles.rowBottom}>
-            <Text style={styles.previewText} numberOfLines={1}>
-              {item.lastMessagePreview || 'No messages yet'}
-            </Text>
-            {item.unreadCount > 0 && (
-              <View style={styles.unreadPill}>
-                <Text style={styles.unreadText}>
-                  {item.unreadCapped ? `${item.unreadCount}+` : String(item.unreadCount)}
-                </Text>
-              </View>
-            )}
-          </View>
-        </Pressable>
-      )}
+          </Pressable>
+        ) : null
+      }
     />
   );
 }
@@ -188,6 +273,24 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 8,
     marginBottom: 10,
+  },
+  loadOlderButton: {
+    alignSelf: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d0dfd8',
+    backgroundColor: '#edf5f1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 6,
+  },
+  loadOlderButtonDisabled: {
+    opacity: 0.55,
+  },
+  loadOlderText: {
+    color: '#1f5140',
+    fontSize: 13,
+    fontWeight: '600',
   },
   rowTop: {
     flexDirection: 'row',
