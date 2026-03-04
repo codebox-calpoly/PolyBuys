@@ -27,9 +27,56 @@ type OtpProviderActionCtx = {
   };
   runMutation: (mutationRef: unknown, args: unknown) => Promise<unknown>;
 };
+type SendVerificationRequestParams = {
+  identifier: string;
+  provider: {
+    apiKey?: string;
+  };
+  token: string;
+  url?: string;
+  request?: unknown;
+};
 
 function normalizeOtpEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function isOtpProviderActionCtx(value: unknown): value is OtpProviderActionCtx {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const maybeCtx = value as {
+    auth?: { getUserIdentity?: unknown };
+    runMutation?: unknown;
+  };
+  return (
+    !!maybeCtx.auth &&
+    typeof maybeCtx.auth === 'object' &&
+    typeof maybeCtx.auth.getUserIdentity === 'function' &&
+    typeof maybeCtx.runMutation === 'function'
+  );
+}
+
+function isAuthJsSendVerificationShape(value: unknown): value is SendVerificationRequestParams {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const maybeParams = value as {
+    identifier?: unknown;
+    token?: unknown;
+    url?: unknown;
+    request?: unknown;
+  };
+  const hasRequestObject =
+    typeof Request === 'undefined'
+      ? maybeParams.request !== undefined
+      : maybeParams.request instanceof Request;
+  return (
+    typeof maybeParams.identifier === 'string' &&
+    typeof maybeParams.token === 'string' &&
+    typeof maybeParams.url === 'string' &&
+    hasRequestObject
+  );
 }
 
 export const enforceOtpSendRateLimit = internalMutation({
@@ -153,20 +200,8 @@ export const ResendOTP = Email({
     return generateRandomString(random, alphabet, length);
   },
 
-  async sendVerificationRequest(
-    {
-      identifier: email,
-      provider,
-      token,
-    }: {
-      identifier: string;
-      provider: {
-        apiKey?: string;
-      };
-      token: string;
-    },
-    ...rest: unknown[]
-  ) {
+  async sendVerificationRequest(params: SendVerificationRequestParams, ...rest: unknown[]) {
+    const { identifier: email, provider, token } = params;
     // Validate API key is configured
     if (!provider.apiKey) {
       throw new ConvexError('Email service not configured. Please contact support.');
@@ -192,8 +227,9 @@ export const ResendOTP = Email({
       throw new ConvexError('Email must be a @calpoly.edu address');
     }
 
-    const actionCtx = rest[0] as OtpProviderActionCtx | undefined;
-    if (actionCtx) {
+    const actionCtxCandidate = rest[0];
+    if (isOtpProviderActionCtx(actionCtxCandidate)) {
+      const actionCtx = actionCtxCandidate;
       const identity = await actionCtx.auth.getUserIdentity();
       // Convex provider callbacks do not expose client IP; use authenticated user id
       // when available, otherwise fall back to the normalized destination email.
@@ -204,6 +240,10 @@ export const ResendOTP = Email({
         email: normalizedEmail,
         identityKey,
       });
+    } else if (isAuthJsSendVerificationShape(params)) {
+      // Auth.js-style invocations may not include Convex ctx as a second arg.
+      // Avoid runtime crashes; enforce provider-side checks and continue.
+      console.warn('Resend OTP rate-limit telemetry skipped: Convex action context unavailable');
     }
 
     const resend = new ResendAPI(provider.apiKey);

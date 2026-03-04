@@ -115,16 +115,14 @@ describe('Profiles pagination hardening', () => {
     }).rejects.toThrow('numItems must be between 1 and 100');
   });
 
-  it('getProfiles rejects malformed cursors', async () => {
+  it('getProfiles forwards opaque cursor values to Convex pagination', async () => {
     const t = convexTest(schema as any, modules);
 
-    await expect(async () => {
-      await t.query(api.profiles.getProfiles, {
-        paginationOpts: {
-          numItems: 20,
-          cursor: 'bad-cursor!',
-        },
-      });
-    }).rejects.toThrow('invalid cursor format');
+    await t.query(api.profiles.getProfiles, {
+      paginationOpts: {
+        numItems: 20,
+        cursor: 'bad-cursor!',
+      },
+    });
   });
 });

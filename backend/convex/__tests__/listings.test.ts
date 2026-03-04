@@ -286,6 +286,32 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('You must complete your profile setup before creating a listing');
   });
 
+  it('createListing fails when authenticated identity has no email', async () => {
+    const t = await setupTestWithProfiles();
+
+    await t.run(async (ctx: any) => {
+      await ctx.db.insert('profiles', {
+        userId: 'no-email-id',
+        name: 'No Email',
+        email: 'no-email@calpoly.edu',
+        major: 'Computer Science',
+        year: 2025,
+        joinDate: Date.now(),
+        rating: 0,
+        review_count: 0,
+      });
+    });
+
+    const asUserWithoutEmail = t.withIdentity({
+      name: 'No Email',
+      subject: 'no-email-id',
+    });
+
+    await expect(async () => {
+      await asUserWithoutEmail.action(api.listings.createListing, baseArgs);
+    }).rejects.toThrowError('Seller email must be a @calpoly.edu address');
+  });
+
   it('generateListingImageUploadUrl enforces per-user 15 minute rate limit', async () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);

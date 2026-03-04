@@ -36,7 +36,9 @@ function validateYear(year: number) {
 }
 
 function isLikelyConvexNativeCursor(cursor: string) {
-  return cursor === '_end_cursor' || /^[A-Za-z0-9]+$/.test(cursor);
+  // Convex cursors are opaque. Accept any non-empty string and let Convex
+  // perform authoritative cursor validation during paginate().
+  return cursor === '_end_cursor' || cursor.length > 0;
 }
 
 function validateProfilePaginationOrThrow(paginationOpts: {

@@ -1019,13 +1019,13 @@ export const internalCreateListing = internalMutation({
     condition: conditionValidator,
     tags: v.optional(v.array(v.string())),
     sellerId: v.string(),
-    sellerEmail: v.optional(v.string()),
+    sellerEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    // Defense-in-depth: verify sellerEmail is a Cal Poly address if supplied.
+    // Defense-in-depth: verify sellerEmail is a Cal Poly address.
     // The OTP flow already enforces this, but guard here too so the field can
     // never be written with an invalid domain (e.g. via internal callers).
-    if (args.sellerEmail && !isCalPolyEmail(args.sellerEmail)) {
+    if (!isCalPolyEmail(args.sellerEmail)) {
       throw new ConvexError('Seller email must be a @calpoly.edu address');
     }
     const now = Date.now();
@@ -1062,6 +1062,10 @@ export const createListing = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError('You must be logged in to create a listing');
+    }
+    const sellerEmail = identity.email?.trim();
+    if (!sellerEmail || !isCalPolyEmail(sellerEmail)) {
+      throw new ConvexError('Seller email must be a @calpoly.edu address');
     }
 
     // Verify user has completed profile setup
@@ -1107,7 +1111,7 @@ export const createListing = action({
       condition: args.condition,
       tags: normalizedTags,
       sellerId: identity.subject,
-      sellerEmail: identity.email ?? undefined,
+      sellerEmail,
     });
 
     if (moderationResult.degraded) {
