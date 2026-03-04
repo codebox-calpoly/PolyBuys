@@ -17,6 +17,7 @@ const SHADOW_MAX_BATCH = 50;
 const SHADOW_MAX_ATTEMPTS = 6;
 const SHADOW_RETRY_BASE_MS = 30_000;
 const SHADOW_RETRY_MAX_MS = 30 * 60 * 1000;
+const SHADOW_PROCESSING_STALE_MS = 5 * 60 * 1000;
 const SHADOW_REDACTED_MESSAGE = '[Message removed by automated safety review]';
 
 type ContentType = 'listing' | 'message';
@@ -333,6 +334,63 @@ export const claimShadowModerationItem = internalMutation({
   },
 });
 
+export const requeueStaleShadowModerationItems = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const staleCutoff = now - SHADOW_PROCESSING_STALE_MS;
+    const limit = Math.max(1, Math.min(args.limit ?? SHADOW_DEFAULT_BATCH, SHADOW_MAX_BATCH));
+    const scanLimit = Math.min(SHADOW_MAX_BATCH * 3, limit * 3);
+
+    const processing = await ctx.db
+      .query('shadowModerationQueue')
+      .withIndex('by_status_nextAttemptAt', (q) => q.eq('status', 'processing'))
+      .take(scanLimit);
+
+    let requeued = 0;
+    let failed = 0;
+    for (const row of processing) {
+      if (requeued + failed >= limit) {
+        break;
+      }
+      const startedAt = row.processingStartedAt ?? row.updatedAt;
+      if (startedAt > staleCutoff) {
+        continue;
+      }
+
+      if (row.attemptCount >= SHADOW_MAX_ATTEMPTS) {
+        await ctx.db.patch(row._id, {
+          status: 'failed',
+          nextAttemptAt: now,
+          lastError: 'processing_timeout',
+          processingStartedAt: undefined,
+          updatedAt: now,
+        });
+        await insertModerationAlert(ctx, {
+          alertType: 'shadow_failed',
+          contentType: row.contentType,
+          contentId: row.contentId,
+          queueId: row._id,
+          detail: 'processing_timeout',
+        });
+        failed += 1;
+        continue;
+      }
+
+      await ctx.db.patch(row._id, {
+        status: 'pending',
+        nextAttemptAt: now + computeShadowRetryDelayMs(row.attemptCount),
+        lastError: 'processing_timeout',
+        processingStartedAt: undefined,
+        updatedAt: now,
+      });
+      requeued += 1;
+    }
+
+    return { scanned: processing.length, requeued, failed };
+  },
+});
+
 export const resolveShadowModerationText = internalQuery({
   args: {
     contentType: v.union(v.literal('listing'), v.literal('message')),
@@ -507,6 +565,7 @@ export const processShadowModerationQueue = internalAction({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args): Promise<{ processed: number; scanned: number }> => {
     const limit = Math.max(1, Math.min(args.limit ?? SHADOW_DEFAULT_BATCH, SHADOW_MAX_BATCH));
+    await ctx.runMutation(internal.moderation.requeueStaleShadowModerationItems, { limit });
     const dueItems: Array<Pick<Doc<'shadowModerationQueue'>, '_id' | 'contentType' | 'contentId'>> =
       await ctx.runQuery(internal.moderation.getDueShadowModerationItems, { limit });
 

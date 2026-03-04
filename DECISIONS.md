@@ -8,7 +8,7 @@ Last updated: 2026-03-03
 - **Access enforcement:** backend profile creation validates `@calpoly.edu` identity email before persistence.
 - **Moderation policy:** fail-open (if moderation provider is unavailable, core flows continue).
 - **Fail-open control:** degraded moderation events enqueue shadow re-checks with retry + alerting.
-- **Reporting policy:** auto-hide content at 3 qualified unique reporters. A report counts toward the 3-report threshold only when the reporter meets anti-brigading eligibility checks (minimum account age, verified/trust-score threshold), passes per-reporter rate limits, and is not de-duplicated as a related account.
+- **Reporting policy:** auto-hide content at 3 qualified unique reporters. A report counts toward the 3-report threshold only when the reporter has a visible profile linked to a `@calpoly.edu` email, the profile is at least 1 hour old, the report passes per-reporter rate limits, and the reporter is not de-duplicated as a related account (canonical email key, including plus-alias collapse).
 - **Reporting exceptions/appeals workflow (example):** when auto-hide triggers, keep content hidden and open a moderator review task with report metadata; if review finds brigading/false positives, unhide content and dismiss invalid reports; if review confirms policy violations, keep hidden and record enforcement rationale; sellers can appeal once, and appeal review is handled by a different moderator than the initial reviewer.
 - **Demo scope:** full marketplace demo includes listings, messaging, reports, shareable links, and deep linking.
 

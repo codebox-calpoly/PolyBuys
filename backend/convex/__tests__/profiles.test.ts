@@ -118,11 +118,17 @@ describe('Profiles pagination hardening', () => {
   it('getProfiles forwards opaque cursor values to Convex pagination', async () => {
     const t = convexTest(schema as any, modules);
 
-    await t.query(api.profiles.getProfiles, {
+    const result = await t.query(api.profiles.getProfiles, {
       paginationOpts: {
         numItems: 20,
         cursor: 'bad-cursor!',
       },
     });
+
+    expect(result).toMatchObject({
+      isDone: true,
+      page: [],
+    });
+    expect(typeof result.continueCursor).toBe('string');
   });
 });

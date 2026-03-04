@@ -3,10 +3,6 @@ import { useConvex } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { Id } from 'convex/_generated/dataModel';
 
-function isRemoteUrl(value: string) {
-  return value.startsWith('http://') || value.startsWith('https://');
-}
-
 export function useResolvedImageUrls(imageIds: string[], listingId?: Id<'listings'>) {
   const convex = useConvex();
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string | null>>({});
@@ -22,7 +18,7 @@ export function useResolvedImageUrls(imageIds: string[], listingId?: Id<'listing
 
     async function resolveImageUrls() {
       const unresolved = imageIds.filter(
-        (storageId) => !isRemoteUrl(storageId) && resolvedUrlsRef.current[storageId] === undefined
+        (storageId) => resolvedUrlsRef.current[storageId] === undefined
       );
       if (unresolved.length === 0 || !listingId) {
         return;
@@ -64,10 +60,7 @@ export function useResolvedImageUrls(imageIds: string[], listingId?: Id<'listing
   }, [convex, imageIds, listingId]);
 
   const mappedUrls = useMemo(
-    () =>
-      imageIds.map((storageId) =>
-        isRemoteUrl(storageId) ? storageId : (resolvedUrls[storageId] ?? null)
-      ),
+    () => imageIds.map((storageId) => resolvedUrls[storageId] ?? null),
     [imageIds, resolvedUrls]
   );
 

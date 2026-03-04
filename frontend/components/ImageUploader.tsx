@@ -255,11 +255,7 @@ export default function ImageUploader({
   }
 
   async function uploadToConvex(blob: Blob, onProgress: (progress: number) => void) {
-    const uploadResult = await generateUploadUrl({});
-    if (!uploadResult.ok) {
-      throw new Error(uploadResult.message);
-    }
-    const uploadUrl = uploadResult.uploadUrl;
+    const { uploadUrl } = await generateUploadUrl({});
 
     const UPLOAD_TIMEOUT_MS = 30_000;
     return await new Promise<string>((resolve, reject) => {

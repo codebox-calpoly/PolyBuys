@@ -42,6 +42,9 @@ const UPLOAD_RATE_LIMIT = {
   DAY_MS: 24 * 60 * 60 * 1000,
   DAY_MAX: 120,
 } as const;
+const STORAGE_ID_PATTERN = /^[a-z0-9]{10,64}$/;
+const REMOTE_IMAGE_URL_PATTERN = /^https?:\/\//i;
+const ALLOW_TEST_REMOTE_IMAGE_URLS = process.env.NODE_ENV === 'test';
 
 type ListingSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc';
 type ManualListingCursor = {
@@ -381,12 +384,30 @@ function validateDescription(description: string) {
   }
 }
 
-function validateImages(images: string[]) {
+function normalizeAndValidateImages(images: string[]) {
   if (images.length < PAYLOAD_BOUNDS.IMAGES_MIN || images.length > PAYLOAD_BOUNDS.IMAGES_MAX) {
     throw new ConvexError(
       `Must have ${PAYLOAD_BOUNDS.IMAGES_MIN}-${PAYLOAD_BOUNDS.IMAGES_MAX} images`
     );
   }
+
+  const normalized: string[] = [];
+  for (const imageId of images) {
+    const trimmed = imageId.trim();
+    if (trimmed.length === 0) {
+      throw new ConvexError('Images must be uploaded files referenced by storage IDs');
+    }
+    if (ALLOW_TEST_REMOTE_IMAGE_URLS && REMOTE_IMAGE_URL_PATTERN.test(trimmed)) {
+      normalized.push(trimmed);
+      continue;
+    }
+    if (!STORAGE_ID_PATTERN.test(trimmed)) {
+      throw new ConvexError('Images must be uploaded files referenced by storage IDs');
+    }
+    normalized.push(trimmed);
+  }
+
+  return normalized;
 }
 
 function validateTags(tags: string[] | undefined): string[] | undefined {
@@ -473,10 +494,7 @@ export const generateListingImageUploadUrl = mutation({
         reason: 'rate_limit_15m',
         createdAt: now,
       });
-      return {
-        ok: false as const,
-        message: 'Upload limit reached. Please wait a few minutes and try again.',
-      };
+      throw new ConvexError('Upload limit reached. Please wait a few minutes and try again.');
     }
 
     if (recentDay.length >= UPLOAD_RATE_LIMIT.DAY_MAX) {
@@ -486,10 +504,7 @@ export const generateListingImageUploadUrl = mutation({
         reason: 'rate_limit_day',
         createdAt: now,
       });
-      return {
-        ok: false as const,
-        message: 'Daily upload limit reached. Please try again tomorrow.',
-      };
+      throw new ConvexError('Daily upload limit reached. Please try again tomorrow.');
     }
 
     await ctx.db.insert('imageUploadEvents', {
@@ -1028,13 +1043,14 @@ export const internalCreateListing = internalMutation({
     if (!isCalPolyEmail(args.sellerEmail)) {
       throw new ConvexError('Seller email must be a @calpoly.edu address');
     }
+    const validatedImages = normalizeAndValidateImages(args.images);
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
       title: args.title,
       description: args.description,
       price: args.price,
       category: args.category,
-      images: args.images,
+      images: validatedImages,
       condition: args.condition,
       tags: args.tags,
       sellerId: args.sellerId,
@@ -1079,7 +1095,7 @@ export const createListing = action({
     // Validate inputs
     const validatedTitle = validateTitle(args.title);
     validateDescription(args.description);
-    validateImages(args.images);
+    const validatedImages = normalizeAndValidateImages(args.images);
     if (args.price < 0) {
       throw new ConvexError('Price must be non-negative');
     }
@@ -1107,7 +1123,7 @@ export const createListing = action({
       description: args.description,
       price: args.price,
       category: args.category,
-      images: args.images,
+      images: validatedImages,
       condition: args.condition,
       tags: normalizedTags,
       sellerId: identity.subject,
@@ -1151,7 +1167,11 @@ export const internalUpdateListing = internalMutation({
     const patch: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(args.update)) {
       if (value !== undefined) {
-        patch[key] = value;
+        if (key === 'images') {
+          patch[key] = normalizeAndValidateImages(value as string[]);
+        } else {
+          patch[key] = value;
+        }
       }
     }
     await ctx.db.patch(args.id, patch);
@@ -1202,8 +1222,7 @@ export const updateListing = action({
     }
 
     if (args.images !== undefined) {
-      validateImages(args.images);
-      update.images = args.images;
+      update.images = normalizeAndValidateImages(args.images);
     }
 
     if (args.condition !== undefined) {

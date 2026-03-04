@@ -241,9 +241,15 @@ export const ResendOTP = Email({
         identityKey,
       });
     } else if (isAuthJsSendVerificationShape(params)) {
-      // Auth.js-style invocations may not include Convex ctx as a second arg.
-      // Avoid runtime crashes; enforce provider-side checks and continue.
-      console.warn('Resend OTP rate-limit telemetry skipped: Convex action context unavailable');
+      // Never bypass abuse controls: if the callback shape is Auth.js-style but
+      // we cannot access Convex mutation context, fail closed.
+      const errorRef = `otp_ctx_${Date.now().toString(36)}`;
+      console.error('Resend OTP rate-limit enforcement unavailable', { errorRef });
+      throw new ConvexError('Failed to send verification email. Please try again.');
+    } else {
+      const errorRef = `otp_ctx_${Date.now().toString(36)}`;
+      console.error('Resend OTP callback context is unsupported', { errorRef });
+      throw new ConvexError('Failed to send verification email. Please try again.');
     }
 
     const resend = new ResendAPI(provider.apiKey);

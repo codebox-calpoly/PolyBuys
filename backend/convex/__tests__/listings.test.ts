@@ -327,23 +327,9 @@ describe('Listings mutations', () => {
       }
     });
 
-    const result = await asUser.mutation(api.listings.generateListingImageUploadUrl, {});
-    expect(result).toEqual({
-      ok: false,
-      message: 'Upload limit reached. Please wait a few minutes and try again.',
-    });
-
-    const blocked = await t.run(async (ctx: any) => {
-      return await ctx.db
-        .query('imageUploadEvents')
-        .withIndex('by_user_type_createdAt', (q: any) =>
-          q.eq('userId', aliceIdentity.subject).eq('eventType', 'blocked')
-        )
-        .order('desc')
-        .take(1);
-    });
-    expect(blocked).toHaveLength(1);
-    expect(blocked[0].reason).toBe('rate_limit_15m');
+    await expect(
+      asUser.mutation(api.listings.generateListingImageUploadUrl, {})
+    ).rejects.toThrowError('Upload limit reached. Please wait a few minutes and try again.');
   });
 
   it('generateListingImageUploadUrl enforces per-user daily rate limit', async () => {
@@ -362,23 +348,9 @@ describe('Listings mutations', () => {
       }
     });
 
-    const result = await asUser.mutation(api.listings.generateListingImageUploadUrl, {});
-    expect(result).toEqual({
-      ok: false,
-      message: 'Daily upload limit reached. Please try again tomorrow.',
-    });
-
-    const blocked = await t.run(async (ctx: any) => {
-      return await ctx.db
-        .query('imageUploadEvents')
-        .withIndex('by_user_type_createdAt', (q: any) =>
-          q.eq('userId', aliceIdentity.subject).eq('eventType', 'blocked')
-        )
-        .order('desc')
-        .take(1);
-    });
-    expect(blocked).toHaveLength(1);
-    expect(blocked[0].reason).toBe('rate_limit_day');
+    await expect(
+      asUser.mutation(api.listings.generateListingImageUploadUrl, {})
+    ).rejects.toThrowError('Daily upload limit reached. Please try again tomorrow.');
   });
 
   it('updateListing allows the owner to update fields', async () => {

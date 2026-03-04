@@ -1,6 +1,6 @@
 import { v, ConvexError } from 'convex/values';
 import { mutation } from './_generated/server';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 
 const MAX_NOTES_LENGTH = 500;
@@ -11,6 +11,12 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_REPORT_KEY_DUPLICATE_SCAN = 25;
 const UNIQUE_REPORTER_SCAN_BATCH_SIZE = 50;
 const MAX_UNIQUE_REPORTER_SCAN = 500;
+const QUALIFIED_REPORTER_MIN_ACCOUNT_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+type ReporterQualification = {
+  eligible: boolean;
+  relatedAccountKey: string;
+};
 
 function isMalformedIdLookupError(error: unknown) {
   if (!(error instanceof Error)) {
@@ -26,6 +32,57 @@ function buildReportKey(targetType: 'listing' | 'profile', targetId: string, rep
   return `${targetType}|${targetId}|${reporterId}`;
 }
 
+function canonicalizeReporterEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.indexOf('@');
+  if (atIndex <= 0 || atIndex === normalized.length - 1) {
+    return null;
+  }
+
+  // Collapse plus aliases so closely-related addresses count once.
+  const localPart = normalized.slice(0, atIndex).split('+')[0];
+  const domainPart = normalized.slice(atIndex + 1);
+  if (localPart.length === 0) {
+    return null;
+  }
+  return `${localPart}@${domainPart}`;
+}
+
+async function getReporterQualification(args: {
+  ctx: MutationCtx;
+  reporterId: string;
+  now: number;
+  cache: Map<string, ReporterQualification>;
+}) {
+  const cached = args.cache.get(args.reporterId);
+  if (cached) {
+    return cached;
+  }
+
+  const profile: Doc<'profiles'> | null = await args.ctx.db
+    .query('profiles')
+    .withIndex('by_userId', (q) => q.eq('userId', args.reporterId))
+    .unique();
+
+  const canonicalEmail = profile?.email ? canonicalizeReporterEmail(profile.email) : null;
+  const relatedAccountKey = canonicalEmail ? `email:${canonicalEmail}` : `id:${args.reporterId}`;
+  let hasVisibleProfile = false;
+  let hasCalPolyEmail = false;
+  let hasMinimumAccountAge = false;
+  if (profile) {
+    hasVisibleProfile = profile.isHidden !== true;
+    hasCalPolyEmail = profile.email.trim().toLowerCase().endsWith('@calpoly.edu');
+    hasMinimumAccountAge = args.now - profile.joinDate >= QUALIFIED_REPORTER_MIN_ACCOUNT_AGE_MS;
+  }
+
+  const qualification: ReporterQualification = {
+    eligible: hasVisibleProfile && hasCalPolyEmail && hasMinimumAccountAge,
+    relatedAccountKey,
+  };
+  args.cache.set(args.reporterId, qualification);
+  return qualification;
+}
+
 async function hasAtLeastUniqueReportersForTarget(args: {
   ctx: MutationCtx;
   targetId: string;
@@ -34,10 +91,12 @@ async function hasAtLeastUniqueReportersForTarget(args: {
 }) {
   let cursor: string | null = null;
   let scanned = 0;
-  const uniqueReporterIds = new Set<string>();
+  const qualifiedReporterKeys = new Set<string>();
+  const qualificationCache = new Map<string, ReporterQualification>();
+  const now = Date.now();
 
   while (
-    uniqueReporterIds.size < args.minimumUniqueReporters &&
+    qualifiedReporterKeys.size < args.minimumUniqueReporters &&
     scanned < MAX_UNIQUE_REPORTER_SCAN
   ) {
     const page = await args.ctx.db
@@ -51,8 +110,17 @@ async function hasAtLeastUniqueReportersForTarget(args: {
       });
 
     for (const report of page.page) {
-      uniqueReporterIds.add(report.reporterId);
-      if (uniqueReporterIds.size >= args.minimumUniqueReporters) {
+      const qualification = await getReporterQualification({
+        ctx: args.ctx,
+        reporterId: report.reporterId,
+        now,
+        cache: qualificationCache,
+      });
+      if (!qualification.eligible) {
+        continue;
+      }
+      qualifiedReporterKeys.add(qualification.relatedAccountKey);
+      if (qualifiedReporterKeys.size >= args.minimumUniqueReporters) {
         return true;
       }
     }
@@ -64,7 +132,7 @@ async function hasAtLeastUniqueReportersForTarget(args: {
     cursor = page.continueCursor;
   }
 
-  return uniqueReporterIds.size >= args.minimumUniqueReporters;
+  return qualifiedReporterKeys.size >= args.minimumUniqueReporters;
 }
 
 async function hasAtLeastUniqueReportersForTargetSince(args: {
@@ -76,10 +144,12 @@ async function hasAtLeastUniqueReportersForTargetSince(args: {
 }) {
   let cursor: string | null = null;
   let scanned = 0;
-  const uniqueReporterIds = new Set<string>();
+  const qualifiedReporterKeys = new Set<string>();
+  const qualificationCache = new Map<string, ReporterQualification>();
+  const now = Date.now();
 
   while (
-    uniqueReporterIds.size < args.minimumUniqueReporters &&
+    qualifiedReporterKeys.size < args.minimumUniqueReporters &&
     scanned < MAX_UNIQUE_REPORTER_SCAN
   ) {
     const page = await args.ctx.db
@@ -96,8 +166,17 @@ async function hasAtLeastUniqueReportersForTargetSince(args: {
       });
 
     for (const report of page.page) {
-      uniqueReporterIds.add(report.reporterId);
-      if (uniqueReporterIds.size >= args.minimumUniqueReporters) {
+      const qualification = await getReporterQualification({
+        ctx: args.ctx,
+        reporterId: report.reporterId,
+        now,
+        cache: qualificationCache,
+      });
+      if (!qualification.eligible) {
+        continue;
+      }
+      qualifiedReporterKeys.add(qualification.relatedAccountKey);
+      if (qualifiedReporterKeys.size >= args.minimumUniqueReporters) {
         return true;
       }
     }
@@ -109,7 +188,7 @@ async function hasAtLeastUniqueReportersForTargetSince(args: {
     cursor = page.continueCursor;
   }
 
-  return uniqueReporterIds.size >= args.minimumUniqueReporters;
+  return qualifiedReporterKeys.size >= args.minimumUniqueReporters;
 }
 
 async function reconcileReportKeyDuplicates(args: {

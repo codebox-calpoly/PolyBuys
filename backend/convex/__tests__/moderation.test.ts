@@ -136,4 +136,40 @@ describe('Moderation shadow queue', () => {
       )
     ).toBe(true);
   });
+
+  it('requeues stale processing rows so they do not stay stuck forever', async () => {
+    const t = createConvexTest();
+    const seller = await createTestUser(t, 'seller4@calpoly.edu', 'Seller Four');
+    const listingId = await createTestListing(t, seller.id);
+
+    const now = Date.now();
+    const queueId = await t.run(async (ctx: any) => {
+      return await ctx.db.insert('shadowModerationQueue', {
+        contentType: 'listing',
+        contentId: listingId,
+        userId: seller.id,
+        reason: 'provider_timeout',
+        status: 'processing',
+        attemptCount: 1,
+        nextAttemptAt: now - 10_000,
+        createdAt: now - 10_000,
+        updatedAt: now - 10_000,
+        processingStartedAt: now - 10 * 60 * 1000,
+      });
+    });
+
+    const result = await t.mutation(internal.moderation.requeueStaleShadowModerationItems, {
+      limit: 10,
+    });
+    expect(result.requeued).toBeGreaterThanOrEqual(1);
+
+    const queueRow = await t.run(async (ctx: any) => {
+      return await ctx.db.get(queueId);
+    });
+    expect(queueRow).toMatchObject({
+      status: 'pending',
+      lastError: 'processing_timeout',
+    });
+    expect(queueRow?.processingStartedAt).toBeUndefined();
+  });
 });

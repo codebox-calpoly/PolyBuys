@@ -10,7 +10,7 @@ export const PAYLOAD_BOUNDS = {
 
 const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 const MAX_MESSAGE_PAGE_SIZE = 100;
-const MAX_READ_PATCH_BATCH = 1000;
+const MAX_READ_PATCH_BATCH = 250;
 const UNREAD_CAP = 99;
 const MESSAGE_MIN_INTERVAL_MS = 1_000;
 const MAX_CONVERSATION_DUPLICATE_SCAN = 25;
@@ -488,6 +488,32 @@ async function requireParticipant(
   return { userId, convo, isBuyer, isSeller };
 }
 
+async function patchUnreadMessagesBatch(args: {
+  ctx: MutationCtx;
+  conversationId: Id<'conversations'>;
+  recipientId: string;
+  readAt: number;
+}) {
+  const unreadBatch = await args.ctx.db
+    .query('messages')
+    .withIndex('by_conversation_recipient_readAt', (q) =>
+      q
+        .eq('conversationId', args.conversationId)
+        .eq('recipientId', args.recipientId)
+        .eq('readAt', 0)
+    )
+    .take(MAX_READ_PATCH_BATCH);
+
+  for (const msg of unreadBatch) {
+    await args.ctx.db.patch(msg._id, { readAt: args.readAt });
+  }
+
+  return {
+    patched: unreadBatch.length,
+    hasMore: unreadBatch.length === MAX_READ_PATCH_BATCH,
+  };
+}
+
 async function reconcileConversationDuplicates(
   ctx: MutationCtx,
   args: {
@@ -631,27 +657,52 @@ export const markMessagesAsRead = mutation({
       await ctx.db.patch(convo._id, { sellerLastReadAt: now });
     }
 
-    // Drain all unread messages in batches until none remain.
-    // Re-querying after each batch is correct because patching readAt to `now` (non-zero)
-    // removes those rows from the readAt=0 filter, so each iteration scans fresh rows.
-    // Common case (<1000 unread) finishes in one pass; heavy inboxes drain across passes.
-    let patched = 0;
-    for (;;) {
-      const batch = await ctx.db
-        .query('messages')
-        .withIndex('by_conversation_recipient_readAt', (q) =>
-          q.eq('conversationId', args.conversationId).eq('recipientId', userId).eq('readAt', 0)
-        )
-        .take(MAX_READ_PATCH_BATCH);
-      if (batch.length === 0) break;
-      for (const msg of batch) {
-        await ctx.db.patch(msg._id, { readAt: now });
-      }
-      patched += batch.length;
-      if (batch.length < MAX_READ_PATCH_BATCH) break; // fewer than full batch — done
+    // Cap per-call patch volume; continue in scheduler for very large unread sets.
+    const batchResult = await patchUnreadMessagesBatch({
+      ctx,
+      conversationId: args.conversationId,
+      recipientId: userId,
+      readAt: now,
+    });
+    if (batchResult.hasMore) {
+      await ctx.scheduler.runAfter(0, internal.messages.continueMarkMessagesAsRead, {
+        conversationId: args.conversationId,
+        recipientId: userId,
+        readAt: now,
+      });
     }
 
-    return { ok: true, patched };
+    return { ok: true, patched: batchResult.patched, deferred: batchResult.hasMore };
+  },
+});
+
+export const continueMarkMessagesAsRead = internalMutation({
+  args: {
+    conversationId: v.id('conversations'),
+    recipientId: v.string(),
+    readAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const convo = await ctx.db.get(args.conversationId);
+    if (!convo) {
+      return { ok: false, patched: 0, deferred: false };
+    }
+    if (args.recipientId !== convo.buyerId && args.recipientId !== convo.sellerId) {
+      return { ok: false, patched: 0, deferred: false };
+    }
+
+    const batchResult = await patchUnreadMessagesBatch({
+      ctx,
+      conversationId: args.conversationId,
+      recipientId: args.recipientId,
+      readAt: args.readAt,
+    });
+
+    if (batchResult.hasMore) {
+      await ctx.scheduler.runAfter(0, internal.messages.continueMarkMessagesAsRead, args);
+    }
+
+    return { ok: true, patched: batchResult.patched, deferred: batchResult.hasMore };
   },
 });
 

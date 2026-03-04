@@ -87,6 +87,22 @@ describe('Reports mutations', () => {
     });
   };
 
+  const createQualifiedReporterProfile = async (t: any, reporterId: string, email: string) => {
+    const oneHourAgo = Date.now() - 2 * 60 * 60 * 1000;
+    return await t.run(async (ctx: any) => {
+      return await ctx.db.insert('profiles', {
+        userId: reporterId,
+        name: `Reporter ${reporterId}`,
+        email,
+        joinDate: oneHourAgo,
+        major: 'Computer Science',
+        year: 2024,
+        rating: 5,
+        review_count: 0,
+      });
+    });
+  };
+
   it('createReport succeeds with valid listing report', async () => {
     const t = convexTest(schema as any, modules);
 
@@ -236,10 +252,13 @@ describe('Reports mutations', () => {
     const listingId = await createTestListing(t, 'seller-id');
 
     for (let i = 0; i < 30; i += 1) {
+      const reporterId = `reporter-${i}`;
+      const reporterEmail = `reporter-${i}@calpoly.edu`;
+      await createQualifiedReporterProfile(t, reporterId, reporterEmail);
       const asUser = t.withIdentity({
         name: `Reporter${i}`,
-        subject: `reporter-${i}`,
-        email: `reporter-${i}@calpoly.edu`,
+        subject: reporterId,
+        email: reporterEmail,
       });
       await asUser.mutation(api.reports.createReport, {
         targetId: listingId,
@@ -248,6 +267,7 @@ describe('Reports mutations', () => {
       });
     }
 
+    await createQualifiedReporterProfile(t, 'reporter-31', 'reporter-31@calpoly.edu');
     const asUser31 = t.withIdentity({
       name: 'Reporter31',
       subject: 'reporter-31',
@@ -362,6 +382,9 @@ describe('Reports mutations', () => {
     await createTestUser(t, 'reporter1@calpoly.edu');
     await createTestUser(t, 'reporter2@calpoly.edu');
     await createTestUser(t, 'reporter3@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter1-subject', 'reporter1@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter2-subject', 'reporter2@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter3-subject', 'reporter3@calpoly.edu');
 
     const listingId = await createTestListing(t, 'seller-id');
 
@@ -414,6 +437,8 @@ describe('Reports mutations', () => {
 
     await createTestUser(t, 'reporter1@calpoly.edu');
     await createTestUser(t, 'reporter2@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter1-subject', 'reporter1@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter2-subject', 'reporter2@calpoly.edu');
 
     const listingId = await createTestListing(t, 'seller-id');
 
@@ -452,6 +477,9 @@ describe('Reports mutations', () => {
 
     const listingId = await createTestListing(t, 'seller-id');
     const now = Date.now();
+    await createQualifiedReporterProfile(t, 'duplicate-reporter', 'duplicate@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter2-subject', 'reporter2@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter3-subject', 'reporter3@calpoly.edu');
 
     await t.run(async (ctx: any) => {
       await ctx.db.insert('reports', {
@@ -511,6 +539,9 @@ describe('Reports mutations', () => {
     await createTestUser(t, 'reporter1@calpoly.edu');
     await createTestUser(t, 'reporter2@calpoly.edu');
     await createTestUser(t, 'reporter3@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter1-subject', 'reporter1@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter2-subject', 'reporter2@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter3-subject', 'reporter3@calpoly.edu');
 
     const profileId = await createTestProfile(t, 'profile-user-id');
 
@@ -780,6 +811,9 @@ describe('Reports mutations', () => {
     await createTestUser(t, 'reporter1@calpoly.edu');
     await createTestUser(t, 'reporter2@calpoly.edu');
     await createTestUser(t, 'reporter3@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter1-subject', 'reporter1@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter2-subject', 'reporter2@calpoly.edu');
+    await createQualifiedReporterProfile(t, 'reporter3-subject', 'reporter3@calpoly.edu');
 
     const asUser1 = t.withIdentity({
       name: 'Reporter1',
