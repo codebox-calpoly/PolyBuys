@@ -55,6 +55,7 @@ export default function InboxScreen() {
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       loadOlderRequestIdRef.current += 1;

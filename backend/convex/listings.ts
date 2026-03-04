@@ -73,10 +73,6 @@ function isManualOpaqueCursor(cursor: string) {
   return cursor.startsWith(`${OPAQUE_CURSOR_PREFIX}|`);
 }
 
-function isLikelyConvexNativeCursor(cursor: string) {
-  return cursor === '_end_cursor' || /^[A-Za-z0-9]+$/.test(cursor);
-}
-
 function encodeFilterScanCursor(state: FilterScanCursor) {
   if (!state.cursor && state.skip === 0) {
     return null;
@@ -343,9 +339,7 @@ function validatePaginationOrThrow(paginationOpts: { numItems: number; cursor: s
       parseManualCursor(paginationOpts.cursor);
       return;
     }
-    if (!isLikelyConvexNativeCursor(paginationOpts.cursor)) {
-      throw new ConvexError(INVALID_CURSOR_FORMAT_MESSAGE);
-    }
+    // Native Convex cursors are opaque; forward unchanged and let Convex validate.
   }
 }
 

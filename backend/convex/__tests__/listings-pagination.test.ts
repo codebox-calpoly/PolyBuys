@@ -136,14 +136,16 @@ describe('Filtered pagination correctness', () => {
     expect(result.page[0].price).toBe(200);
   });
 
-  it('getListings rejects malformed cursor values', async () => {
+  it('getListings forwards opaque cursor strings to Convex pagination', async () => {
     const t = await setupTestWithProfile();
 
-    await expect(
-      t.query(api.listings.getListings, {
-        paginationOpts: { numItems: 10, cursor: '-1' },
-      })
-    ).rejects.toThrow('invalid cursor format');
+    const result = await t.query(api.listings.getListings, {
+      paginationOpts: { numItems: 10, cursor: '-1' },
+    });
+
+    expect(Array.isArray(result.page)).toBe(true);
+    expect(typeof result.isDone).toBe('boolean');
+    expect(typeof result.resultsTruncated).toBe('boolean');
   });
 
   it('getListings pagination cursor advances correctly with tag filtering', async () => {
@@ -234,15 +236,17 @@ describe('Filtered pagination correctness', () => {
     expect(page.continueCursor?.startsWith('scan1|')).toBe(true);
   });
 
-  it('searchAndFilterListings rejects malformed cursor values', async () => {
+  it('searchAndFilterListings forwards opaque cursor strings to Convex pagination', async () => {
     const t = await setupTestWithProfile();
 
-    await expect(
-      t.query(api.listings.searchAndFilterListings, {
-        filters: {},
-        paginationOpts: { numItems: 10, cursor: 'not-a-number' },
-      })
-    ).rejects.toThrow('invalid cursor format');
+    const result = await t.query(api.listings.searchAndFilterListings, {
+      filters: {},
+      paginationOpts: { numItems: 10, cursor: 'not-a-number' },
+    });
+
+    expect(Array.isArray(result.page)).toBe(true);
+    expect(typeof result.isDone).toBe('boolean');
+    expect(typeof result.resultsTruncated).toBe('boolean');
   });
 
   it('searchAndFilterListings rejects overly long search terms', async () => {

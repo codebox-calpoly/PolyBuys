@@ -307,40 +307,46 @@ export const listUserConversations = query({
     const cursorTs = parsedCursor?.updatedAt ?? 0;
     const cursorId = parsedCursor?.id ?? '';
 
-    let fetchSize = Math.min(
+    let FETCH = Math.min(
       MAX_CURSOR_WINDOW_FETCH,
       limit * CURSOR_WINDOW_FETCH_MULTIPLIER + CURSOR_WINDOW_FETCH_PADDING
     );
+    let buyerConvos: Doc<'conversations'>[] = [];
+    let sellerConvos: Doc<'conversations'>[] = [];
+    let deduped = new Map<Id<'conversations'>, Doc<'conversations'>>();
     let sorted: Doc<'conversations'>[] = [];
+    let page: Doc<'conversations'>[] = [];
+    let hasMore = false;
+    let endedAtFetchCap = false;
 
     for (;;) {
-      const [buyerConvos, sellerConvos] = await Promise.all([
+      [buyerConvos, sellerConvos] = await Promise.all([
         hasValidCursor
           ? ctx.db
               .query('conversations')
               .withIndex('by_buyer', (q) => q.eq('buyerId', userId).lte('updatedAt', cursorTs))
               .order('desc')
-              .take(fetchSize)
+              .take(FETCH)
           : ctx.db
               .query('conversations')
               .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
               .order('desc')
-              .take(fetchSize),
+              .take(FETCH),
         hasValidCursor
           ? ctx.db
               .query('conversations')
               .withIndex('by_seller', (q) => q.eq('sellerId', userId).lte('updatedAt', cursorTs))
               .order('desc')
-              .take(fetchSize)
+              .take(FETCH)
           : ctx.db
               .query('conversations')
               .withIndex('by_seller', (q) => q.eq('sellerId', userId))
               .order('desc')
-              .take(fetchSize),
+              .take(FETCH),
       ]);
 
       // Deduplicate (user can be buyer and seller simultaneously) and sort desc
-      const deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
+      deduped = new Map([...buyerConvos, ...sellerConvos].map((c) => [c._id, c]));
       sorted = [...deduped.values()].sort(
         (a, b) => b.updatedAt - a.updatedAt || (a._id < b._id ? 1 : -1)
       );
@@ -352,20 +358,43 @@ export const listUserConversations = query({
         );
       }
 
-      const hasEnoughForPage = sorted.length > limit;
-      const buyerExhausted = buyerConvos.length < fetchSize;
-      const sellerExhausted = sellerConvos.length < fetchSize;
-      const reachedFetchCap = fetchSize >= MAX_CURSOR_WINDOW_FETCH;
+      page = sorted.slice(0, limit);
+      hasMore = sorted.length > limit;
 
-      if (hasEnoughForPage || (buyerExhausted && sellerExhausted) || reachedFetchCap) {
+      const buyerExhausted = buyerConvos.length < FETCH;
+      const sellerExhausted = sellerConvos.length < FETCH;
+      const bothSidesExhausted = buyerExhausted && sellerExhausted;
+      const reachedFetchCap = FETCH >= MAX_CURSOR_WINDOW_FETCH;
+
+      let boundaryTieGroupMayBeTruncated = false;
+      if (page.length === limit) {
+        const boundaryUpdatedAt = page[page.length - 1].updatedAt;
+        const buyerTail = buyerConvos[buyerConvos.length - 1];
+        const sellerTail = sellerConvos[sellerConvos.length - 1];
+        const buyerNeedsTieExpansion =
+          !buyerExhausted && !!buyerTail && buyerTail.updatedAt >= boundaryUpdatedAt;
+        const sellerNeedsTieExpansion =
+          !sellerExhausted && !!sellerTail && sellerTail.updatedAt >= boundaryUpdatedAt;
+        boundaryTieGroupMayBeTruncated = buyerNeedsTieExpansion || sellerNeedsTieExpansion;
+      }
+
+      // Continue expanding when:
+      // 1) We cannot yet prove there are no more rows for a full page, or
+      // 2) We have hasMore=true but may have cut the tie-group at the page boundary.
+      const shouldExpandForAdditionalRows = !hasMore && !bothSidesExhausted;
+      const shouldExpandForBoundaryTieGroup = hasMore && boundaryTieGroupMayBeTruncated;
+      const shouldExpand = shouldExpandForAdditionalRows || shouldExpandForBoundaryTieGroup;
+
+      if (!shouldExpand) {
+        break;
+      }
+      if (reachedFetchCap) {
+        endedAtFetchCap = true;
         break;
       }
 
-      fetchSize = Math.min(MAX_CURSOR_WINDOW_FETCH, fetchSize * 2);
+      FETCH = Math.min(MAX_CURSOR_WINDOW_FETCH, FETCH * 2);
     }
-
-    const page = sorted.slice(0, limit);
-    const hasMore = sorted.length > limit;
 
     // ── Batch all per-page I/O in parallel ──────────────────────────────────
     // 1. Unique counterpart user IDs for profile lookups
@@ -431,7 +460,8 @@ export const listUserConversations = query({
 
     // Encode compound cursor from the last item on this page
     const last = page.length > 0 ? page[page.length - 1] : null;
-    const nextCursor = hasMore && last ? `${last.updatedAt}|${last._id}` : null;
+    const nextCursor =
+      (hasMore || endedAtFetchCap) && last ? `${last.updatedAt}|${last._id}` : null;
 
     return { items, nextCursor };
   },
