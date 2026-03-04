@@ -117,14 +117,36 @@ const categoryValidator = v.union(
 // Condition validator for reuse
 const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.literal('refurbished'));
 
+export const generateListingImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to upload images');
+    }
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const getListingImageUrl = query({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
 function normalizeSearchTags(tags: string[]): string[] {
   return [
     ...new Set(
       tags
         .map((tag) => tag.trim().toLowerCase())
-        .filter((tag) => tag.length >= 1 && tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH)
+        .filter(
+          (tag) =>
+            tag.length >= TAG_CONSTRAINTS.MIN_TAG_LENGTH &&
+            tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH
+        )
     ),
-  ];
+  ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
 }
 
 // Get a single listing by ID
@@ -165,6 +187,7 @@ export const searchAndFilterListings = query({
         minPrice: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
         condition: v.optional(conditionValidator),
+        tags: v.optional(v.array(v.string())),
         sortBy: v.optional(
           v.union(
             v.literal('newest'),
@@ -609,6 +632,7 @@ export const createListing = action({
       tags: normalizedTags,
       sellerId: identity.subject,
     });
+
     return listingId;
   },
 });
@@ -650,7 +674,10 @@ export const updateListing = action({
     category: v.optional(categoryValidator),
     tags: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ ok: true } | { ok: false; reason: 'moderation_blocked' }> => {
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -726,9 +753,7 @@ export const updateListing = action({
     });
 
     if (moderationResult.flagged) {
-      throw new ConvexError(
-        'Your listing contains content that violates our community guidelines. Please revise and try again.'
-      );
+      return { ok: false, reason: 'moderation_blocked' };
     }
 
     // Persist via internal mutation
@@ -750,6 +775,8 @@ export const updateListing = action({
         tags: update.tags as string[] | undefined,
       },
     });
+
+    return { ok: true };
   },
 });
 
@@ -814,6 +841,25 @@ export const getMyHiddenListings = query({
         q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
       )
       .collect();
+  },
+});
+
+// Get current user's listings for management (includes hidden/inactive/sold, excludes deleted)
+export const getMyListings = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('You must be logged in to view your listings');
+    }
+
+    const listings = await ctx.db
+      .query('listings')
+      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', identity.subject))
+      .order('desc')
+      .collect();
+
+    return listings.filter((listing) => listing.status !== 'deleted');
   },
 });
 

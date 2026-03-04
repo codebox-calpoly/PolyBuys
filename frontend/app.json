@@ -5,19 +5,44 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "platforms": ["ios", "android", "web"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.polybuy.app"
+      "bundleIdentifier": "com.polybuy.app",
+      "associatedDomains": ["applinks:polybuys.com"]
     },
     "android": {
-      "package": "com.polybuy.app"
+      "package": "com.polybuy.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/listings"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
-    "plugins": ["expo-router"],
-    "scheme": "polybuy",
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://polybuys.com"
+        }
+      ],
+      "expo-font"
+    ],
+    "scheme": "polybuys",
     "experiments": {
       "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro"
     }
   }
 }

@@ -48,6 +48,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
+    .index('by_seller_createdAt', ['sellerId', 'createdAt'])
     .index('by_category', ['category'])
     .index('by_status_category', ['status', 'category'])
     .index('by_status_createdAt', ['status', 'createdAt'])
@@ -95,16 +96,19 @@ export default defineSchema({
   })
     .index('by_target', ['targetId', 'targetType'])
     .index('by_reporter', ['reporterId']),
+
   conversations: defineTable({
     listingId: v.id('listings'),
     buyerId: v.string(), // Auth identity subject
     sellerId: v.string(), // Auth identity subject
+    participantIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
     buyerLastReadAt: v.number(),
     sellerLastReadAt: v.number(),
+    lastMessageId: v.optional(v.id('messages')),
   })
-    .index('by_listing_buyer_seller', ['listingId', 'buyerId'])
+    .index('by_listing_buyer_seller', ['listingId', 'buyerId', 'sellerId'])
     .index('by_buyer', ['buyerId', 'updatedAt'])
     .index('by_seller', ['sellerId', 'updatedAt'])
     .index('by_listing', ['listingId']),
@@ -115,6 +119,7 @@ export default defineSchema({
     senderId: v.string(), // Auth identity subject
     recipientId: v.string(), // Auth identity subject
     body: v.string(),
+    type: v.optional(v.string()),
     createdAt: v.number(),
     readAt: v.number(),
   })
