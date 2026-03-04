@@ -2,6 +2,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Easing,
   FlatList,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { FilterBar } from '../../components/FilterBar';
 import { CategoryPicker } from '../../components/CategoryPicker';
 import { PriceRangePicker } from '../../components/PriceRangePicker';
@@ -32,8 +34,35 @@ export default function HomeScreen() {
   const { isAuthenticated, isLoading } = useAuth();
   const { tags } = useLocalSearchParams();
   const { width } = useWindowDimensions();
-  const entranceStyle = useEntranceAnimation();
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
+
+  // Hero/open animation layers
+  const heroRevealStyle = useEntranceAnimation(0, 24);
+  const statsRevealStyle = useEntranceAnimation(120, 24);
+  const filtersRevealStyle = useEntranceAnimation(180, 16);
+
+  const pulseValue = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseValue, {
+          toValue: 1,
+          duration: 2400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseValue, {
+          toValue: 0,
+          duration: 2400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [pulseValue]);
 
   // Filter state
   const [filters, setFilters] = useState<Filters>({});
@@ -169,43 +198,99 @@ export default function HomeScreen() {
   const contentPadding = width >= 900 ? 24 : 14;
   const isWideLayout = width >= 980;
 
+  const pulseScale = pulseValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.08],
+  });
+  const pulseOpacity = pulseValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.16, 0.3],
+  });
+
   return (
     <View style={styles.page}>
-      <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.glowOrb,
+          {
+            opacity: pulseOpacity,
+            transform: [{ scale: pulseScale }],
+          },
+        ]}
+      />
+
+      <View style={[styles.content, { paddingHorizontal: contentPadding }]}> 
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <Animated.View style={[styles.heroCard, entranceStyle]}>
+
+        <Animated.View style={[styles.heroCard, heroRevealStyle]}>
+          <View style={styles.heroBackdrop} />
+
           <View style={styles.heroText}>
-            <Text style={styles.eyebrow}>Cal Poly Marketplace</Text>
-            <Text style={styles.title}>Find your next campus deal</Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.liveDot} />
+              <Text style={styles.eyebrow}>Cal Poly Marketplace</Text>
+            </View>
+            <Text style={styles.title}>The premium student marketplace experience.</Text>
             <Text style={styles.subtitle}>
-              Buy and sell with verified students in a fast, trusted marketplace.
+              Discover trusted campus deals, move items fast, and connect with real students in a
+              beautifully crafted local marketplace.
             </Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.createButton,
-              isWideLayout && styles.createButtonWide,
-              pressed && styles.createButtonPressed,
-              isLoading && styles.createButtonDisabled,
-            ]}
-            onPress={handleCreateListing}
-            disabled={isLoading}
-          >
-            <Text style={styles.createButtonText}>+ Create Listing</Text>
-          </Pressable>
+
+          <View style={styles.heroActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.createButton,
+                isWideLayout && styles.createButtonWide,
+                pressed && styles.createButtonPressed,
+                isLoading && styles.createButtonDisabled,
+              ]}
+              onPress={handleCreateListing}
+              disabled={isLoading}
+            >
+              <MaterialIcons name="add" size={18} color="#fff" />
+              <Text style={styles.createButtonText}>Create Listing</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+              onPress={() => router.push('/(tabs)/search')}
+            >
+              <MaterialIcons name="travel-explore" size={17} color="#185f43" />
+              <Text style={styles.secondaryButtonText}>Explore</Text>
+            </Pressable>
+          </View>
         </Animated.View>
 
-        <FilterBar
-          filters={filters}
-          selectedTags={selectedTags}
-          onCategoryPress={() => setShowCategoryPicker(true)}
-          onPricePress={() => setShowPricePicker(true)}
-          onTagsChange={handleTagsChange}
-          onClearCategory={handleClearCategory}
-          onClearPrice={handleClearPrice}
-          onClearTags={handleClearTags}
-          onClearAll={handleClearAll}
-        />
+        <Animated.View style={[styles.quickStatsRow, statsRevealStyle]}>
+          <View style={styles.statPill}>
+            <MaterialIcons name="verified-user" size={15} color="#176448" />
+            <Text style={styles.statPillText}>Trusted Campus Network</Text>
+          </View>
+          <View style={styles.statPill}>
+            <MaterialIcons name="bolt" size={15} color="#176448" />
+            <Text style={styles.statPillText}>Fast Local Pickup</Text>
+          </View>
+          <View style={styles.statPill}>
+            <MaterialIcons name="savings" size={15} color="#176448" />
+            <Text style={styles.statPillText}>Smarter Student Pricing</Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={filtersRevealStyle}>
+          <FilterBar
+            filters={filters}
+            selectedTags={selectedTags}
+            onCategoryPress={() => setShowCategoryPicker(true)}
+            onPricePress={() => setShowPricePicker(true)}
+            onTagsChange={handleTagsChange}
+            onClearCategory={handleClearCategory}
+            onClearPrice={handleClearPrice}
+            onClearTags={handleClearTags}
+            onClearAll={handleClearAll}
+          />
+        </Animated.View>
 
         <CategoryPicker
           visible={showCategoryPicker}
@@ -225,7 +310,7 @@ export default function HomeScreen() {
         {listingsResult === undefined && cursor === null ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="small" color="#154734" />
-            <Text style={styles.loadingText}>Loading listings...</Text>
+            <Text style={styles.loadingText}>Loading curated listings...</Text>
           </View>
         ) : listings.length === 0 ? (
           <View style={styles.centerContainer}>
@@ -235,7 +320,7 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>
               {hasActiveFilters
                 ? 'Try a wider price range or fewer tags.'
-                : 'Be the first to post something for campus.'}
+                : 'Be the first to post something valuable for campus.'}
             </Text>
             {hasActiveFilters && (
               <Pressable style={styles.clearFiltersButton} onPress={handleClearAll}>
@@ -269,7 +354,16 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: '#eef4f1',
+  },
+  glowOrb: {
+    position: 'absolute',
+    width: 380,
+    height: 380,
+    borderRadius: 190,
+    right: -120,
+    top: -80,
+    backgroundColor: '#4fc58c',
   },
   content: {
     flex: 1,
@@ -280,56 +374,85 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   heroCard: {
-    borderRadius: 20,
+    overflow: 'hidden',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#d8e6df',
+    borderColor: '#cfe2d9',
     backgroundColor: '#ffffff',
-    padding: 18,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 14,
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.11,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  heroBackdrop: {
+    position: 'absolute',
+    right: -70,
+    top: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#e3f5ec',
   },
   heroText: {
     flex: 1,
-    gap: 4,
+    gap: 6,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#18b96f',
   },
   eyebrow: {
     fontSize: 12,
     color: '#2a6f52',
-    letterSpacing: 0.4,
-    fontWeight: '600',
+    letterSpacing: 0.5,
+    fontWeight: '700',
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f2b21',
+    fontSize: 29,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: '#102a21',
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 15,
-    color: '#5a6f65',
+    color: '#4f6a5f',
     lineHeight: 22,
+    maxWidth: 720,
+  },
+  heroActions: {
+    gap: 10,
   },
   createButton: {
-    backgroundColor: '#1c7f50',
+    backgroundColor: '#187549',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 13,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
+    gap: 7,
   },
   createButtonWide: {
-    minWidth: 170,
+    minWidth: 178,
   },
   createButtonPressed: {
-    opacity: 0.92,
+    opacity: 0.94,
     transform: [{ scale: 0.985 }],
   },
   createButtonDisabled: {
@@ -337,8 +460,49 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 14,
+  },
+  secondaryButton: {
+    backgroundColor: '#ecf8f2',
+    borderWidth: 1,
+    borderColor: '#cce8d8',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  secondaryButtonPressed: {
+    opacity: 0.88,
+  },
+  secondaryButtonText: {
+    color: '#185f43',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  quickStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statPill: {
+    backgroundColor: '#ffffff',
+    borderColor: '#d4e4dc',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  statPillText: {
+    color: '#205c45',
+    fontWeight: '600',
+    fontSize: 13,
   },
   centerContainer: {
     flex: 1,
