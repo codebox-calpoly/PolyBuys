@@ -26,6 +26,8 @@ import type { Doc } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const PAGE_SIZE = 20;
+/** Only refetch on focus when data is older than this (avoids redundant queries and preserves scroll/pagination) */
+const FOCUS_REFETCH_STALE_MS = 45_000;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -55,6 +57,8 @@ export default function HomeScreen() {
 
   // Track processed cursors to avoid duplicate appends
   const processedCursorsRef = useRef(new Set<string>());
+  // When we last received the first page (for focus-based staleness check)
+  const lastFirstPageAtRef = useRef<number>(0);
 
   // Initialize selected tags from URL params
   useEffect(() => {
@@ -94,6 +98,7 @@ export default function HomeScreen() {
         if (cursor === null) {
           setAllListings(listingsResult.page);
           setRefreshing(false);
+          lastFirstPageAtRef.current = Date.now();
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }
@@ -120,10 +125,13 @@ export default function HomeScreen() {
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
-  // Refetch first page when returning to Home so listings stay fresh
+  // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
   useFocusEffect(
     useCallback(() => {
-      refreshListings();
+      const last = lastFirstPageAtRef.current;
+      if (last > 0 && Date.now() - last > FOCUS_REFETCH_STALE_MS) {
+        refreshListings();
+      }
     }, [refreshListings])
   );
 
