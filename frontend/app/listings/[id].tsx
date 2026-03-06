@@ -55,6 +55,7 @@ export default function ListingDetailScreen() {
   );
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isStartingConversation, setIsStartingConversation] = useState(false);
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
 
   const navigateToFeedWithTag = (tag: string) => {
@@ -64,11 +65,23 @@ export default function ListingDetailScreen() {
     });
   };
 
-  const openConversation = async () => {
+  const onMessageSellerPress = async () => {
     if (!listing) {
       return;
     }
+
+    if (!isAuthenticated) {
+      const redirectTo = `/listings/${listing._id}`;
+      router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+      return;
+    }
+
+    if (isStartingConversation) {
+      return;
+    }
+
     try {
+      setIsStartingConversation(true);
       const convo = await getOrCreateConversation({ listingId: listing._id });
       router.push({
         pathname: '/messages/[id]',
@@ -76,6 +89,8 @@ export default function ListingDetailScreen() {
       });
     } catch {
       Alert.alert('Unable to start conversation right now.');
+    } finally {
+      setIsStartingConversation(false);
     }
   };
 
@@ -228,26 +243,19 @@ export default function ListingDetailScreen() {
 
         {!isOwner && (
           <View style={styles.buttonContainer}>
-            {!isAuthenticated ? (
-              <Pressable
-                style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
-                onPress={() => {
-                  const redirectTo = `/listings/${listing._id}`;
-                  router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
-                }}
-              >
-                <Text style={styles.messageButtonText}>Sign in to message seller</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
-                onPress={() => {
-                  void openConversation();
-                }}
-              >
-                <Text style={styles.messageButtonText}>Message Seller</Text>
-              </Pressable>
-            )}
+            <Pressable
+              style={({ pressed }) => [
+                styles.messageButton,
+                isStartingConversation && styles.buttonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => {
+                void onMessageSellerPress();
+              }}
+              disabled={isStartingConversation}
+            >
+              <Text style={styles.messageButtonText}>Message Seller</Text>
+            </Pressable>
             <Pressable
               style={({ pressed }) => [styles.reportButton, pressed && styles.buttonPressed]}
               onPress={() => setReportOpen(true)}
@@ -483,6 +491,9 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],
+  },
+  buttonDisabled: {
+    opacity: 0.75,
   },
   tagPressed: {
     opacity: 0.85,
