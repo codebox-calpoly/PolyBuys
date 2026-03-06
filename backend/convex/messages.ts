@@ -8,6 +8,35 @@ export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
 
+function isRemoteUrl(value: string) {
+  return value.startsWith('http://') || value.startsWith('https://');
+}
+
+function displayNameFromProfile(
+  profile: { name?: string; email?: string; userId?: string } | null,
+  fallbackUserId: string
+) {
+  if (!profile) {
+    const normalized = fallbackUserId.trim().toLowerCase();
+    if (normalized.includes('@')) {
+      return normalized.split('@')[0];
+    }
+    return 'User';
+  }
+
+  const trimmedName = profile.name?.trim();
+  if (trimmedName && trimmedName.length > 0) {
+    return trimmedName;
+  }
+
+  const email = profile.email?.trim().toLowerCase();
+  if (email && email.includes('@')) {
+    return email.split('@')[0];
+  }
+
+  return 'User';
+}
+
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
 export const internalGetConversation = internalQuery({
   args: { conversationId: v.id('conversations') },
@@ -203,7 +232,65 @@ export const listUserConversations = query({
       .order('desc')
       .collect();
 
-    return [...buyerConvos, ...sellerConvos].sort((a, b) => b.updatedAt - a.updatedAt);
+    const conversations = [...buyerConvos, ...sellerConvos].sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+
+    return await Promise.all(
+      conversations.map(async (conversation) => {
+        const otherUserId =
+          conversation.buyerId === userId ? conversation.sellerId : conversation.buyerId;
+
+        const [otherProfile, listing, unreadMessage, latestMessage] = await Promise.all([
+          ctx.db
+            .query('profiles')
+            .withIndex('by_userId', (q) => q.eq('userId', otherUserId))
+            .first(),
+          ctx.db.get(conversation.listingId),
+          ctx.db
+            .query('messages')
+            .withIndex('by_conversation_recipient_readAt', (q) =>
+              q.eq('conversationId', conversation._id).eq('recipientId', userId).eq('readAt', 0)
+            )
+            .first(),
+          ctx.db
+            .query('messages')
+            .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
+            .order('desc')
+            .first(),
+        ]);
+
+        const thumbnailSource = listing?.images?.[0] ?? null;
+        let listingThumbnailUrl: string | null = null;
+        if (thumbnailSource) {
+          if (isRemoteUrl(thumbnailSource)) {
+            listingThumbnailUrl = thumbnailSource;
+          } else {
+            try {
+              listingThumbnailUrl = await ctx.storage.getUrl(thumbnailSource as Id<'_storage'>);
+            } catch {
+              listingThumbnailUrl = null;
+            }
+          }
+        }
+
+        return {
+          ...conversation,
+          otherUser: {
+            id: otherUserId,
+            name: displayNameFromProfile(otherProfile, otherUserId),
+          },
+          listing: {
+            id: conversation.listingId,
+            title: listing?.title ?? 'Listing unavailable',
+            thumbnailUrl: listingThumbnailUrl ?? null,
+          },
+          lastMessagePreview: latestMessage?.body ?? 'Conversation started',
+          lastMessageAt: latestMessage?.createdAt ?? conversation.updatedAt,
+          hasUnread: unreadMessage !== null,
+        };
+      })
+    );
   },
 });
 
