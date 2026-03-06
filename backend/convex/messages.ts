@@ -288,16 +288,31 @@ export const listUserConversations = query({
       (a, b) => b.updatedAt - a.updatedAt
     );
 
+    const allProfiles = await ctx.db.query('profiles').collect();
+    const profilesByCanonicalUserId = new Map<string, Doc<'profiles'>>();
+    for (const profile of allProfiles) {
+      const canonicalUserId = canonicalParticipantId(profile.userId);
+      if (!profilesByCanonicalUserId.has(canonicalUserId)) {
+        profilesByCanonicalUserId.set(canonicalUserId, profile);
+      }
+    }
+
+    const userDocsByCanonicalUserId = new Map<string, Doc<'users'> | null>();
+
     return await Promise.all(
       conversations.map(async (conversation) => {
         const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
         const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
+        const canonicalOtherUserId = canonicalParticipantId(otherUserId);
 
-        const [otherProfile, listing, latestMessage, unreadMessages] = await Promise.all([
-          ctx.db
-            .query('profiles')
-            .withIndex('by_userId', (q) => q.eq('userId', otherUserId))
-            .first(),
+        let otherUserDoc = userDocsByCanonicalUserId.get(canonicalOtherUserId);
+        if (otherUserDoc === undefined) {
+          const normalizedOtherUserId = await ctx.db.normalizeId('users', canonicalOtherUserId);
+          otherUserDoc = normalizedOtherUserId ? await ctx.db.get(normalizedOtherUserId) : null;
+          userDocsByCanonicalUserId.set(canonicalOtherUserId, otherUserDoc);
+        }
+
+        const [listing, latestMessage, unreadMessages] = await Promise.all([
           ctx.db.get(conversation.listingId),
           ctx.db
             .query('messages')
@@ -312,9 +327,7 @@ export const listUserConversations = query({
             .filter((q) => q.eq(q.field('readAt'), 0))
             .collect(),
         ]);
-
-        const normalizedOtherUserId = await ctx.db.normalizeId('users', otherUserId);
-        const otherUserDoc = normalizedOtherUserId ? await ctx.db.get(normalizedOtherUserId) : null;
+        const otherProfile = profilesByCanonicalUserId.get(canonicalOtherUserId) ?? null;
 
         const thumbnailSource = listing?.images?.[0] ?? null;
         let listingThumbnailUrl: string | null = null;

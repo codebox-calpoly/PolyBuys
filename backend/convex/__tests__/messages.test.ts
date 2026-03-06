@@ -15,6 +15,7 @@ jest.mock('@convex-dev/expo-push-notifications', () => {
 import { api, internal } from '../_generated/api';
 import {
   createConvexTest,
+  createTestProfile,
   createTestUser,
   createTestListing,
   createTestConversation,
@@ -369,6 +370,40 @@ describe('Messages queries and mutations', () => {
 
       expect(conversations).toHaveLength(2);
       expect(conversations[0].updatedAt).toBeGreaterThan(conversations[1].updatedAt);
+    });
+
+    it('resolves other user name for aliased participant ids', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      await createTestProfile(t, `${buyer.id}|profile-alias`, {
+        name: 'Buyer Profile Name',
+        email: 'buyer@calpoly.edu',
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(buyer.id, { name: '' });
+        const now = Date.now();
+        await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: `${buyer.id}|conversation-alias`,
+          sellerId: seller.id,
+          participantIds: [`${buyer.id}|conversation-alias`, seller.id],
+          createdAt: now,
+          updatedAt: now,
+          buyerLastReadAt: now,
+          sellerLastReadAt: now,
+        });
+      });
+
+      const asSeller = t.withIdentity(seller.identity);
+      const conversations = await asSeller.query(api.messages.listUserConversations);
+
+      expect(conversations).toHaveLength(1);
+      expect(conversations[0].otherUser.name).toBe('Buyer Profile Name');
     });
   });
 
