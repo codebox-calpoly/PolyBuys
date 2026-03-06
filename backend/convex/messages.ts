@@ -1,12 +1,26 @@
 import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
+import { getAuthUserId } from '@convex-dev/auth/server';
 import { v, ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { Id } from './_generated/dataModel';
-import { internal } from './_generated/api';
+import type { Doc, Id } from './_generated/dataModel';
+import { api, internal } from './_generated/api';
 
 export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
+
+function canonicalParticipantId(value: string) {
+  const [base] = value.split('|');
+  return base;
+}
+
+function isSameParticipantId(left: string, right: string) {
+  return left === right || canonicalParticipantId(left) === canonicalParticipantId(right);
+}
+
+function matchesAnyParticipantId(value: string, candidates: string[]) {
+  return candidates.some((candidate) => isSameParticipantId(value, candidate));
+}
 
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
@@ -14,9 +28,20 @@ function isRemoteUrl(value: string) {
 
 function displayNameFromProfile(
   profile: { name?: string; email?: string; userId?: string } | null,
+  user: { name?: string; email?: string } | null,
   fallbackUserId: string
 ) {
+  const userName = user?.name?.trim();
+  if (userName && userName.length > 0) {
+    return userName;
+  }
+
   if (!profile) {
+    const userEmail = user?.email?.trim().toLowerCase();
+    if (userEmail && userEmail.includes('@')) {
+      return userEmail.split('@')[0];
+    }
+
     const normalized = fallbackUserId.trim().toLowerCase();
     if (normalized.includes('@')) {
       return normalized.split('@')[0];
@@ -35,6 +60,19 @@ function displayNameFromProfile(
   }
 
   return 'User';
+}
+
+async function getParticipantKeys(ctx: MutationCtx | QueryCtx): Promise<string[]> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new ConvexError('Unauthorized');
+
+  const keys = new Set<string>([identity.subject]);
+  const authUserId = await getAuthUserId(ctx);
+  if (authUserId) {
+    keys.add(authUserId);
+  }
+
+  return [...keys];
 }
 
 // Internal query: get conversation and verify user is a participant (used by sendMessage action)
@@ -101,6 +139,11 @@ export const sendMessage = action({
       throw new ConvexError('Unauthorized');
     }
     const userId = identity.subject;
+    const currentUser = await ctx.runQuery(api.users.getCurrentUser, {});
+    const senderParticipantKeys = new Set<string>([userId]);
+    if (currentUser?._id) {
+      senderParticipantKeys.add(currentUser._id);
+    }
 
     // Participant check via internal query
     const convo = await ctx.runQuery(internal.messages.internalGetConversation, {
@@ -110,13 +153,14 @@ export const sendMessage = action({
       throw new ConvexError('Conversation not found');
     }
 
-    const isBuyer = convo.buyerId === userId;
-    const isSeller = convo.sellerId === userId;
-    if (!isBuyer && !isSeller) {
+    const isBuyerByAlias = matchesAnyParticipantId(convo.buyerId, [...senderParticipantKeys]);
+    const isSellerByAlias = matchesAnyParticipantId(convo.sellerId, [...senderParticipantKeys]);
+    if (!isBuyerByAlias && !isSellerByAlias) {
       throw new ConvexError('Forbidden');
     }
 
-    const recipientId = userId === convo.buyerId ? convo.sellerId : convo.buyerId;
+    const senderId = isBuyerByAlias ? convo.buyerId : convo.sellerId;
+    const recipientId = isBuyerByAlias ? convo.sellerId : convo.buyerId;
 
     // Screen content via OpenAI Moderation API
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
@@ -133,7 +177,7 @@ export const sendMessage = action({
     const result = await ctx.runMutation(internal.messages.internalSendMessage, {
       conversationId: args.conversationId,
       listingId: convo.listingId,
-      senderId: userId,
+      senderId,
       recipientId,
       body: args.body,
       type: type,
@@ -219,29 +263,37 @@ export const getConversationHistory = query({
 export const listUserConversations = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getUserId(ctx);
-    const buyerConvos = await ctx.db
-      .query('conversations')
-      .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
-      .order('desc')
-      .collect();
+    const participantKeys = await getParticipantKeys(ctx);
+    const allConversations = await ctx.db.query('conversations').collect();
+    const participantConversations = allConversations
+      .filter(
+        (conversation) =>
+          matchesAnyParticipantId(conversation.buyerId, participantKeys) ||
+          matchesAnyParticipantId(conversation.sellerId, participantKeys)
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt);
 
-    const sellerConvos = await ctx.db
-      .query('conversations')
-      .withIndex('by_seller', (q) => q.eq('sellerId', userId))
-      .order('desc')
-      .collect();
-
-    const conversations = [...buyerConvos, ...sellerConvos].sort(
+    // Legacy compatibility: collapse duplicate threads created with aliased participant IDs.
+    const dedupedConversationMap = new Map<string, Doc<'conversations'>>();
+    for (const conversation of participantConversations) {
+      const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
+      const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
+      const dedupeKey = `${conversation.listingId}:${canonicalParticipantId(otherUserId)}`;
+      const existing = dedupedConversationMap.get(dedupeKey);
+      if (!existing || conversation.updatedAt > existing.updatedAt) {
+        dedupedConversationMap.set(dedupeKey, conversation);
+      }
+    }
+    const conversations = [...dedupedConversationMap.values()].sort(
       (a, b) => b.updatedAt - a.updatedAt
     );
 
     return await Promise.all(
       conversations.map(async (conversation) => {
-        const otherUserId =
-          conversation.buyerId === userId ? conversation.sellerId : conversation.buyerId;
+        const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
+        const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
 
-        const [otherProfile, listing, unreadMessage, latestMessage] = await Promise.all([
+        const [otherProfile, listing, latestMessage, unreadMessages] = await Promise.all([
           ctx.db
             .query('profiles')
             .withIndex('by_userId', (q) => q.eq('userId', otherUserId))
@@ -249,16 +301,20 @@ export const listUserConversations = query({
           ctx.db.get(conversation.listingId),
           ctx.db
             .query('messages')
-            .withIndex('by_conversation_recipient_readAt', (q) =>
-              q.eq('conversationId', conversation._id).eq('recipientId', userId).eq('readAt', 0)
-            )
-            .first(),
-          ctx.db
-            .query('messages')
             .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
             .order('desc')
             .first(),
+          ctx.db
+            .query('messages')
+            .withIndex('by_conversation_recipient_readAt', (q) =>
+              q.eq('conversationId', conversation._id)
+            )
+            .filter((q) => q.eq(q.field('readAt'), 0))
+            .collect(),
         ]);
+
+        const normalizedOtherUserId = await ctx.db.normalizeId('users', otherUserId);
+        const otherUserDoc = normalizedOtherUserId ? await ctx.db.get(normalizedOtherUserId) : null;
 
         const thumbnailSource = listing?.images?.[0] ?? null;
         let listingThumbnailUrl: string | null = null;
@@ -278,7 +334,7 @@ export const listUserConversations = query({
           ...conversation,
           otherUser: {
             id: otherUserId,
-            name: displayNameFromProfile(otherProfile, otherUserId),
+            name: displayNameFromProfile(otherProfile, otherUserDoc, otherUserId),
           },
           listing: {
             id: conversation.listingId,
@@ -287,32 +343,29 @@ export const listUserConversations = query({
           },
           lastMessagePreview: latestMessage?.body ?? 'Conversation started',
           lastMessageAt: latestMessage?.createdAt ?? conversation.updatedAt,
-          hasUnread: unreadMessage !== null,
+          hasUnread: unreadMessages.some((message) =>
+            matchesAnyParticipantId(message.recipientId, participantKeys)
+          ),
         };
       })
     );
   },
 });
 
-async function getUserId(ctx: MutationCtx | QueryCtx): Promise<string> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new ConvexError('Unauthorized');
-  return identity.subject;
-}
-
 async function requireParticipant(
   ctx: MutationCtx | QueryCtx,
   conversationId: Id<'conversations'>
 ) {
-  const userId = await getUserId(ctx);
+  const participantKeys = await getParticipantKeys(ctx);
+  const userId = participantKeys[0];
   const convo = await ctx.db.get(conversationId);
   if (!convo) throw new ConvexError('Conversation not found');
 
-  const isBuyer = convo.buyerId === userId;
-  const isSeller = convo.sellerId === userId;
+  const isBuyer = matchesAnyParticipantId(convo.buyerId, participantKeys);
+  const isSeller = matchesAnyParticipantId(convo.sellerId, participantKeys);
   if (!isBuyer && !isSeller) throw new ConvexError('Forbidden');
 
-  return { userId, convo, isBuyer, isSeller };
+  return { userId, participantKeys, convo, isBuyer, isSeller };
 }
 
 export const getOrCreateConversation = mutation({
@@ -320,7 +373,8 @@ export const getOrCreateConversation = mutation({
     listingId: v.id('listings'),
   },
   handler: async (ctx, args) => {
-    const buyerId = await getUserId(ctx);
+    const buyerParticipantKeys = await getParticipantKeys(ctx);
+    const buyerId = buyerParticipantKeys[0];
 
     const listing = await ctx.db.get(args.listingId);
     if (!listing) throw new ConvexError('Listing not found');
@@ -334,17 +388,38 @@ export const getOrCreateConversation = mutation({
     }
 
     const sellerId = listing.sellerId;
-    if (buyerId === sellerId) throw new ConvexError("You can't message yourself");
+    if (matchesAnyParticipantId(sellerId, buyerParticipantKeys)) {
+      throw new ConvexError("You can't message yourself");
+    }
 
-    const existing = await ctx.db
+    for (const buyerKey of buyerParticipantKeys) {
+      const existing = await ctx.db
+        .query('conversations')
+        .withIndex('by_listing_buyer_seller', (q) =>
+          q.eq('listingId', args.listingId).eq('buyerId', buyerKey)
+        )
+        .filter((q) => q.eq(q.field('sellerId'), sellerId))
+        .first();
+
+      if (existing) return { conversationId: existing._id };
+    }
+
+    const listingConversations = await ctx.db
       .query('conversations')
-      .withIndex('by_listing_buyer_seller', (q) =>
-        q.eq('listingId', args.listingId).eq('buyerId', buyerId)
-      )
-      .filter((q) => q.eq(q.field('sellerId'), sellerId))
-      .first();
+      .withIndex('by_listing', (q) => q.eq('listingId', args.listingId))
+      .collect();
 
-    if (existing) return { conversationId: existing._id };
+    const aliasMatches = listingConversations
+      .filter(
+        (conversation) =>
+          matchesAnyParticipantId(conversation.buyerId, buyerParticipantKeys) &&
+          isSameParticipantId(conversation.sellerId, sellerId)
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const aliasMatch = aliasMatches[0];
+    if (aliasMatch) {
+      return { conversationId: aliasMatch._id };
+    }
 
     const now = Date.now();
     const conversationId = await ctx.db.insert('conversations', {
@@ -368,7 +443,10 @@ export const markMessagesAsRead = mutation({
     conversationId: v.id('conversations'),
   },
   handler: async (ctx, args) => {
-    const { userId, convo, isBuyer, isSeller } = await requireParticipant(ctx, args.conversationId);
+    const { convo, participantKeys, isBuyer, isSeller } = await requireParticipant(
+      ctx,
+      args.conversationId
+    );
 
     const now = Date.now();
 
@@ -383,12 +461,13 @@ export const markMessagesAsRead = mutation({
       .withIndex('by_conversation_recipient_readAt', (q) =>
         q.eq('conversationId', args.conversationId)
       )
-      .filter((q) => q.eq(q.field('recipientId'), userId))
       .filter((q) => q.eq(q.field('readAt'), 0))
       .collect();
 
     for (const msg of unread) {
-      await ctx.db.patch(msg._id, { readAt: now });
+      if (matchesAnyParticipantId(msg.recipientId, participantKeys)) {
+        await ctx.db.patch(msg._id, { readAt: now });
+      }
     }
 
     return { ok: true };

@@ -34,7 +34,7 @@ export default function ConversationDetailScreen() {
     typeof id === 'string' && id.trim().length > 0 ? (id as ConversationId) : null;
 
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
 
@@ -236,7 +236,7 @@ export default function ConversationDetailScreen() {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
-          const isSent = item.senderId === currentUserSubject;
+          const isSent = item.senderId === currentUserSubject || item.senderId === user?._id;
           return (
             <View
               style={[
