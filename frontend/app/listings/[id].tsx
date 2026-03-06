@@ -84,7 +84,7 @@ export default function ListingDetailScreen() {
       setIsStartingConversation(true);
       const convo = await getOrCreateConversation({ listingId: listing._id });
       router.push({
-        pathname: '/messages/[id]',
+        pathname: '/conversations/[id]',
         params: { id: String(convo.conversationId) },
       });
     } catch {
