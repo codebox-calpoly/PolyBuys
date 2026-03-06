@@ -21,6 +21,19 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 type ConversationId = Id<'conversations'>;
 
+function canonicalParticipantId(value: string) {
+  const [base] = value.split('|');
+  return base;
+}
+
+function isSameParticipantId(left: string, right: string) {
+  return left === right || canonicalParticipantId(left) === canonicalParticipantId(right);
+}
+
+function matchesAnyParticipantId(value: string, candidates: string[]) {
+  return candidates.some((candidate) => isSameParticipantId(value, candidate));
+}
+
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
@@ -42,7 +55,7 @@ export default function ConversationDetailScreen() {
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
-  const hasMarkedConversationRef = useRef<string | null>(null);
+  const isMarkingReadRef = useRef(false);
 
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
@@ -80,6 +93,18 @@ export default function ConversationDetailScreen() {
     api.messages.messagesByConversation,
     isAuthenticated && conversationId && conversation ? { conversationId } : 'skip'
   );
+  const participantKeys = useMemo(
+    () =>
+      [currentUserSubject, user?._id].filter(
+        (value): value is string => typeof value === 'string' && value.length > 0
+      ),
+    [currentUserSubject, user?._id]
+  );
+  const unreadIncomingCount =
+    messages?.filter(
+      (message) =>
+        message.readAt === 0 && matchesAnyParticipantId(message.recipientId, participantKeys)
+    ).length ?? 0;
 
   const scrollToBottom = (animated: boolean) => {
     requestAnimationFrame(() => {
@@ -109,22 +134,23 @@ export default function ConversationDetailScreen() {
   }, [messages]);
 
   useEffect(() => {
-    if (!conversationId || !isAuthenticated || messages === undefined) {
+    if (!conversationId || !isAuthenticated || unreadIncomingCount === 0) {
       return;
     }
 
-    if (hasMarkedConversationRef.current === conversationId) {
+    if (isMarkingReadRef.current) {
       return;
     }
-    hasMarkedConversationRef.current = conversationId;
+    isMarkingReadRef.current = true;
 
-    void markMessagesAsRead({ conversationId }).catch(() => {
-      // Non-fatal: message stream still renders in real time.
-      if (hasMarkedConversationRef.current === conversationId) {
-        hasMarkedConversationRef.current = null;
-      }
-    });
-  }, [conversationId, isAuthenticated, markMessagesAsRead, messages]);
+    void markMessagesAsRead({ conversationId })
+      .catch(() => {
+        // Non-fatal: message stream still renders in real time.
+      })
+      .finally(() => {
+        isMarkingReadRef.current = false;
+      });
+  }, [conversationId, isAuthenticated, markMessagesAsRead, unreadIncomingCount]);
 
   const onSend = async () => {
     const trimmed = messageBody.trim();
@@ -236,7 +262,8 @@ export default function ConversationDetailScreen() {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
-          const isSent = item.senderId === currentUserSubject || item.senderId === user?._id;
+          const isSent = matchesAnyParticipantId(item.senderId, participantKeys);
+          const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
           return (
             <View
               style={[
@@ -259,7 +286,9 @@ export default function ConversationDetailScreen() {
                     isSent ? styles.messageMetaSent : styles.messageMetaReceived,
                   ]}
                 >
-                  {formatMessageTimestamp(item.createdAt)}
+                  {isSent
+                    ? `${formatMessageTimestamp(item.createdAt)} • ${receiptLabel}`
+                    : formatMessageTimestamp(item.createdAt)}
                 </Text>
               </View>
             </View>

@@ -48,7 +48,7 @@ function WebTabsHeaderLayout({ unreadCount }: { unreadCount: number }) {
 
               const isInboxTab = tab.href === '/inbox';
               const showUnreadBadge = isInboxTab && unreadCount > 0;
-              const formattedUnreadCount = unreadCount > 99 ? '99+' : String(unreadCount);
+              const formattedUnreadCount = unreadCount > 9 ? '9+' : String(unreadCount);
 
               return (
                 <Link key={tab.href} href={tab.href as never} asChild>
@@ -79,8 +79,11 @@ export default function TabsLayout() {
   const { isAuthenticated } = useAuth();
   const conversations = useQuery(api.messages.listUserConversations, isAuthenticated ? {} : 'skip');
   const unreadCount =
-    conversations?.reduce((count, conversation) => count + (conversation.hasUnread ? 1 : 0), 0) ??
-    0;
+    conversations?.reduce(
+      (count, conversation) =>
+        count + (conversation.unreadCount ?? (conversation.hasUnread ? 1 : 0)),
+      0
+    ) ?? 0;
 
   if (Platform.OS === 'web') {
     return <WebTabsHeaderLayout unreadCount={unreadCount} />;
@@ -130,7 +133,7 @@ export default function TabsLayout() {
         />
         {unreadCount > 0 ? (
           <NativeTabs.Trigger.Badge>
-            {unreadCount > 99 ? '99+' : String(unreadCount)}
+            {unreadCount > 9 ? '9+' : String(unreadCount)}
           </NativeTabs.Trigger.Badge>
         ) : null}
       </NativeTabs.Trigger>

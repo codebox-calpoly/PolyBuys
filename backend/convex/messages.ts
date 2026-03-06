@@ -343,6 +343,9 @@ export const listUserConversations = query({
           },
           lastMessagePreview: latestMessage?.body ?? 'Conversation started',
           lastMessageAt: latestMessage?.createdAt ?? conversation.updatedAt,
+          unreadCount: unreadMessages.filter((message) =>
+            matchesAnyParticipantId(message.recipientId, participantKeys)
+          ).length,
           hasUnread: unreadMessages.some((message) =>
             matchesAnyParticipantId(message.recipientId, participantKeys)
           ),
