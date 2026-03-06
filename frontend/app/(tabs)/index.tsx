@@ -50,6 +50,7 @@ export default function HomeScreen() {
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
@@ -83,10 +84,13 @@ export default function HomeScreen() {
     maxPrice: filters.maxPrice,
     tags: selectedTags.length > 0 ? selectedTags : undefined,
     paginationOpts: { numItems: PAGE_SIZE, cursor },
+    _refreshKey: refreshKey,
   });
 
-  // Reset pagination and refetch first page (used by pull-to-refresh and focus)
+  // Reset pagination and refetch first page (used by pull-to-refresh and focus).
+  // Bumping refreshKey forces Convex to re-run when cursor is already null.
   const refreshListings = useCallback(() => {
+    setRefreshKey((k) => k + 1);
     setCursor(null);
     processedCursorsRef.current.clear();
   }, []);
@@ -185,6 +189,11 @@ export default function HomeScreen() {
       setCursor(listingsResult.continueCursor);
     }
   }, [isDone, isLoadingMore, listingsResult?.continueCursor]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshListings();
+  }, [refreshListings]);
 
   const handleCreateListing = () => {
     if (!isAuthenticated) {
@@ -285,10 +294,7 @@ export default function HomeScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => {
-                  setRefreshing(true);
-                  refreshListings();
-                }}
+                onRefresh={handleRefresh}
                 colors={['#154734']}
                 tintColor="#154734"
               />
