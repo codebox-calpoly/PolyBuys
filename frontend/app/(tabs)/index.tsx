@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilterBar } from '../../components/FilterBar';
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
@@ -79,12 +81,19 @@ export default function HomeScreen() {
     paginationOpts: { numItems: PAGE_SIZE, cursor },
   });
 
+  // Reset pagination and refetch first page (used by pull-to-refresh and focus)
+  const refreshListings = useCallback(() => {
+    setCursor(null);
+    processedCursorsRef.current.clear();
+  }, []);
+
   useEffect(() => {
     if (listingsResult && queryFilterVersion === filterVersionRef.current) {
       const cursorId = cursor || 'initial';
       if (!processedCursorsRef.current.has(cursorId)) {
         if (cursor === null) {
           setAllListings(listingsResult.page);
+          setRefreshing(false);
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }
@@ -103,6 +112,13 @@ export default function HomeScreen() {
     setIsDone(false);
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
+
+  // Refetch first page when returning to Home so listings stay fresh
+  useFocusEffect(
+    useCallback(() => {
+      refreshListings();
+    }, [refreshListings])
+  );
 
   const listings = allListings.filter((listing) => listing.isHidden !== true);
 
@@ -251,6 +267,17 @@ export default function HomeScreen() {
             contentContainerStyle={styles.listContainer}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  refreshListings();
+                }}
+                colors={['#154734']}
+                tintColor="#154734"
+              />
+            }
             ListFooterComponent={
               isLoadingMore ? (
                 <View style={styles.footerLoader}>
