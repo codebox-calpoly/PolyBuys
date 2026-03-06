@@ -17,6 +17,7 @@ import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 type ConversationId = Id<'conversations'>;
 
@@ -41,6 +42,7 @@ export default function ConversationDetailScreen() {
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
+  const hasMarkedConversationRef = useRef<string | null>(null);
 
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
@@ -57,6 +59,22 @@ export default function ConversationDetailScreen() {
     }
     return conversationList.find((item) => item._id === conversationId) ?? null;
   }, [conversationId, conversationList]);
+
+  const listingId = (conversation?.listing?.id ??
+    conversation?.listingId ??
+    null) as Id<'listings'> | null;
+  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+  const headerThumbnailSource =
+    conversation?.listing?.thumbnailUrl ??
+    (listing?.images && listing.images.length > 0 ? listing.images[0] : null);
+  const { mappedUrls: headerMappedUrls } = useResolvedImageUrls(
+    headerThumbnailSource ? [headerThumbnailSource] : []
+  );
+  const headerThumbnailUrl = headerMappedUrls[0] ?? null;
+  const headerOtherUserName = conversation?.otherUser?.name ?? 'User';
+  const headerConversationTitle = conversation?.otherUser?.name ?? 'Conversation';
+  const headerListingTitle =
+    conversation?.listing?.title ?? listing?.title ?? 'Listing unavailable';
 
   const messages = useQuery(
     api.messages.messagesByConversation,
@@ -91,14 +109,22 @@ export default function ConversationDetailScreen() {
   }, [messages]);
 
   useEffect(() => {
-    if (!conversationId || !conversation?.hasUnread) {
+    if (!conversationId || !isAuthenticated || messages === undefined) {
       return;
     }
 
+    if (hasMarkedConversationRef.current === conversationId) {
+      return;
+    }
+    hasMarkedConversationRef.current = conversationId;
+
     void markMessagesAsRead({ conversationId }).catch(() => {
       // Non-fatal: message stream still renders in real time.
+      if (hasMarkedConversationRef.current === conversationId) {
+        hasMarkedConversationRef.current = null;
+      }
     });
-  }, [conversation?.hasUnread, conversationId, markMessagesAsRead]);
+  }, [conversationId, isAuthenticated, markMessagesAsRead, messages]);
 
   const onSend = async () => {
     const trimmed = messageBody.trim();
@@ -170,17 +196,14 @@ export default function ConversationDetailScreen() {
     >
       <Stack.Screen
         options={{
-          title: conversation?.otherUser.name ?? 'Conversation',
+          title: headerConversationTitle,
           headerBackTitle: 'Inbox',
         }}
       />
 
       <View style={styles.headerCard}>
-        {conversation?.listing.thumbnailUrl ? (
-          <Image
-            source={{ uri: conversation.listing.thumbnailUrl }}
-            style={styles.headerThumbnail}
-          />
+        {headerThumbnailUrl ? (
+          <Image source={{ uri: headerThumbnailUrl }} style={styles.headerThumbnail} />
         ) : (
           <View style={[styles.headerThumbnail, styles.thumbnailPlaceholder]}>
             <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
@@ -188,14 +211,14 @@ export default function ConversationDetailScreen() {
         )}
         <View style={styles.headerTextWrap}>
           <Text style={styles.headerName} numberOfLines={1}>
-            {conversation?.otherUser.name ?? 'User'}
+            {headerOtherUserName}
           </Text>
           <Text style={styles.headerListing} numberOfLines={1}>
-            {conversation?.listing.title ?? 'Listing unavailable'}
+            {headerListingTitle}
           </Text>
-          {conversation?.listing.id ? (
+          {listingId ? (
             <Pressable
-              onPress={() => router.push(`/listings/${conversation.listing.id}`)}
+              onPress={() => router.push(`/listings/${listingId}`)}
               style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
             >
               <Text style={styles.headerListingLinkText}>View listing</Text>

@@ -12,8 +12,91 @@ import {
 import { useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+
+type ConversationRowItem = {
+  _id: string;
+  listingId?: Id<'listings'>;
+  updatedAt?: number;
+  hasUnread?: boolean;
+  lastMessagePreview?: string;
+  lastMessageAt?: number;
+  otherUser?: {
+    name?: string;
+  };
+  listing?: {
+    id?: Id<'listings'>;
+    title?: string;
+    thumbnailUrl?: string | null;
+  };
+};
+
+function ConversationRow({
+  item,
+  index,
+  entranceStyle,
+  onPress,
+  formatTimestamp,
+}: {
+  item: ConversationRowItem;
+  index: number;
+  entranceStyle: object;
+  onPress: () => void;
+  formatTimestamp: (timestamp: number) => string;
+}) {
+  const hasUnread = Boolean(item.hasUnread);
+  const otherUserName = item.otherUser?.name ?? 'User';
+
+  const listingId = (item.listing?.id ?? item.listingId ?? null) as Id<'listings'> | null;
+  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+
+  const listingTitle = item.listing?.title ?? listing?.title ?? 'Listing unavailable';
+  const thumbnailSource =
+    item.listing?.thumbnailUrl ??
+    (listing?.images && listing.images.length > 0 ? listing.images[0] : null);
+  const { mappedUrls } = useResolvedImageUrls(thumbnailSource ? [thumbnailSource] : []);
+  const thumbnailUrl = mappedUrls[0] ?? null;
+
+  const lastMessagePreview = item.lastMessagePreview ?? 'Conversation started';
+  const lastMessageAt = item.lastMessageAt ?? item.updatedAt ?? Date.now();
+
+  return (
+    <Animated.View style={index === 0 ? entranceStyle : null}>
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
+        onPress={onPress}
+      >
+        {thumbnailUrl ? (
+          <Image source={{ uri: thumbnailUrl }} style={styles.thumbnail} />
+        ) : (
+          <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
+            <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
+          </View>
+        )}
+        <View style={styles.rowBody}>
+          <View style={styles.rowTop}>
+            <Text style={[styles.otherUserName, hasUnread && styles.unreadText]} numberOfLines={1}>
+              {otherUserName}
+            </Text>
+            <Text style={styles.timestamp}>{formatTimestamp(lastMessageAt)}</Text>
+          </View>
+          <Text style={styles.listingTitle} numberOfLines={1}>
+            {listingTitle}
+          </Text>
+          <View style={styles.previewRow}>
+            <Text style={[styles.messagePreview, hasUnread && styles.unreadText]} numberOfLines={1}>
+              {lastMessagePreview}
+            </Text>
+            {hasUnread && <View style={styles.unreadDot} />}
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function InboxScreen() {
   const router = useRouter();
@@ -110,48 +193,18 @@ export default function InboxScreen() {
       }
       renderItem={({ item, index }) => {
         return (
-          <Animated.View style={index === 0 ? entranceStyle : null}>
-            <Pressable
-              style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
-              onPress={() =>
-                router.push({
-                  pathname: '/conversations/[id]',
-                  params: { id: String(item._id) },
-                } as never)
-              }
-            >
-              {item.listing.thumbnailUrl ? (
-                <Image source={{ uri: item.listing.thumbnailUrl }} style={styles.thumbnail} />
-              ) : (
-                <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-                  <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
-                </View>
-              )}
-              <View style={styles.rowBody}>
-                <View style={styles.rowTop}>
-                  <Text
-                    style={[styles.otherUserName, item.hasUnread && styles.unreadText]}
-                    numberOfLines={1}
-                  >
-                    {item.otherUser.name}
-                  </Text>
-                  <Text style={styles.timestamp}>{formatTimestamp(item.lastMessageAt)}</Text>
-                </View>
-                <Text style={styles.listingTitle} numberOfLines={1}>
-                  {item.listing.title}
-                </Text>
-                <View style={styles.previewRow}>
-                  <Text
-                    style={[styles.messagePreview, item.hasUnread && styles.unreadText]}
-                    numberOfLines={1}
-                  >
-                    {item.lastMessagePreview}
-                  </Text>
-                  {item.hasUnread && <View style={styles.unreadDot} />}
-                </View>
-              </View>
-            </Pressable>
-          </Animated.View>
+          <ConversationRow
+            item={item as ConversationRowItem}
+            index={index}
+            entranceStyle={entranceStyle}
+            formatTimestamp={formatTimestamp}
+            onPress={() =>
+              router.push({
+                pathname: '/conversations/[id]',
+                params: { id: String(item._id) },
+              } as never)
+            }
+          />
         );
       }}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
