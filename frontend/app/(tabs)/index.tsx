@@ -104,6 +104,13 @@ export default function HomeScreen() {
     }
   }, [listingsResult, cursor, queryFilterVersion]);
 
+  // Stop refresh spinner if the query never returns (e.g. network failure)
+  useEffect(() => {
+    if (!refreshing || cursor !== null) return;
+    const fallback = setTimeout(() => setRefreshing(false), 15000);
+    return () => clearTimeout(fallback);
+  }, [refreshing, cursor]);
+
   useEffect(() => {
     filterVersionRef.current += 1;
     currentFilterVersionRef.current = filterVersionRef.current;
