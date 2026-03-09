@@ -1,0 +1,58 @@
+backend/convex/convex.config.ts
+  84d19e0de01be8a9 1-7
+frontend/public/.well-known/assetlinks.json
+  592de140ad3b1f6d 6
+jest.config.js
+  84d19e0de01be8a9 36
+backend/convex/messages.ts
+  84d19e0de01be8a9 113-126
+docs/contributing.md
+  84d19e0de01be8a9 79-80,245,269-278
+frontend/public/.well-known/apple-app-site-association
+  592de140ad3b1f6d 6
+backend/convex/__tests__/messages.test.ts
+  84d19e0de01be8a9 11-23,37,145-175
+backend/convex/pushNotifications.ts
+  84d19e0de01be8a9 1-87
+frontend/hooks/usePushNotifications.ts
+  84d19e0de01be8a9 1-134
+backend/convex/__tests__/testUtils.ts
+  84d19e0de01be8a9 14,26
+frontend/app.json
+  84d19e0de01be8a9 15,51-52
+frontend/app/_layout.tsx
+  84d19e0de01be8a9 3,9,27-32,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "34ac78f59548421826c27b881d862cb392705cc1",
+  "prompts": {
+    "592de140ad3b1f6d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3e05ea5e-76a6-4566-bf4e-5334eceee4c8",
+        "model": "premium"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 4,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "84d19e0de01be8a9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bf814399-0dd4-4576-8229-4fc7088332eb",
+        "model": "premium"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 358,
+      "total_deletions": 41,
+      "accepted_lines": 319,
+      "overriden_lines": 0
+    }
+  }
+}
