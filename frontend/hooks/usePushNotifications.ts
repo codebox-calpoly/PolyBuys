@@ -61,7 +61,6 @@ async function registerForPushNotificationsAsync() {
 export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: boolean) {
   const router = useRouter();
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
-  const removePushToken = useMutation(api.pushNotifications.removePushToken);
   const previousIsAuthenticated = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -76,14 +75,6 @@ export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: bo
 
     const syncPushToken = async () => {
       if (!isAuthenticated) {
-        const didSignOut = previousIsAuthenticated.current === true;
-        if (didSignOut) {
-          try {
-            await removePushToken({});
-          } catch {
-            // Ignore cleanup failures on sign-out.
-          }
-        }
         previousIsAuthenticated.current = false;
         return;
       }
@@ -105,7 +96,7 @@ export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: bo
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, isAuthLoading, recordPushToken, removePushToken]);
+  }, [isAuthenticated, isAuthLoading, recordPushToken]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -121,10 +112,14 @@ export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: bo
         return;
       }
 
-      router.push({
-        pathname: '/messages/[id]',
-        params: { id: conversationId },
-      });
+      try {
+        router.push({
+          pathname: '/messages/[id]',
+          params: { id: conversationId },
+        });
+      } catch (error) {
+        console.error('Failed to navigate from push notification', error);
+      }
     });
 
     return () => {

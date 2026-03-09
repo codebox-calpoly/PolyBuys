@@ -1,5 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+jest.mock('@convex-dev/expo-push-notifications', () => {
+  const sendPushNotificationMock = jest.fn().mockResolvedValue('push-id');
+  return {
+    __private: { sendPushNotificationMock },
+    PushNotifications: jest.fn().mockImplementation(() => ({
+      recordToken: jest.fn().mockResolvedValue(null),
+      removeToken: jest.fn().mockResolvedValue(null),
+      sendPushNotification: sendPushNotificationMock,
+    })),
+  };
+});
+
 import { api, internal } from '../_generated/api';
 import {
   createConvexTest,
@@ -8,18 +20,13 @@ import {
   createTestConversation,
 } from './testUtils';
 
-let sendPushNotificationMock: jest.Mock;
-
-jest.mock('@convex-dev/expo-push-notifications', () => ({
-  PushNotifications: jest.fn().mockImplementation(() => {
-    sendPushNotificationMock = jest.fn().mockResolvedValue('push-id');
-    return {
-      recordToken: jest.fn().mockResolvedValue(null),
-      removeToken: jest.fn().mockResolvedValue(null),
-      sendPushNotification: sendPushNotificationMock,
-    };
-  }),
-}));
+function getSendPushNotificationMock(): jest.Mock {
+  return (
+    jest.requireMock('@convex-dev/expo-push-notifications') as {
+      __private: { sendPushNotificationMock: jest.Mock };
+    }
+  ).__private.sendPushNotificationMock;
+}
 
 // Mock global fetch for OpenAI Moderation API calls
 const originalFetch = global.fetch;
@@ -34,7 +41,7 @@ beforeEach(() => {
 
 afterEach(() => {
   global.fetch = originalFetch;
-  sendPushNotificationMock?.mockClear();
+  getSendPushNotificationMock().mockClear();
 });
 
 describe('Messages queries and mutations', () => {
@@ -157,7 +164,7 @@ describe('Messages queries and mutations', () => {
         body: 'Push me when you get this',
       });
 
-      expect(sendPushNotificationMock).toHaveBeenCalledWith(
+      expect(getSendPushNotificationMock()).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           userId: seller.id,

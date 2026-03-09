@@ -52,6 +52,10 @@ export default function RootLayout() {
             name="listings/[id]/edit"
             options={{ title: 'Edit Listing', headerBackTitle: 'Back' }}
           />
+          <Stack.Screen
+            name="messages/[id]"
+            options={{ title: 'Messages', headerBackTitle: 'Back' }}
+          />
           <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerShown: false }} />
           <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
         </Stack>

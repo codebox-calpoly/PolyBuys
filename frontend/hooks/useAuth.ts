@@ -1,5 +1,5 @@
 import { useAuthActions } from '@convex-dev/auth/react';
-import { useConvexAuth, useQuery } from 'convex/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { User } from '@polybuys/shared';
 
@@ -19,6 +19,7 @@ export interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const { signOut: authSignOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const removePushToken = useMutation(api.pushNotifications.removePushToken);
 
   // Get current user from database (skip query when not authenticated)
   const user = useQuery(api.users.getCurrentUser, isAuthenticated ? undefined : 'skip');
@@ -26,6 +27,12 @@ export function useAuth(): UseAuthReturn {
 
   const signOut = async (): Promise<void> => {
     try {
+      // Best-effort cleanup while still authenticated to avoid leaving stale tokens.
+      try {
+        await removePushToken({});
+      } catch (error) {
+        console.warn('Failed to remove push token before sign-out', error);
+      }
       await authSignOut();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Sign out failed';
