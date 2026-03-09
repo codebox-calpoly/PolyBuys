@@ -32,5 +32,7 @@ module.exports = {
     '^.+\\.jsx?$': ['babel-jest', { configFile: path.resolve(__dirname, 'babel.jest.config.js') }],
   },
   // Transform ES module packages from node_modules with babel
-  transformIgnorePatterns: ['node_modules/(?!(convex-test|convex)/)'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(convex-test|convex|@convex-dev/expo-push-notifications)/)',
+  ],
 };

@@ -8,11 +8,15 @@
     "platforms": ["ios", "android", "web"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.polybuy.app",
-      "associatedDomains": ["applinks:polybuys.com"]
+      "bundleIdentifier": "com.polybuys.polybuys",
+      "associatedDomains": ["applinks:polybuys.com"],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.polybuy.app",
+      "package": "com.polybuys.polybuys",
+      "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -35,7 +39,8 @@
           "origin": "https://polybuys.com"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "scheme": "polybuys",
     "experiments": {
@@ -43,6 +48,15 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://polybuys.com"
+      },
+      "eas": {
+        "projectId": "1f42b24b-0dcd-4b44-84d5-f31b6ff08dae"
+      }
+    },
+    "owner": "polybuys"
   }
 }

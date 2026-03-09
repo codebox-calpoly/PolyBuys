@@ -8,6 +8,19 @@ import {
   createTestConversation,
 } from './testUtils';
 
+let sendPushNotificationMock: jest.Mock;
+
+jest.mock('@convex-dev/expo-push-notifications', () => ({
+  PushNotifications: jest.fn().mockImplementation(() => {
+    sendPushNotificationMock = jest.fn().mockResolvedValue('push-id');
+    return {
+      recordToken: jest.fn().mockResolvedValue(null),
+      removeToken: jest.fn().mockResolvedValue(null),
+      sendPushNotification: sendPushNotificationMock,
+    };
+  }),
+}));
+
 // Mock global fetch for OpenAI Moderation API calls
 const originalFetch = global.fetch;
 beforeEach(() => {
@@ -21,6 +34,7 @@ beforeEach(() => {
 
 afterEach(() => {
   global.fetch = originalFetch;
+  sendPushNotificationMock?.mockClear();
 });
 
 describe('Messages queries and mutations', () => {
@@ -127,6 +141,38 @@ describe('Messages queries and mutations', () => {
       });
 
       expect(conversationAfter!.updatedAt).toBeGreaterThan(oldUpdatedAt);
+    });
+
+    it('sends a push notification to the recipient when a new message is created', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Push me when you get this',
+      });
+
+      expect(sendPushNotificationMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          userId: seller.id,
+          allowUnregisteredTokens: true,
+          notification: expect.objectContaining({
+            title: 'New message',
+            body: 'Push me when you get this',
+            data: expect.objectContaining({
+              conversationId,
+              listingId,
+              senderId: buyer.id,
+            }),
+          }),
+        })
+      );
     });
   });
 

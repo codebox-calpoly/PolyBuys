@@ -110,6 +110,20 @@ export const sendMessage = action({
       type: type,
     });
 
+    // Push notifications are best-effort and should never block message delivery.
+    try {
+      await ctx.runMutation(internal.pushNotifications.sendNewMessageNotification, {
+        recipientId,
+        senderId: userId,
+        conversationId: args.conversationId,
+        listingId: convo.listingId,
+        messageId: result.messageId as Id<'messages'>,
+        body: args.body,
+      });
+    } catch (error) {
+      console.error('Failed to send push notification for message', error);
+    }
+
     return result;
   },
 });

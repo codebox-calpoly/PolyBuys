@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "189885349539",
+    "project_id": "polybuys",
+    "storage_bucket": "polybuys.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:189885349539:android:9fa2ae66612b9c80250916",
+        "android_client_info": {
+          "package_name": "com.polybuys.polybuys"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbUdZt66eTJq3by2Vii8BtTcIxEg-Ddq8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
