@@ -26,6 +26,7 @@ PolyBuys/
 
 - Quick start & daily commands: [QUICK_START.md](QUICK_START.md)
 - Contribution process and workflow: [docs/contributing.md](docs/contributing.md)
+- Local setup without Convex account: [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md)
 - Convex migration runbook: [docs/CONVEX_CLOUD_MIGRATION.md](docs/CONVEX_CLOUD_MIGRATION.md)
 - Legacy self-hosted reference: [docs/SELF_HOSTED_CONVEX.md](docs/SELF_HOSTED_CONVEX.md)
 - Schema migration guide: [docs/SCHEMA_MIGRATION.md](docs/SCHEMA_MIGRATION.md)
@@ -71,6 +72,8 @@ npm run dev:backend
 # Start the Expo app (in another terminal)
 npm run dev
 ```
+
+If you do not have Convex Cloud team access, use the local workflow in [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md) before running the commands above.
 
 ### Platform-Specific Development
 
