@@ -1,0 +1,31 @@
+frontend/hooks/usePushNotifications.ts
+  b97bbecf88a8a0ab 99,115,119-122
+frontend/hooks/useAuth.ts
+  b97bbecf88a8a0ab 2,22,30-35
+backend/convex/messages.ts
+  b97bbecf88a8a0ab 58,114-118,124-125,127-133,135,137
+frontend/app/_layout.tsx
+  b97bbecf88a8a0ab 55-58
+backend/convex/__tests__/messages.test.ts
+  b97bbecf88a8a0ab 3-7,11-14,23-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "a0adda2749321e0b3a5d914ceb62e81069c662db",
+  "prompts": {
+    "b97bbecf88a8a0ab": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8d2a0c9b-7431-4a5e-864c-ba5450b7be57",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 58,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
