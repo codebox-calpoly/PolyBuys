@@ -3,6 +3,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, typography } from '../../theme/tokens';
 
@@ -93,7 +94,7 @@ export default function TabsLayout() {
   const isDarkMode = colorScheme === 'dark';
   const tabTint = isDarkMode ? colors.white : colors.primary;
 
-  return (
+  const nativeTabs = (
     <NativeTabs
       minimizeBehavior="onScrollDown"
       tintColor={tabTint}
@@ -148,9 +149,22 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
     </NativeTabs>
   );
+
+  if (Platform.OS === 'android') {
+    return (
+      <SafeAreaView style={styles.nativeRoot} edges={['top']}>
+        {nativeTabs}
+      </SafeAreaView>
+    );
+  }
+
+  return nativeTabs;
 }
 
 const styles = StyleSheet.create({
+  nativeRoot: {
+    flex: 1,
+  },
   webRoot: {
     flex: 1,
     backgroundColor: colors.white,

@@ -1,0 +1,125 @@
+# Convex Cloud Migration Runbook
+
+This runbook migrates PolyBuys from self-hosted Convex to Convex Cloud using a snapshot export/import flow.
+
+## Scope
+
+- Migrates Convex database tables and file storage.
+- Switches backend development/deploy workflow to Convex Cloud.
+- Switches frontend runtime URL to Convex Cloud.
+
+## Preconditions
+
+- You have owner/admin access to:
+  - Current self-hosted Convex deployment.
+  - New Convex Cloud project (dev + prod).
+  - Frontend deployment environment variables.
+- You can schedule a short maintenance window for production cutover.
+
+## 1) Set up Convex Cloud deployment
+
+From `backend/`:
+
+```bash
+npx convex dev
+```
+
+This links the workspace to Convex Cloud and creates/updates `backend/.env.local` with `CONVEX_DEPLOYMENT`.
+
+## 2) Copy backend secrets to Convex Cloud
+
+Set required env vars in Convex Cloud (dev first, then prod):
+
+```bash
+# dev deployment
+npx convex env set AUTH_RESEND_KEY
+npx convex env set AUTH_RESEND_FROM
+npx convex env set OPENAI_API_KEY
+
+# prod deployment
+npx convex env set --prod AUTH_RESEND_KEY
+npx convex env set --prod AUTH_RESEND_FROM
+npx convex env set --prod OPENAI_API_KEY
+```
+
+Add any additional runtime secrets used by your Convex functions.
+
+## 3) Dry run migration into cloud dev
+
+Export from self-hosted (while pointed at self-hosted env):
+
+```bash
+npx convex export --include-file-storage --path convex-selfhost-backup.zip
+```
+
+Switch back to Convex Cloud dev config (`CONVEX_DEPLOYMENT`) and import:
+
+```bash
+npx convex import --replace convex-selfhost-backup.zip
+```
+
+Validate key flows in dev:
+
+- sign in (OTP delivery)
+- create listing
+- edit listing
+- delete listing
+- image upload/download
+- messaging
+
+## 4) Production cutover
+
+1. Announce maintenance window and freeze writes on self-hosted.
+2. Take final export from self-hosted:
+
+```bash
+npx convex export --include-file-storage --path convex-selfhost-final.zip
+```
+
+3. Import into Convex Cloud production:
+
+```bash
+npx convex import --prod --replace convex-selfhost-final.zip
+```
+
+4. Deploy backend functions and schema to Convex Cloud production:
+
+```bash
+npx convex deploy --prod
+```
+
+5. Update frontend env to Cloud URL:
+
+```bash
+EXPO_PUBLIC_CONVEX_URL=<convex-cloud-url>
+```
+
+6. Redeploy frontend in maintenance/read-only mode.
+7. Complete the post-cutover validation steps below.
+8. Unfreeze traffic only after validation passes.
+
+## 5) Post-cutover validation
+
+- Verify app reads/writes against Convex Cloud.
+- Verify no auth/email regressions.
+- Verify file storage and listing images are intact.
+- Run `npx convex logs --prod` and monitor errors for at least one release window.
+
+## Rollback plan
+
+If severe issues occur:
+
+1. Re-freeze writes immediately by putting the app back into maintenance/read-only mode.
+2. If any writes landed on Convex Cloud after cutover, have the on-call engineer or tech lead export the affected Convex Cloud records since the cutover timestamp (for example via `npx convex export --prod --path convex-cloud-rollback.zip` plus a one-off reconciliation script/query to isolate changed records).
+3. Merge those post-cutover writes back into the self-hosted database before redirecting traffic. Record who ran the reconciliation and which records were replayed.
+4. Validate data integrity in both systems (counts, spot-check critical records, and confirm no missing file storage references).
+5. Point the frontend back to the old self-hosted URL.
+6. Redeploy frontend.
+7. Keep the Convex Cloud snapshot and reconciliation notes for forensic comparison.
+8. Re-run migration later with fixes.
+
+## Notes
+
+- `convex import` with backups is currently a beta feature; always dry run before production.
+- Prefer `--replace` during full snapshot restores to avoid partial or duplicated state.
+- Keep source and target Convex versions close when possible.

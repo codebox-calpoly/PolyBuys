@@ -47,6 +47,7 @@ export default function SettingsScreen() {
   const entranceStyle = useEntranceAnimation();
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
   const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
@@ -94,10 +95,13 @@ export default function SettingsScreen() {
     }
 
     try {
+      setIsSigningOut(true);
       await signOut();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign out';
       Alert.alert('Sign Out Failed', message);
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -282,13 +286,13 @@ export default function SettingsScreen() {
           style={({ pressed }) => [
             styles.secondaryButton,
             pressed && styles.buttonPressed,
-            isLoading && styles.buttonDisabled,
+            (isSigningOut || isLoading) && styles.buttonDisabled,
           ]}
           onPress={handleAuthAction}
-          disabled={isLoading}
+          disabled={isSigningOut || isLoading}
         >
           <Text style={styles.secondaryButtonText}>
-            {isLoading ? 'Signing out...' : 'Sign out'}
+            {isSigningOut ? 'Signing out...' : 'Sign out'}
           </Text>
         </Pressable>
       </View>

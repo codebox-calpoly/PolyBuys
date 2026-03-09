@@ -71,8 +71,8 @@ npm start -- --clear
 
 ```bash
 npm run dev:backend
-# Check backend/.env.local has correct URL and admin key
-# Verify backend is accessible: curl https://api.polybuys.com
+# Check backend/.env.local has CONVEX_DEPLOYMENT from `npx convex dev`
+# Check frontend/.env.local EXPO_PUBLIC_CONVEX_URL points to your Convex Cloud URL
 ```
 
 **Type errors after pulling?**

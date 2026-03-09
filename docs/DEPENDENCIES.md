@@ -67,8 +67,8 @@ npx npm-check-updates
 - **Backend**: Convex functions live in `backend/convex/`
 - **Frontend**: References backend via TypeScript path mapping `"convex/*": ["../backend/convex/*"]`
 - **No duplication**: Frontend imports `convex/_generated/api` which resolves to backend folder
-- **Development**: Run `npm run dev:backend` to sync with self-hosted Convex, then `npm run dev` for frontend
-- **Hosting**: We use **self-hosted Convex on Railway**, not Convex cloud. See [SELF_HOSTED_CONVEX.md](SELF_HOSTED_CONVEX.md) for details.
+- **Development**: Run `npm run dev:backend` to sync with Convex Cloud, then `npm run dev` for frontend
+- **Hosting**: We use **Convex Cloud**. Migration/cutover steps live in [CONVEX_CLOUD_MIGRATION.md](CONVEX_CLOUD_MIGRATION.md).
 
 ### Shared Types
 
