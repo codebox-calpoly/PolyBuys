@@ -1,0 +1,27 @@
+docs/contributing.md
+  9759df64e0695ed7 60,62,64,66,73,79-85,252
+docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md
+  9759df64e0695ed7 1-49,51,53-95
+README.md
+  9759df64e0695ed7 29,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "9529e0a51ee2f71f26ae2df8eba985322869bb58",
+  "prompts": {
+    "9759df64e0695ed7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fc7406c7-b548-4537-8c4a-0dd4457263d4",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 116,
+      "total_deletions": 11,
+      "accepted_lines": 114,
+      "overriden_lines": 2
+    }
+  }
+}
