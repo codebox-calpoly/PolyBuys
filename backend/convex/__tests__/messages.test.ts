@@ -600,6 +600,34 @@ describe('Messages queries and mutations', () => {
       expect(conversationAfter!.sellerLastReadAt).toBeGreaterThan(oldSellerLastReadAt);
     });
 
+    it('does not update conversation updatedAt when marking messages as read', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const conversationBefore = await t.run(async (ctx) => {
+        return await ctx.db.get(conversationId);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await asBuyer.mutation(api.messages.markMessagesAsRead, {
+        conversationId,
+      });
+
+      const conversationAfter = await t.run(async (ctx) => {
+        return await ctx.db.get(conversationId);
+      });
+
+      expect(conversationAfter!.updatedAt).toBe(conversationBefore!.updatedAt);
+      expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(
+        conversationBefore!.buyerLastReadAt
+      );
+    });
+
     it('marks unread messages as read for buyer', async () => {
       const t = createConvexTest();
 

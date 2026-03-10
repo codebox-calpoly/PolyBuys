@@ -264,8 +264,53 @@ export const listUserConversations = query({
   args: {},
   handler: async (ctx) => {
     const participantKeys = await getParticipantKeys(ctx);
-    const allConversations = await ctx.db.query('conversations').collect();
-    const participantConversations = allConversations
+    const canonicalParticipantKeys = [
+      ...new Set(
+        participantKeys
+          .map((participantKey) => canonicalParticipantId(participantKey).trim())
+          .filter((participantKey) => participantKey.length > 0)
+      ),
+    ];
+    const indexedConversationResults = await Promise.all(
+      canonicalParticipantKeys.flatMap((participantKey) => [
+        ctx.db
+          .query('conversations')
+          .withIndex('by_buyer', (q) => q.eq('buyerId', participantKey))
+          .order('desc')
+          .collect(),
+        ctx.db
+          .query('conversations')
+          .withIndex('by_seller', (q) => q.eq('sellerId', participantKey))
+          .order('desc')
+          .collect(),
+        ctx.db
+          .query('conversations')
+          .withIndex('by_buyer', (q) =>
+            q.gte('buyerId', `${participantKey}|`).lt('buyerId', `${participantKey}|\uffff`)
+          )
+          .collect(),
+        ctx.db
+          .query('conversations')
+          .withIndex('by_seller', (q) =>
+            q.gte('sellerId', `${participantKey}|`).lt('sellerId', `${participantKey}|\uffff`)
+          )
+          .collect(),
+      ])
+    );
+
+    const dedupedConversationIds = new Set<Id<'conversations'>>();
+    for (const batch of indexedConversationResults) {
+      for (const conversation of batch) {
+        dedupedConversationIds.add(conversation._id);
+      }
+    }
+
+    const participantConversations = (
+      await Promise.all(
+        [...dedupedConversationIds].map((conversationId) => ctx.db.get(conversationId))
+      )
+    )
+      .filter((conversation): conversation is Doc<'conversations'> => conversation !== null)
       .filter(
         (conversation) =>
           matchesAnyParticipantId(conversation.buyerId, participantKeys) ||
@@ -273,62 +318,58 @@ export const listUserConversations = query({
       )
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
-    // Legacy compatibility: collapse duplicate threads created with aliased participant IDs.
-    const dedupedConversationMap = new Map<string, Doc<'conversations'>>();
+    // Legacy compatibility: merge sibling threads created with aliased participant IDs.
+    const dedupedConversationMap = new Map<string, Doc<'conversations'>[]>();
     for (const conversation of participantConversations) {
       const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
       const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
       const dedupeKey = `${conversation.listingId}:${canonicalParticipantId(otherUserId)}`;
-      const existing = dedupedConversationMap.get(dedupeKey);
-      if (!existing || conversation.updatedAt > existing.updatedAt) {
-        dedupedConversationMap.set(dedupeKey, conversation);
-      }
-    }
-    const conversations = [...dedupedConversationMap.values()].sort(
-      (a, b) => b.updatedAt - a.updatedAt
-    );
-
-    const allProfiles = await ctx.db.query('profiles').collect();
-    const profilesByCanonicalUserId = new Map<string, Doc<'profiles'>>();
-    for (const profile of allProfiles) {
-      const canonicalUserId = canonicalParticipantId(profile.userId);
-      if (!profilesByCanonicalUserId.has(canonicalUserId)) {
-        profilesByCanonicalUserId.set(canonicalUserId, profile);
+      const siblings = dedupedConversationMap.get(dedupeKey);
+      if (siblings) {
+        siblings.push(conversation);
+      } else {
+        dedupedConversationMap.set(dedupeKey, [conversation]);
       }
     }
 
-    const userDocsByCanonicalUserId = new Map<string, Doc<'users'> | null>();
-
-    return await Promise.all(
-      conversations.map(async (conversation) => {
-        const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
-        const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
+    const groupedConversations = [...dedupedConversationMap.entries()]
+      .map(([dedupeKey, siblingConversations]) => {
+        const sortedSiblings = [...siblingConversations].sort((a, b) => b.updatedAt - a.updatedAt);
+        const primaryConversation = sortedSiblings[0];
+        const isBuyer = matchesAnyParticipantId(primaryConversation.buyerId, participantKeys);
+        const otherUserId = isBuyer ? primaryConversation.sellerId : primaryConversation.buyerId;
         const canonicalOtherUserId = canonicalParticipantId(otherUserId);
+        const mergedUpdatedAt = Math.max(
+          ...sortedSiblings.map((conversation) => conversation.updatedAt)
+        );
 
-        let otherUserDoc = userDocsByCanonicalUserId.get(canonicalOtherUserId);
-        if (otherUserDoc === undefined) {
-          const normalizedOtherUserId = await ctx.db.normalizeId('users', canonicalOtherUserId);
-          otherUserDoc = normalizedOtherUserId ? await ctx.db.get(normalizedOtherUserId) : null;
-          userDocsByCanonicalUserId.set(canonicalOtherUserId, otherUserDoc);
-        }
+        return {
+          dedupeKey,
+          primaryConversation,
+          siblingConversations: sortedSiblings,
+          otherUserId,
+          canonicalOtherUserId,
+          mergedUpdatedAt,
+        };
+      })
+      .sort((a, b) => b.mergedUpdatedAt - a.mergedUpdatedAt);
 
-        const [listing, latestMessage, unreadMessages] = await Promise.all([
-          ctx.db.get(conversation.listingId),
-          ctx.db
-            .query('messages')
-            .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
-            .order('desc')
-            .first(),
-          ctx.db
-            .query('messages')
-            .withIndex('by_conversation_recipient_readAt', (q) =>
-              q.eq('conversationId', conversation._id)
-            )
-            .filter((q) => q.eq(q.field('readAt'), 0))
-            .collect(),
-        ]);
-        const otherProfile = profilesByCanonicalUserId.get(canonicalOtherUserId) ?? null;
+    const listingIds = [
+      ...new Set(groupedConversations.map((group) => group.primaryConversation.listingId)),
+    ];
+    const listingDocs = await Promise.all(listingIds.map((listingId) => ctx.db.get(listingId)));
+    const listingById = new Map<Id<'listings'>, Doc<'listings'> | null>();
+    for (let index = 0; index < listingIds.length; index += 1) {
+      listingById.set(listingIds[index], listingDocs[index]);
+    }
 
+    const listingSummariesById = new Map<
+      Id<'listings'>,
+      { id: Id<'listings'>; title: string; thumbnailUrl: string | null }
+    >();
+    await Promise.all(
+      listingIds.map(async (listingId) => {
+        const listing = listingById.get(listingId) ?? null;
         const thumbnailSource = listing?.images?.[0] ?? null;
         let listingThumbnailUrl: string | null = null;
         if (thumbnailSource) {
@@ -343,25 +384,154 @@ export const listUserConversations = query({
           }
         }
 
+        listingSummariesById.set(listingId, {
+          id: listingId,
+          title: listing?.title ?? 'Listing unavailable',
+          thumbnailUrl: listingThumbnailUrl,
+        });
+      })
+    );
+
+    const canonicalOtherUserIds = [
+      ...new Set(groupedConversations.map((group) => group.canonicalOtherUserId)),
+    ];
+    const [userEntries, profileEntries] = await Promise.all([
+      Promise.all(
+        canonicalOtherUserIds.map(async (canonicalOtherUserId) => {
+          const normalizedOtherUserId = await ctx.db.normalizeId('users', canonicalOtherUserId);
+          const otherUserDoc = normalizedOtherUserId
+            ? await ctx.db.get(normalizedOtherUserId)
+            : null;
+          return [canonicalOtherUserId, otherUserDoc] as const;
+        })
+      ),
+      Promise.all(
+        canonicalOtherUserIds.map(async (canonicalOtherUserId) => {
+          const [exactProfile, aliasProfile] = await Promise.all([
+            ctx.db
+              .query('profiles')
+              .withIndex('by_userId', (q) => q.eq('userId', canonicalOtherUserId))
+              .first(),
+            ctx.db
+              .query('profiles')
+              .withIndex('by_userId', (q) =>
+                q
+                  .gte('userId', `${canonicalOtherUserId}|`)
+                  .lt('userId', `${canonicalOtherUserId}|\uffff`)
+              )
+              .first(),
+          ]);
+          return [canonicalOtherUserId, exactProfile ?? aliasProfile ?? null] as const;
+        })
+      ),
+    ]);
+    const userDocsByCanonicalUserId = new Map<string, Doc<'users'> | null>(userEntries);
+    const profilesByCanonicalUserId = new Map<string, Doc<'profiles'> | null>(profileEntries);
+
+    const lastMessageIds = [
+      ...new Set(
+        groupedConversations.flatMap((group) =>
+          group.siblingConversations
+            .map((conversation) => conversation.lastMessageId)
+            .filter((lastMessageId): lastMessageId is Id<'messages'> => lastMessageId !== undefined)
+        )
+      ),
+    ];
+    const lastMessageDocs = await Promise.all(
+      lastMessageIds.map((lastMessageId) => ctx.db.get(lastMessageId))
+    );
+    const lastMessagesById = new Map<Id<'messages'>, Doc<'messages'>>();
+    for (let index = 0; index < lastMessageIds.length; index += 1) {
+      const message = lastMessageDocs[index];
+      if (message) {
+        lastMessagesById.set(lastMessageIds[index], message);
+      }
+    }
+
+    return await Promise.all(
+      groupedConversations.map(async (group) => {
+        let latestMessage: Doc<'messages'> | null = null;
+        for (const siblingConversation of group.siblingConversations) {
+          const siblingLastMessageId = siblingConversation.lastMessageId;
+          if (!siblingLastMessageId) {
+            continue;
+          }
+          const siblingLastMessage = lastMessagesById.get(siblingLastMessageId);
+          if (
+            siblingLastMessage &&
+            (!latestMessage || siblingLastMessage.createdAt > latestMessage.createdAt)
+          ) {
+            latestMessage = siblingLastMessage;
+          }
+        }
+
+        const conversationsMissingLastMessageId = group.siblingConversations.filter(
+          (siblingConversation) => !siblingConversation.lastMessageId
+        );
+        if (conversationsMissingLastMessageId.length > 0) {
+          const fallbackMessages = await Promise.all(
+            conversationsMissingLastMessageId.map((siblingConversation) =>
+              ctx.db
+                .query('messages')
+                .withIndex('by_conversation_createdAt', (q) =>
+                  q.eq('conversationId', siblingConversation._id)
+                )
+                .order('desc')
+                .first()
+            )
+          );
+          for (const fallbackMessage of fallbackMessages) {
+            if (
+              fallbackMessage &&
+              (!latestMessage || fallbackMessage.createdAt > latestMessage.createdAt)
+            ) {
+              latestMessage = fallbackMessage;
+            }
+          }
+        }
+
+        const unreadByConversation = await Promise.all(
+          group.siblingConversations.map((siblingConversation) =>
+            ctx.db
+              .query('messages')
+              .withIndex('by_conversation_recipient_readAt', (q) =>
+                q.eq('conversationId', siblingConversation._id)
+              )
+              .filter((q) => q.eq(q.field('readAt'), 0))
+              .collect()
+          )
+        );
+        const unreadCount = unreadByConversation.reduce(
+          (count, unreadMessages) =>
+            count +
+            unreadMessages.filter((message) =>
+              matchesAnyParticipantId(message.recipientId, participantKeys)
+            ).length,
+          0
+        );
+
+        const otherProfile = profilesByCanonicalUserId.get(group.canonicalOtherUserId) ?? null;
+        const otherUserDoc = userDocsByCanonicalUserId.get(group.canonicalOtherUserId) ?? null;
+
         return {
-          ...conversation,
+          ...group.primaryConversation,
+          updatedAt: group.mergedUpdatedAt,
+          mergedConversationIds: group.siblingConversations.map(
+            (siblingConversation) => siblingConversation._id
+          ),
           otherUser: {
-            id: otherUserId,
-            name: displayNameFromProfile(otherProfile, otherUserDoc, otherUserId),
+            id: group.otherUserId,
+            name: displayNameFromProfile(otherProfile, otherUserDoc, group.otherUserId),
           },
-          listing: {
-            id: conversation.listingId,
-            title: listing?.title ?? 'Listing unavailable',
-            thumbnailUrl: listingThumbnailUrl ?? null,
+          listing: listingSummariesById.get(group.primaryConversation.listingId) ?? {
+            id: group.primaryConversation.listingId,
+            title: 'Listing unavailable',
+            thumbnailUrl: null,
           },
           lastMessagePreview: latestMessage?.body ?? 'Conversation started',
-          lastMessageAt: latestMessage?.createdAt ?? conversation.updatedAt,
-          unreadCount: unreadMessages.filter((message) =>
-            matchesAnyParticipantId(message.recipientId, participantKeys)
-          ).length,
-          hasUnread: unreadMessages.some((message) =>
-            matchesAnyParticipantId(message.recipientId, participantKeys)
-          ),
+          lastMessageAt: latestMessage?.createdAt ?? group.mergedUpdatedAt,
+          unreadCount,
+          hasUnread: unreadCount > 0,
         };
       })
     );
@@ -467,9 +637,9 @@ export const markMessagesAsRead = mutation({
     const now = Date.now();
 
     if (isBuyer) {
-      await ctx.db.patch(convo._id, { buyerLastReadAt: now, updatedAt: now });
+      await ctx.db.patch(convo._id, { buyerLastReadAt: now });
     } else if (isSeller) {
-      await ctx.db.patch(convo._id, { sellerLastReadAt: now, updatedAt: now });
+      await ctx.db.patch(convo._id, { sellerLastReadAt: now });
     }
 
     const unread = await ctx.db

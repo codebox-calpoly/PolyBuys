@@ -15,11 +15,9 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
-import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 type ConversationRowItem = {
   _id: string;
-  listingId?: Id<'listings'>;
   updatedAt?: number;
   hasUnread?: boolean;
   lastMessagePreview?: string;
@@ -49,16 +47,8 @@ function ConversationRow({
 }) {
   const hasUnread = Boolean(item.hasUnread);
   const otherUserName = item.otherUser?.name ?? 'User';
-
-  const listingId = (item.listing?.id ?? item.listingId ?? null) as Id<'listings'> | null;
-  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
-
-  const listingTitle = item.listing?.title ?? listing?.title ?? 'Listing unavailable';
-  const thumbnailSource =
-    item.listing?.thumbnailUrl ??
-    (listing?.images && listing.images.length > 0 ? listing.images[0] : null);
-  const { mappedUrls } = useResolvedImageUrls(thumbnailSource ? [thumbnailSource] : []);
-  const thumbnailUrl = mappedUrls[0] ?? null;
+  const listingTitle = item.listing?.title ?? 'Listing unavailable';
+  const thumbnail = item.listing?.thumbnailUrl ?? null;
 
   const lastMessagePreview = item.lastMessagePreview ?? 'Conversation started';
   const lastMessageAt = item.lastMessageAt ?? item.updatedAt ?? Date.now();
@@ -69,8 +59,8 @@ function ConversationRow({
         style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
         onPress={onPress}
       >
-        {thumbnailUrl ? (
-          <Image source={{ uri: thumbnailUrl }} style={styles.thumbnail} />
+        {thumbnail ? (
+          <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
         ) : (
           <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
             <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
