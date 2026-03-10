@@ -72,6 +72,19 @@ export default function ConversationDetailScreen() {
     }
     return conversationList.find((item) => item._id === conversationId) ?? null;
   }, [conversationId, conversationList]);
+  const siblingConversationIds = useMemo(() => {
+    if (!conversationId || !conversation) {
+      return null;
+    }
+
+    const siblingIds = Array.isArray(conversation.siblingConversationIds)
+      ? conversation.siblingConversationIds.filter(
+          (value): value is ConversationId => typeof value === 'string' && value.length > 0
+        )
+      : [];
+
+    return [...new Set([conversationId, ...siblingIds])] as ConversationId[];
+  }, [conversation, conversationId]);
 
   const listingId = (conversation?.listing?.id ??
     conversation?.listingId ??
@@ -91,7 +104,15 @@ export default function ConversationDetailScreen() {
 
   const messages = useQuery(
     api.messages.messagesByConversation,
-    isAuthenticated && conversationId && conversation ? { conversationId } : 'skip'
+    isAuthenticated && conversationId && conversation
+      ? {
+          conversationId,
+          siblingConversationIds:
+            siblingConversationIds && siblingConversationIds.length > 1
+              ? siblingConversationIds
+              : undefined,
+        }
+      : 'skip'
   );
   const participantKeys = useMemo(
     () =>
@@ -134,7 +155,12 @@ export default function ConversationDetailScreen() {
   }, [messages]);
 
   useEffect(() => {
-    if (!conversationId || !isAuthenticated || unreadIncomingCount === 0) {
+    if (
+      !conversationId ||
+      !isAuthenticated ||
+      unreadIncomingCount === 0 ||
+      !siblingConversationIds
+    ) {
       return;
     }
 
@@ -143,14 +169,24 @@ export default function ConversationDetailScreen() {
     }
     isMarkingReadRef.current = true;
 
-    void markMessagesAsRead({ conversationId })
+    void markMessagesAsRead({
+      conversationId,
+      siblingConversationIds:
+        siblingConversationIds.length > 1 ? siblingConversationIds : undefined,
+    })
       .catch(() => {
         // Non-fatal: message stream still renders in real time.
       })
       .finally(() => {
         isMarkingReadRef.current = false;
       });
-  }, [conversationId, isAuthenticated, markMessagesAsRead, unreadIncomingCount]);
+  }, [
+    conversationId,
+    isAuthenticated,
+    markMessagesAsRead,
+    siblingConversationIds,
+    unreadIncomingCount,
+  ]);
 
   const onSend = async () => {
     const trimmed = messageBody.trim();

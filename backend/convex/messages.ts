@@ -26,37 +26,15 @@ function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
 }
 
-function displayNameFromProfile(
-  profile: { name?: string; email?: string; userId?: string } | null,
-  user: { name?: string; email?: string } | null,
-  fallbackUserId: string
-) {
+function displayNameFromProfile(profile: { name?: string } | null, user: { name?: string } | null) {
   const userName = user?.name?.trim();
   if (userName && userName.length > 0) {
     return userName;
   }
 
-  if (!profile) {
-    const userEmail = user?.email?.trim().toLowerCase();
-    if (userEmail && userEmail.includes('@')) {
-      return userEmail.split('@')[0];
-    }
-
-    const normalized = fallbackUserId.trim().toLowerCase();
-    if (normalized.includes('@')) {
-      return normalized.split('@')[0];
-    }
-    return 'User';
-  }
-
-  const trimmedName = profile.name?.trim();
-  if (trimmedName && trimmedName.length > 0) {
-    return trimmedName;
-  }
-
-  const email = profile.email?.trim().toLowerCase();
-  if (email && email.includes('@')) {
-    return email.split('@')[0];
+  const profileName = profile?.name?.trim();
+  if (profileName && profileName.length > 0) {
+    return profileName;
   }
 
   return 'User';
@@ -123,8 +101,9 @@ export const sendMessage = action({
     type: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ messageId: Id<'messages'> }> => {
+    const trimmedBody = args.body.trim();
     // Validate message body length
-    if (args.body.length === 0) {
+    if (trimmedBody.length === 0) {
       throw new ConvexError('Message cannot be empty');
     }
     if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
@@ -246,16 +225,11 @@ export const debugCreateConversationID = internalMutation({
 export const getConversationHistory = query({
   args: {
     conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
   },
   handler: async (ctx, args) => {
-    await requireParticipant(ctx, args.conversationId);
-
-    const messages = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .collect();
-
-    return messages;
+    const { conversationIds } = await requireConversationScope(ctx, args);
+    return await collectMessagesForConversationScope(ctx, conversationIds);
   },
 });
 
@@ -516,12 +490,14 @@ export const listUserConversations = query({
         return {
           ...group.primaryConversation,
           updatedAt: group.mergedUpdatedAt,
-          mergedConversationIds: group.siblingConversations.map(
+          mergedConversationId: group.primaryConversation._id,
+          siblingConversationIds: group.siblingConversations.map(
             (siblingConversation) => siblingConversation._id
           ),
+          canonicalOtherUserId: group.canonicalOtherUserId,
           otherUser: {
             id: group.otherUserId,
-            name: displayNameFromProfile(otherProfile, otherUserDoc, group.otherUserId),
+            name: displayNameFromProfile(otherProfile, otherUserDoc),
           },
           listing: listingSummariesById.get(group.primaryConversation.listingId) ?? {
             id: group.primaryConversation.listingId,
@@ -538,20 +514,86 @@ export const listUserConversations = query({
   },
 });
 
-async function requireParticipant(
+async function requireConversationScope(
   ctx: MutationCtx | QueryCtx,
-  conversationId: Id<'conversations'>
+  args: {
+    conversationId: Id<'conversations'>;
+    siblingConversationIds?: Id<'conversations'>[];
+  }
 ) {
   const participantKeys = await getParticipantKeys(ctx);
-  const userId = participantKeys[0];
-  const convo = await ctx.db.get(conversationId);
-  if (!convo) throw new ConvexError('Conversation not found');
+  const scopedConversationIdSet = new Set<Id<'conversations'>>([
+    args.conversationId,
+    ...(args.siblingConversationIds ?? []),
+  ]);
+  const scopedConversationIds = [...scopedConversationIdSet];
 
-  const isBuyer = matchesAnyParticipantId(convo.buyerId, participantKeys);
-  const isSeller = matchesAnyParticipantId(convo.sellerId, participantKeys);
-  if (!isBuyer && !isSeller) throw new ConvexError('Forbidden');
+  const scopedConversations = await Promise.all(
+    scopedConversationIds.map((conversationId) => ctx.db.get(conversationId))
+  );
+  if (scopedConversations.some((conversation) => conversation === null)) {
+    throw new ConvexError('Conversation not found');
+  }
+  const conversations = scopedConversations as Doc<'conversations'>[];
+  const primaryConversation = conversations.find(
+    (conversation) => conversation._id === args.conversationId
+  );
+  if (!primaryConversation) {
+    throw new ConvexError('Conversation not found');
+  }
 
-  return { userId, participantKeys, convo, isBuyer, isSeller };
+  const getScopedConversationMeta = (conversation: Doc<'conversations'>) => {
+    const isBuyer = matchesAnyParticipantId(conversation.buyerId, participantKeys);
+    const isSeller = matchesAnyParticipantId(conversation.sellerId, participantKeys);
+    if (!isBuyer && !isSeller) {
+      throw new ConvexError('Forbidden');
+    }
+
+    const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
+    return {
+      conversation,
+      isBuyer,
+      isSeller,
+      dedupeKey: `${conversation.listingId}:${canonicalParticipantId(otherUserId)}`,
+    };
+  };
+
+  const primaryMeta = getScopedConversationMeta(primaryConversation);
+  const conversationScope = conversations.map((conversation) => {
+    const scopedMeta = getScopedConversationMeta(conversation);
+    if (scopedMeta.dedupeKey !== primaryMeta.dedupeKey) {
+      throw new ConvexError('Forbidden');
+    }
+    return {
+      conversation,
+      isBuyer: scopedMeta.isBuyer,
+      isSeller: scopedMeta.isSeller,
+    };
+  });
+
+  return {
+    participantKeys,
+    conversationIds: conversationScope.map(
+      (scopedConversation) => scopedConversation.conversation._id
+    ),
+    conversationScope,
+  };
+}
+
+async function collectMessagesForConversationScope(
+  ctx: MutationCtx | QueryCtx,
+  conversationIds: Id<'conversations'>[]
+) {
+  const messageBatches = await Promise.all(
+    conversationIds.map((conversationId) =>
+      ctx.db
+        .query('messages')
+        .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversationId))
+        .collect()
+    )
+  );
+
+  return messageBatches.flat().sort((left, right) => left.createdAt - right.createdAt);
 }
 
 export const getOrCreateConversation = mutation({
@@ -627,34 +669,47 @@ export const getOrCreateConversation = mutation({
 export const markMessagesAsRead = mutation({
   args: {
     conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
   },
   handler: async (ctx, args) => {
-    const { convo, participantKeys, isBuyer, isSeller } = await requireParticipant(
-      ctx,
-      args.conversationId
-    );
+    const { conversationScope, participantKeys } = await requireConversationScope(ctx, args);
 
     const now = Date.now();
 
-    if (isBuyer) {
-      await ctx.db.patch(convo._id, { buyerLastReadAt: now });
-    } else if (isSeller) {
-      await ctx.db.patch(convo._id, { sellerLastReadAt: now });
-    }
+    await Promise.all(
+      conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
+        if (isBuyer) {
+          await ctx.db.patch(conversation._id, { buyerLastReadAt: now });
+        } else if (isSeller) {
+          await ctx.db.patch(conversation._id, { sellerLastReadAt: now });
+        }
+      })
+    );
 
-    const unread = await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_recipient_readAt', (q) =>
-        q.eq('conversationId', args.conversationId)
+    const unreadMessagesByScope = await Promise.all(
+      conversationScope.flatMap(({ conversation }) =>
+        participantKeys.map((participantKey) =>
+          ctx.db
+            .query('messages')
+            .withIndex('by_conversation_recipient_readAt', (q) =>
+              q
+                .eq('conversationId', conversation._id)
+                .eq('recipientId', participantKey)
+                .eq('readAt', 0)
+            )
+            .collect()
+        )
       )
-      .filter((q) => q.eq(q.field('readAt'), 0))
-      .collect();
-
-    for (const msg of unread) {
-      if (matchesAnyParticipantId(msg.recipientId, participantKeys)) {
-        await ctx.db.patch(msg._id, { readAt: now });
+    );
+    const unreadMessageIds = new Set<Id<'messages'>>();
+    for (const unreadBatch of unreadMessagesByScope) {
+      for (const message of unreadBatch) {
+        unreadMessageIds.add(message._id);
       }
     }
+    await Promise.all(
+      [...unreadMessageIds].map((messageId) => ctx.db.patch(messageId, { readAt: now }))
+    );
 
     return { ok: true };
   },
@@ -691,13 +746,10 @@ export const backfillMessagingFields = internalMutation({
 export const messagesByConversation = query({
   args: {
     conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
   },
   handler: async (ctx, args) => {
-    await requireParticipant(ctx, args.conversationId);
-
-    return await ctx.db
-      .query('messages')
-      .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', args.conversationId))
-      .collect();
+    const { conversationIds } = await requireConversationScope(ctx, args);
+    return await collectMessagesForConversationScope(ctx, conversationIds);
   },
 });

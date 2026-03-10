@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -31,6 +31,10 @@ type ConversationRowItem = {
     thumbnailUrl?: string | null;
   };
 };
+
+function ItemSeparator() {
+  return <View style={styles.separator} />;
+}
 
 function ConversationRow({
   item,
@@ -120,21 +124,24 @@ export default function InboxScreen() {
     []
   );
 
-  const formatTimestamp = (timestamp: number) => {
-    const value = new Date(timestamp);
-    const now = new Date();
-    const sameDay = value.toDateString() === now.toDateString();
-    if (sameDay) {
-      return formatter.format(value);
-    }
+  const formatTimestamp = useCallback(
+    (timestamp: number) => {
+      const value = new Date(timestamp);
+      const now = new Date();
+      const sameDay = value.toDateString() === now.toDateString();
+      if (sameDay) {
+        return formatter.format(value);
+      }
 
-    const diff = now.getTime() - value.getTime();
-    if (diff < 1000 * 60 * 60 * 24 * 7) {
-      return weekdayFormatter.format(value);
-    }
+      const diff = now.getTime() - value.getTime();
+      if (diff < 1000 * 60 * 60 * 24 * 7) {
+        return weekdayFormatter.format(value);
+      }
 
-    return shortDateFormatter.format(value);
-  };
+      return shortDateFormatter.format(value);
+    },
+    [formatter, weekdayFormatter, shortDateFormatter]
+  );
 
   if (authLoading) {
     return (
@@ -197,7 +204,7 @@ export default function InboxScreen() {
           />
         );
       }}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      ItemSeparatorComponent={ItemSeparator}
     />
   );
 }
