@@ -12,9 +12,10 @@
   "dependencies": {
     "@auth/core": "^0.37.4",
     "@convex-dev/auth": "^0.0.90",
+    "@convex-dev/expo-push-notifications": "^0.3.1",
     "@oslojs/crypto": "^1.0.1",
     "@polybuys/shared": "*",
-    "convex": "^1.17.2",
+    "convex": "^1.32.0",
     "resend": "^4.8.0"
   },
   "devDependencies": {

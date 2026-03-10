@@ -76,6 +76,8 @@ Never commit directly to `main`.
 
    ```bash
    EXPO_PUBLIC_CONVEX_URL='https://api.polybuys.com'
+   # Optional fallback if Constants.expoConfig/easConfig projectId is unavailable
+   # EXPO_PUBLIC_EAS_PROJECT_ID='<your-eas-project-uuid>'
    ```
 
    **Note**: We use self-hosted Convex on Railway, not Convex cloud. See [SELF_HOSTED_CONVEX.md](SELF_HOSTED_CONVEX.md) for detailed setup and troubleshooting.
@@ -240,6 +242,7 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 **Frontend** (`frontend/.env.local`):
 
 - `EXPO_PUBLIC_CONVEX_URL` - Self-hosted Convex backend URL: `https://api.polybuys.com`
+- `EXPO_PUBLIC_EAS_PROJECT_ID` - Optional fallback EAS project UUID used when registering Expo push tokens
 
 **Backend** (`backend/.env.local`):
 
@@ -262,6 +265,17 @@ We also include an **`.editorconfig`** file to normalize IDE settings across the
 - `S3_ENDPOINT_URL` - Optional endpoint for R2/S3-compatible providers
 
 Ask tech leads for any additional secrets needed (API keys, etc.)
+
+### Push Notifications Setup (Expo + Convex Component)
+
+- Backend package: `@convex-dev/expo-push-notifications`
+- Frontend packages: `expo-notifications`, `expo-device`, `expo-constants`
+- Convex component config lives in `backend/convex/convex.config.ts`
+- Expo app config must include the `expo-notifications` plugin in `frontend/app.json`
+- Push notifications require a physical device (not simulator/emulator)
+- Configure platform credentials in Expo/EAS:
+  - Android: Firebase FCM credentials
+  - iOS: APNs credentials
 
 ### Documentation
 

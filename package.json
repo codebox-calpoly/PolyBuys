@@ -60,6 +60,6 @@
     ]
   },
   "dependencies": {
-    "convex": "^1.17.2"
+    "convex": "^1.32.0"
   }
 }

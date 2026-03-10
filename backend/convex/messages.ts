@@ -55,7 +55,7 @@ export const sendMessage = action({
     body: v.string(),
     type: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ messageId: string }> => {
+  handler: async (ctx, args): Promise<{ messageId: Id<'messages'> }> => {
     // Validate message body length
     if (args.body.length === 0) {
       throw new ConvexError('Message cannot be empty');
@@ -109,6 +109,36 @@ export const sendMessage = action({
       body: args.body,
       type: type,
     });
+
+    // Push notifications are best-effort and should never block message delivery.
+    // In production, schedule out-of-band to keep send latency low.
+    // In test runs, invoke directly for deterministic assertions and to avoid
+    // convex-test scheduler race conditions.
+    const notificationArgs = {
+      recipientId,
+      senderId: userId,
+      conversationId: args.conversationId,
+      listingId: convo.listingId,
+      messageId: result.messageId,
+      body: args.body,
+    };
+
+    try {
+      if (process.env.NODE_ENV === 'test') {
+        await ctx.runMutation(
+          internal.pushNotifications.sendNewMessageNotification,
+          notificationArgs
+        );
+      } else {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.pushNotifications.sendNewMessageNotification,
+          notificationArgs
+        );
+      }
+    } catch (error) {
+      console.error('Failed to enqueue push notification for message', error);
+    }
 
     return result;
   },

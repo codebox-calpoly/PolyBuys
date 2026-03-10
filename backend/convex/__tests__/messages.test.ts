@@ -1,5 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+jest.mock('@convex-dev/expo-push-notifications', () => {
+  const sendPushNotificationMock = jest.fn().mockResolvedValue('push-id');
+  return {
+    __private: { sendPushNotificationMock },
+    PushNotifications: jest.fn().mockImplementation(() => ({
+      recordToken: jest.fn().mockResolvedValue(null),
+      removeToken: jest.fn().mockResolvedValue(null),
+      sendPushNotification: sendPushNotificationMock,
+    })),
+  };
+});
+
 import { api, internal } from '../_generated/api';
 import {
   createConvexTest,
@@ -7,6 +19,14 @@ import {
   createTestListing,
   createTestConversation,
 } from './testUtils';
+
+function getSendPushNotificationMock(): jest.Mock {
+  return (
+    jest.requireMock('@convex-dev/expo-push-notifications') as {
+      __private: { sendPushNotificationMock: jest.Mock };
+    }
+  ).__private.sendPushNotificationMock;
+}
 
 // Mock global fetch for OpenAI Moderation API calls
 const originalFetch = global.fetch;
@@ -21,6 +41,7 @@ beforeEach(() => {
 
 afterEach(() => {
   global.fetch = originalFetch;
+  getSendPushNotificationMock().mockClear();
 });
 
 describe('Messages queries and mutations', () => {
@@ -127,6 +148,38 @@ describe('Messages queries and mutations', () => {
       });
 
       expect(conversationAfter!.updatedAt).toBeGreaterThan(oldUpdatedAt);
+    });
+
+    it('sends a push notification to the recipient when a new message is created', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Push me when you get this',
+      });
+
+      expect(getSendPushNotificationMock()).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          userId: seller.id,
+          allowUnregisteredTokens: true,
+          notification: expect.objectContaining({
+            title: 'New message',
+            body: 'Push me when you get this',
+            data: expect.objectContaining({
+              conversationId,
+              listingId,
+              senderId: buyer.id,
+            }),
+          }),
+        })
+      );
     });
   });
 
