@@ -430,6 +430,8 @@ export const getListings = query({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
     }),
+    /** Optional key bumped by the client to force a refetch when cursor is already null */
+    _refreshKey: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS

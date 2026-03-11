@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilterBar } from '../../components/FilterBar';
@@ -25,6 +26,8 @@ import type { Doc } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
 const PAGE_SIZE = 20;
+/** Only refetch on focus when data is older than this (avoids redundant queries and preserves scroll/pagination) */
+const FOCUS_REFETCH_STALE_MS = 45_000;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,6 +49,8 @@ export default function HomeScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
@@ -53,6 +58,8 @@ export default function HomeScreen() {
 
   // Track processed cursors to avoid duplicate appends
   const processedCursorsRef = useRef(new Set<string>());
+  // When we last received the first page (for focus-based staleness check)
+  const lastFirstPageAtRef = useRef<number>(0);
 
   // Initialize selected tags from URL params
   useEffect(() => {
@@ -77,7 +84,16 @@ export default function HomeScreen() {
     maxPrice: filters.maxPrice,
     tags: selectedTags.length > 0 ? selectedTags : undefined,
     paginationOpts: { numItems: PAGE_SIZE, cursor },
+    _refreshKey: refreshKey,
   });
+
+  // Reset pagination and refetch first page (used by pull-to-refresh and focus).
+  // Bumping refreshKey forces Convex to re-run when cursor is already null.
+  const refreshListings = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    setCursor(null);
+    processedCursorsRef.current.clear();
+  }, []);
 
   useEffect(() => {
     if (listingsResult && queryFilterVersion === filterVersionRef.current) {
@@ -85,6 +101,8 @@ export default function HomeScreen() {
       if (!processedCursorsRef.current.has(cursorId)) {
         if (cursor === null) {
           setAllListings(listingsResult.page);
+          setRefreshing(false);
+          lastFirstPageAtRef.current = Date.now();
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }
@@ -95,6 +113,13 @@ export default function HomeScreen() {
     }
   }, [listingsResult, cursor, queryFilterVersion]);
 
+  // Stop refresh spinner if the query never returns (e.g. network failure)
+  useEffect(() => {
+    if (!refreshing || cursor !== null) return;
+    const fallback = setTimeout(() => setRefreshing(false), 15000);
+    return () => clearTimeout(fallback);
+  }, [refreshing, cursor]);
+
   useEffect(() => {
     filterVersionRef.current += 1;
     currentFilterVersionRef.current = filterVersionRef.current;
@@ -103,6 +128,16 @@ export default function HomeScreen() {
     setIsDone(false);
     processedCursorsRef.current.clear();
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
+
+  // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
+  useFocusEffect(
+    useCallback(() => {
+      const last = lastFirstPageAtRef.current;
+      if (last > 0 && Date.now() - last > FOCUS_REFETCH_STALE_MS) {
+        refreshListings();
+      }
+    }, [refreshListings])
+  );
 
   const listings = allListings.filter((listing) => listing.isHidden !== true);
 
@@ -154,6 +189,11 @@ export default function HomeScreen() {
       setCursor(listingsResult.continueCursor);
     }
   }, [isDone, isLoadingMore, listingsResult?.continueCursor]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshListings();
+  }, [refreshListings]);
 
   const handleCreateListing = () => {
     if (!isAuthenticated) {
@@ -251,6 +291,14 @@ export default function HomeScreen() {
             contentContainerStyle={styles.listContainer}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={['#154734']}
+                tintColor="#154734"
+              />
+            }
             ListFooterComponent={
               isLoadingMore ? (
                 <View style={styles.footerLoader}>
