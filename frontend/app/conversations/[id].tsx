@@ -341,7 +341,16 @@ export default function ConversationDetailScreen() {
 
       {sendError ? (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{sendError}</Text>
+          <Text style={styles.errorText} numberOfLines={2}>
+            {sendError}
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.errorDismiss, pressed && styles.errorDismissPressed]}
+            onPress={() => setSendError(null)}
+            hitSlop={8}
+          >
+            <Text style={styles.errorDismissText}>Dismiss</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -518,6 +527,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: '#fef2f2',
@@ -525,8 +538,21 @@ const styles = StyleSheet.create({
     borderTopColor: '#fecaca',
   },
   errorText: {
+    flex: 1,
     fontSize: 14,
     color: '#b91c1c',
+  },
+  errorDismiss: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  errorDismissPressed: {
+    opacity: 0.8,
+  },
+  errorDismissText: {
+    fontSize: 14,
+    color: '#b91c1c',
+    fontWeight: '600',
   },
   composerWrap: {
     borderTopWidth: 1,

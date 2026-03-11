@@ -16,6 +16,7 @@ import ImageUploader from '@/components/ImageUploader';
 import TagInput from '../../components/TagInput';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useFlash } from '../../contexts/FlashContext';
 import { getConvexErrorDisplay } from '../../lib/convexError';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
@@ -37,8 +38,8 @@ export default function NewListingScreen() {
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
   const submittingRef = useRef(false);
+  const { setFlash } = useFlash();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -51,7 +52,6 @@ export default function NewListingScreen() {
       return;
     }
     setSubmitError(null);
-    setSubmitSuccess(false);
 
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
@@ -94,8 +94,8 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      setSubmitSuccess(true);
-      setTimeout(() => router.replace('/'), 1200);
+      setFlash('Listing created.');
+      router.replace('/');
     } catch (error) {
       const { message } = getConvexErrorDisplay(error, 'Create failed');
       setSubmitError(message);
@@ -235,11 +235,6 @@ export default function NewListingScreen() {
             <Text style={styles.errorText}>{submitError}</Text>
           </View>
         ) : null}
-        {submitSuccess ? (
-          <View style={styles.successBanner}>
-            <Text style={styles.successText}>Listing created.</Text>
-          </View>
-        ) : null}
 
         <View style={styles.buttonContainer}>
           <Pressable
@@ -343,19 +338,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     color: '#b91c1c',
-  },
-  successBanner: {
-    marginBottom: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  successText: {
-    fontSize: 14,
-    color: '#166534',
   },
   label: {
     fontSize: 14,

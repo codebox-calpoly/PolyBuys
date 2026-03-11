@@ -17,6 +17,7 @@ import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { useFlash } from '../../../contexts/FlashContext';
 import { getConvexErrorDisplay } from '../../../lib/convexError';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
@@ -43,9 +44,9 @@ export default function EditListingScreen() {
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const submittingRef = useRef(false);
+  const { setFlash } = useFlash();
 
   useEffect(() => {
     if (!listing || hasInitialized) {
@@ -108,8 +109,8 @@ export default function EditListingScreen() {
         );
         return;
       }
-      setSubmitSuccess(true);
-      setTimeout(() => router.back(), 1200);
+      setFlash('Listing updated.');
+      router.back();
     } catch (error) {
       const { message } = getConvexErrorDisplay(error, 'Update failed');
       setSubmitError(message);
@@ -246,11 +247,6 @@ export default function EditListingScreen() {
             <Text style={styles.errorText}>{submitError}</Text>
           </View>
         ) : null}
-        {submitSuccess ? (
-          <View style={styles.successBanner}>
-            <Text style={styles.successText}>Listing updated.</Text>
-          </View>
-        ) : null}
 
         <View style={styles.buttonContainer}>
           <Pressable
@@ -353,19 +349,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     color: '#b91c1c',
-  },
-  successBanner: {
-    marginBottom: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  successText: {
-    fontSize: 14,
-    color: '#166534',
   },
   label: {
     fontSize: 14,

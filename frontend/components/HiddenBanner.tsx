@@ -9,7 +9,7 @@ export default function HiddenBanner() {
   const onAppealPress = () => {
     setMailError(null);
     Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {
-      setMailError(`Unable to open email app. Please contact support at ${SUPPORT_EMAIL}.`);
+      setMailError('show');
     });
   };
 
@@ -19,7 +19,14 @@ export default function HiddenBanner() {
       <TouchableOpacity onPress={onAppealPress}>
         <Text style={styles.link}>Contact support to appeal</Text>
       </TouchableOpacity>
-      {mailError ? <Text style={styles.errorText}>{mailError}</Text> : null}
+      {mailError ? (
+        <View style={styles.errorBlock}>
+          <Text style={styles.errorText}>Unable to open email app. Please contact support at:</Text>
+          <Text style={styles.errorEmail} selectable>
+            {SUPPORT_EMAIL}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -45,9 +52,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  errorBlock: {
+    marginTop: 8,
+  },
   errorText: {
     fontSize: 13,
     color: '#b91c1c',
-    marginTop: 8,
+  },
+  errorEmail: {
+    fontSize: 13,
+    color: '#b91c1c',
+    fontWeight: '600',
+    marginTop: 4,
   },
 });

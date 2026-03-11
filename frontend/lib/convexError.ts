@@ -14,6 +14,9 @@ const INTERNAL_PHRASES = [
   'spawn ',
   'ENOENT',
   'ECONNREFUSED',
+  'ETIMEDOUT',
+  'socket hang up',
+  'fetch failed',
 ];
 
 /** Only reword jargon; most backend messages are shown as-is so users see exactly why it failed */

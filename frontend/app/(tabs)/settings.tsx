@@ -113,16 +113,19 @@ export default function SettingsScreen() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
+      setSaveSuccess(false);
       setSaveError('Name is required.');
       return;
     }
     if (!trimmedMajor) {
+      setSaveSuccess(false);
       setSaveError('Major is required.');
       return;
     }
 
     const emailError = getEmailValidationError(normalizedEmail);
     if (emailError) {
+      setSaveSuccess(false);
       setSaveError(emailError);
       return;
     }
@@ -133,6 +136,7 @@ export default function SettingsScreen() {
       parsedYear < BOUNDS.MIN_YEAR ||
       parsedYear > BOUNDS.MAX_YEAR
     ) {
+      setSaveSuccess(false);
       setSaveError(`Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`);
       return;
     }

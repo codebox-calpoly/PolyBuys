@@ -324,11 +324,13 @@ export default function ImageUploader({
 
   async function chooseCamera() {
     setShowSourcePicker(false);
+    setPermissionError(null);
     await handlePickAndUpload(pickFromCamera);
   }
 
   async function chooseLibrary() {
     setShowSourcePicker(false);
+    setPermissionError(null);
     await handlePickAndUpload(pickFromLibrary);
   }
 

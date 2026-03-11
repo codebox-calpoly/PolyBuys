@@ -9,6 +9,7 @@ type ReportReason = 'scam' | 'inappropriate' | 'spam';
 type ReportModalProps = {
   isVisible: boolean;
   onClose: () => void;
+  onSuccess?: (message: string) => void;
   targetId: string;
   targetType: 'listing' | 'profile';
 };
@@ -21,20 +22,26 @@ const REASONS: { value: ReportReason; label: string; desc: string }[] = [
 
 const MAX_NOTES = 500;
 
-export function ReportModal({ isVisible, onClose, targetId, targetType }: ReportModalProps) {
+const REPORT_SUCCESS_MESSAGE = 'Report submitted. Thanks for helping keep PolyBuys safe.';
+
+export function ReportModal({
+  isVisible,
+  onClose,
+  onSuccess,
+  targetId,
+  targetType,
+}: ReportModalProps) {
   const createReport = useMutation(api.reports.createReport);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const reset = () => {
     setReason(null);
     setNotes('');
     setSubmitting(false);
     setSubmitError(null);
-    setSubmitSuccess(false);
   };
 
   const handleClose = () => {
@@ -46,7 +53,6 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
     if (!reason || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
-    setSubmitSuccess(false);
     try {
       await createReport({
         targetId,
@@ -54,8 +60,8 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
         reason,
         notes: notes.trim() ? notes.trim() : undefined,
       });
-      setSubmitSuccess(true);
-      setTimeout(handleClose, 1200);
+      onSuccess?.(REPORT_SUCCESS_MESSAGE);
+      handleClose();
     } catch (err) {
       const { message } = getConvexErrorDisplay(err, 'Could not submit report');
       setSubmitError(message);
@@ -99,11 +105,6 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
           {submitError ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{submitError}</Text>
-            </View>
-          ) : null}
-          {submitSuccess ? (
-            <View style={styles.successBanner}>
-              <Text style={styles.successText}>Thanks for helping keep PolyBuys safe.</Text>
             </View>
           ) : null}
 
@@ -194,20 +195,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     color: '#b91c1c',
-  },
-  successBanner: {
-    marginTop: 12,
-    marginBottom: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  successText: {
-    fontSize: 14,
-    color: '#166534',
   },
   actions: {
     marginTop: 14,

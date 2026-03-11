@@ -17,6 +17,7 @@ import Head from 'expo-router/head';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { useFlash } from '../../contexts/FlashContext';
 import { getConvexErrorDisplay } from '../../lib/convexError';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
@@ -58,6 +59,7 @@ export default function ListingDetailScreen() {
   const [isStartingConversation, setIsStartingConversation] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const { setFlash } = useFlash();
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
 
   const navigateToFeedWithTag = (tag: string) => {
@@ -284,6 +286,7 @@ export default function ListingDetailScreen() {
         <ReportModal
           isVisible={reportOpen}
           onClose={() => setReportOpen(false)}
+          onSuccess={setFlash}
           targetId={String(listing._id)}
           targetType="listing"
         />
