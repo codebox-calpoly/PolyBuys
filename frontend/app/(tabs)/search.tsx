@@ -197,6 +197,7 @@ export default function SearchScreen() {
               isSaved={savedState?.[item._id] ?? false}
               onToggleSave={() => handleToggleSave(item._id)}
               onPress={() => handleListingPress(item)}
+              key={isWideLayout ? 'wide' : 'narrow'}
             />
           )}
           numColumns={isWideLayout ? 2 : 1}

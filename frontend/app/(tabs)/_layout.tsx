@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.category,
+    backgroundColor: colors.destructive,
   },
   webUnreadBadgeText: {
     color: colors.white,

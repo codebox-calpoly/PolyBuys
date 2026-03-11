@@ -203,6 +203,7 @@ const styles = StyleSheet.create({
   },
   gridItemFull: {
     width: '100%',
+    flexBasis: '48%',
   },
   emptyListings: {
     ...typography.subhead,

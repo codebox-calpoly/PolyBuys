@@ -486,6 +486,7 @@ const styles = StyleSheet.create({
   },
   emptyTab: {
     backgroundColor: colors.surface,
+    flexBasis: '48%',
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
