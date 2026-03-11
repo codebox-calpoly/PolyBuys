@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -17,9 +18,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from 'convex/_generated/api';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import ListingCard from '../../components/ListingCard';
+import MyListingActionsSheet, {
+  type MyListingAction,
+  type MyListingActionTarget,
+} from '../../components/MyListingActionsSheet';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
+
+type StatusFilter = 'all' | 'active' | 'inactive' | 'sold';
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'sold', label: 'Sold' },
+];
 
 function getStatusLabel(status: Doc<'listings'>['status']) {
   switch (status) {
@@ -47,8 +61,42 @@ export default function MyListingsScreen() {
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
   const deleteListing = useMutation(api.listings.deleteListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [markingSoldId, setMarkingSoldId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [processingListingId, setProcessingListingId] = useState<string | null>(null);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+
+  function showError(message: string) {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(message);
+      return;
+    }
+    Alert.alert('Error', message);
+  }
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  function closeActionSheet() {
+    setSelectedListingId(null);
+  }
+
+  async function handleSetStatus(
+    id: string,
+    status: Extract<Doc<'listings'>['status'], 'active' | 'inactive'>
+  ) {
+    const nextLabel = status === 'active' ? 'active' : 'inactive';
+    try {
+      setProcessingListingId(id);
+      await updateListingStatus({ id: id as Id<'listings'>, status });
+    } catch {
+      showError(`Failed to mark listing as ${nextLabel}. Please try again.`);
+    } finally {
+      setProcessingListingId(null);
+    }
+  }
 
   async function handleMarkSold(id: string, title: string) {
     const confirmed =
@@ -64,16 +112,12 @@ export default function MyListingsScreen() {
     if (!confirmed) return;
 
     try {
-      setMarkingSoldId(id);
+      setProcessingListingId(id);
       await updateListingStatus({ id: id as Id<'listings'>, status: 'sold' });
     } catch {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert('Failed to mark listing as sold. Please try again.');
-      } else {
-        Alert.alert('Error', 'Failed to mark listing as sold. Please try again.');
-      }
+      showError('Failed to mark listing as sold. Please try again.');
     } finally {
-      setMarkingSoldId(null);
+      setProcessingListingId(null);
     }
   }
 
@@ -95,35 +139,51 @@ export default function MyListingsScreen() {
     if (!confirmed) return;
 
     try {
-      setDeletingId(id);
+      setProcessingListingId(id);
       await deleteListing({ id: id as Id<'listings'> });
     } catch {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert('Failed to delete listing. Please try again.');
-      } else {
-        Alert.alert('Error', 'Failed to delete listing. Please try again.');
-      }
+      showError('Failed to delete listing. Please try again.');
     } finally {
-      setDeletingId(null);
+      setProcessingListingId(null);
     }
   }
 
-  const contentPadding = width >= 900 ? spacing.xxl : spacing.lg;
+  function handleActionFromSheet(action: MyListingAction, listing: MyListingActionTarget) {
+    closeActionSheet();
+    switch (action) {
+      case 'edit':
+        router.push(`/listings/${listing._id}/edit` as never);
+        return;
+      case 'markSold':
+        void handleMarkSold(listing._id, listing.title);
+        return;
+      case 'markInactive':
+        void handleSetStatus(listing._id, 'inactive');
+        return;
+      case 'markActive':
+        void handleSetStatus(listing._id, 'active');
+        return;
+      case 'delete':
+        void handleDelete(listing._id, listing.title);
+        return;
+      default: {
+        const exhaustiveAction: never = action;
+        return exhaustiveAction;
+      }
+    }
+  }
+
+  const isCompactLayout = width < 760;
+  const columnCount = width >= 1200 ? 3 : isCompactLayout ? 1 : 2;
+  const contentPadding = width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   if (!isAuthenticated) {
     return (
       <View style={styles.page}>
         <View style={[styles.centeredState, { paddingTop: topSafeSpace }]}>
-          <Text style={styles.emptyTitle}>Sign in required</Text>
-          <Text style={styles.emptyText}>Sign in to view and manage your listings.</Text>
-          <Pressable
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/auth/login?returnTo=%2Fmy-listings' as never)}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryButtonText}>Sign in</Text>
-          </Pressable>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Redirecting to login...</Text>
         </View>
       </View>
     );
@@ -140,23 +200,76 @@ export default function MyListingsScreen() {
     );
   }
 
-  const displayListings = myListings.filter((l) => l.status !== 'deleted');
+  const manageableListings = myListings.filter((l) => l.status !== 'deleted');
+  const filteredListings =
+    statusFilter === 'all'
+      ? manageableListings
+      : manageableListings.filter((listing) => listing.status === statusFilter);
+  const selectedListing =
+    selectedListingId === null
+      ? null
+      : (manageableListings.find((listing) => listing._id === selectedListingId) ?? null);
+  const subtitleText =
+    statusFilter === 'all'
+      ? `${manageableListings.length} ${manageableListings.length === 1 ? 'listing' : 'listings'}`
+      : `${filteredListings.length} ${statusFilter} ${
+          filteredListings.length === 1 ? 'listing' : 'listings'
+        }`;
 
   return (
     <View style={styles.page}>
       <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
         <Animated.View style={[styles.headerRow, entranceStyle]}>
-          <Text style={styles.sectionTitle}>My Listings</Text>
+          <View style={styles.headerCopy}>
+            <Text style={styles.sectionTitle}>My Listings</Text>
+            <Text style={styles.sectionSubtitle}>{subtitleText}</Text>
+          </View>
           <Pressable
             style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
             onPress={() => router.push('/listings/new')}
           >
-            <Text style={styles.createChipText}>+ Create</Text>
+            <Text style={styles.createChipText}>+ Create listing</Text>
           </Pressable>
         </Animated.View>
 
-        {displayListings.length === 0 ? (
+        {manageableListings.length > 0 && (
+          <View style={styles.filterBar}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {STATUS_FILTERS.map((filter) => {
+                const count =
+                  filter.value === 'all'
+                    ? manageableListings.length
+                    : manageableListings.filter((listing) => listing.status === filter.value)
+                        .length;
+                const isSelected = statusFilter === filter.value;
+                return (
+                  <Pressable
+                    key={filter.value}
+                    style={({ pressed }) => [
+                      styles.filterChip,
+                      isSelected && styles.filterChipActive,
+                      pressed && styles.filterChipPressed,
+                    ]}
+                    onPress={() => setStatusFilter(filter.value)}
+                  >
+                    <Text
+                      style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
+                    >
+                      {filter.label} ({count})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {manageableListings.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No listings yet</Text>
             <Text style={styles.emptyText}>Create your first listing to get started.</Text>
@@ -167,13 +280,29 @@ export default function MyListingsScreen() {
               <Text style={styles.primaryButtonText}>+ Create listing</Text>
             </Pressable>
           </View>
+        ) : filteredListings.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No {statusFilter} listings</Text>
+            <Text style={styles.emptyText}>Try a different filter or create a new listing.</Text>
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+              onPress={() => setStatusFilter('all')}
+            >
+              <Text style={styles.secondaryButtonText}>Show all listings</Text>
+            </Pressable>
+          </View>
         ) : (
           <FlatList
-            data={displayListings}
+            key={`my-listings-${columnCount}`}
+            data={filteredListings}
             keyExtractor={(item) => item._id}
-            numColumns={2}
-            columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.listContainer}
+            numColumns={columnCount}
+            columnWrapperStyle={columnCount > 1 ? styles.columnWrapper : undefined}
+            contentContainerStyle={[
+              styles.listContainer,
+              { paddingBottom: insets.bottom + spacing.xxl },
+            ]}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item, index }) => (
               <ListingCard
                 listing={item}
@@ -181,55 +310,37 @@ export default function MyListingsScreen() {
                 onPress={() => router.push(`/listings/${item._id}` as never)}
                 footer={
                   <View style={styles.cardFooter}>
-                    <View style={[styles.statusChip, getStatusChipStyle(item.status)]}>
-                      <Text style={[styles.statusText, getStatusTextStyle(item.status)]}>
-                        {getStatusLabel(item.status)}
-                      </Text>
-                    </View>
-                    {item.isHidden === true && (
-                      <View style={styles.hiddenChip}>
-                        <Text style={styles.hiddenText}>Hidden</Text>
+                    <View style={styles.statusGroup}>
+                      <View style={[styles.statusChip, getStatusChipStyle(item.status)]}>
+                        <Text style={[styles.statusText, getStatusTextStyle(item.status)]}>
+                          {getStatusLabel(item.status)}
+                        </Text>
                       </View>
-                    )}
-                    {item.status === 'active' && (
+                      {item.isHidden === true && (
+                        <View style={styles.hiddenChip}>
+                          <Text style={styles.hiddenText}>Hidden</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.footerActions}>
                       <Pressable
                         style={({ pressed }) => [
-                          styles.markSoldButton,
+                          styles.manageButton,
                           pressed && styles.buttonPressed,
-                          markingSoldId === item._id && styles.buttonDisabled,
+                          processingListingId === item._id && styles.buttonDisabled,
                         ]}
-                        onPress={() => handleMarkSold(item._id, item.title)}
-                        disabled={markingSoldId === item._id}
-                        accessibilityLabel="Mark as sold"
+                        onPress={() => setSelectedListingId(item._id)}
+                        disabled={processingListingId === item._id}
                         accessibilityRole="button"
+                        accessibilityLabel={`Manage ${item.title}`}
                       >
-                        {markingSoldId === item._id ? (
-                          <ActivityIndicator size="small" color={colors.white} />
+                        {processingListingId === item._id ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
                         ) : (
-                          <Text style={styles.markSoldButtonText}>Mark sold</Text>
+                          <Text style={styles.manageButtonText}>Manage</Text>
                         )}
                       </Pressable>
-                    )}
-                    <Pressable
-                      style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
-                      onPress={() => router.push(`/listings/${item._id}/edit` as never)}
-                    >
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.deleteButton,
-                        pressed && styles.buttonPressed,
-                      ]}
-                      onPress={() => handleDelete(item._id, item.title)}
-                      disabled={deletingId === item._id}
-                    >
-                      {deletingId === item._id ? (
-                        <ActivityIndicator size="small" color={colors.white} />
-                      ) : (
-                        <Text style={styles.deleteButtonText}>Delete</Text>
-                      )}
-                    </Pressable>
+                    </View>
                   </View>
                 }
               />
@@ -237,6 +348,12 @@ export default function MyListingsScreen() {
           />
         )}
       </View>
+      <MyListingActionsSheet
+        visible={selectedListing !== null}
+        listing={selectedListing}
+        onClose={closeActionSheet}
+        onAction={handleActionFromSheet}
+      />
     </View>
   );
 }
@@ -280,7 +397,7 @@ function getStatusTextStyle(status: Doc<'listings'>['status']) {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,
@@ -306,40 +423,82 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   sectionTitle: {
     ...typography.title1,
-    flex: 1,
     color: colors.textDark,
+  },
+  sectionSubtitle: {
+    ...typography.footnoteMed,
+    color: colors.text,
+    marginTop: 2,
   },
   createChip: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     minHeight: 44,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   createChipPressed: {
     opacity: 0.9,
   },
   createChipText: {
+    ...typography.subhead,
     color: colors.white,
-    fontSize: 15,
     fontWeight: '600',
   },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 2,
+  },
+  filterBar: {
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  filterChip: {
+    height: 38,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: colors.white,
+  },
+  filterChipPressed: {
+    opacity: 0.88,
+  },
   listContainer: {
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.xs,
   },
   columnWrapper: {
     flexDirection: 'row',
     gap: spacing.md,
-    marginBottom: spacing.md,
   },
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
+    paddingTop: spacing.xxl * 2,
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
     gap: spacing.md,
   },
   emptyTitle: {
@@ -354,10 +513,10 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: colors.primary,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -365,11 +524,40 @@ const styles = StyleSheet.create({
     ...typography.footnoteMed,
     color: colors.white,
   },
+  secondaryButton: {
+    minHeight: 44,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  secondaryButtonText: {
+    ...typography.subhead,
+    color: colors.primary,
+    fontWeight: '600',
+  },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minHeight: 44,
+  },
+  statusGroup: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   statusChip: {
     borderRadius: borderRadius.full,
@@ -377,7 +565,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   statusText: {
-    ...typography.footnote,
+    ...typography.footnoteMed,
     fontWeight: '600',
   },
   hiddenChip: {
@@ -387,32 +575,27 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   hiddenText: {
-    ...typography.footnote,
+    ...typography.footnoteMed,
     fontWeight: '600',
     color: colors.white,
   },
-  markSoldButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  footerActions: {
+    marginLeft: spacing.xs,
+  },
+  manageButton: {
     minHeight: 36,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  markSoldButtonText: {
-    ...typography.footnote,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  editButton: {
-    marginLeft: 'auto',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  editButtonText: {
+  manageButtonText: {
     ...typography.footnoteMed,
     color: colors.primary,
+    fontWeight: '600',
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -420,19 +603,5 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.985 }],
-  },
-  deleteButton: {
-    backgroundColor: colors.destructive,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

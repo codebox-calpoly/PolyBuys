@@ -98,7 +98,7 @@ export default function ListingDetailScreen() {
 
     if (!isAuthenticated) {
       const redirectTo = `/listings/${listing._id}`;
-      router.push(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
+      router.replace(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
       return;
     }
 
@@ -124,7 +124,9 @@ export default function ListingDetailScreen() {
     if (!listingId) return;
 
     if (!isAuthenticated) {
-      router.push(`/auth/login?returnTo=${encodeURIComponent(`/listings/${listingId}`)}` as never);
+      router.replace(
+        `/auth/login?returnTo=${encodeURIComponent(`/listings/${listingId}`)}` as never
+      );
       return;
     }
 

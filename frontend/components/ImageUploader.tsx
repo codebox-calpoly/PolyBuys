@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { colors, borderRadius, typography, spacing } from '../theme/tokens';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
@@ -32,6 +42,35 @@ type PickedImage = {
   height?: number;
   isObjectUrl?: boolean;
 };
+
+function UploadProgressBar({ progress, compact = false }: { progress: number; compact?: boolean }) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const animatedProgress = useRef(new Animated.Value(clampedProgress)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(animatedProgress, {
+      toValue: clampedProgress,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [animatedProgress, clampedProgress]);
+
+  const width = animatedProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
+  return (
+    <View style={[styles.progressTrack, compact && styles.progressTrackCompact]}>
+      <Animated.View
+        style={[styles.progressFill, compact && styles.progressFillCompact, { width }]}
+      />
+    </View>
+  );
+}
 
 export default function ImageUploader({
   images,
@@ -252,6 +291,10 @@ export default function ImageUploader({
         );
       });
 
+      setPendingUploads((prev) =>
+        prev.map((upload) => (upload.localId === localId ? { ...upload, progress: 1 } : upload))
+      );
+      await new Promise((resolve) => setTimeout(resolve, 180));
       setPendingUploads((prev) => prev.filter((upload) => upload.localId !== localId));
       revokeObjectUrl(localId);
       onImagesChange((prev) => [...prev, storageId]);
@@ -362,9 +405,28 @@ export default function ImageUploader({
   const isEmpty = images.length === 0 && pendingUploads.length === 0;
   const count = images.length + pendingUploads.length;
   const atMax = count >= maxImages;
+  const activelyUploading = pendingUploads.filter((upload) => upload.status === 'uploading');
+  const uploadCount = activelyUploading.length;
+  const overallUploadProgress =
+    uploadCount > 0
+      ? activelyUploading.reduce((sum, upload) => sum + upload.progress, 0) / uploadCount
+      : 0;
 
   return (
     <View>
+      {uploadCount > 0 ? (
+        <View style={styles.uploadStatusCard}>
+          <View style={styles.uploadStatusHeader}>
+            <Text style={styles.uploadStatusTitle}>
+              Uploading {uploadCount} {uploadCount === 1 ? 'photo' : 'photos'}
+            </Text>
+            <Text style={styles.uploadStatusPercent}>
+              {Math.round(overallUploadProgress * 100)}%
+            </Text>
+          </View>
+          <UploadProgressBar progress={overallUploadProgress} />
+        </View>
+      ) : null}
       {isEmpty ? (
         <Pressable
           style={({ pressed }) => [styles.heroUpload, pressed && styles.heroUploadPressed]}
@@ -420,7 +482,12 @@ export default function ImageUploader({
               <Image source={{ uri: upload.uri }} style={styles.image} />
               <View style={styles.pendingOverlay}>
                 {upload.status === 'uploading' ? (
-                  <Text style={styles.pendingText}>{Math.round(upload.progress * 100)}%</Text>
+                  <View style={styles.pendingContent}>
+                    <Text style={styles.pendingText}>
+                      Uploading {Math.round(upload.progress * 100)}%
+                    </Text>
+                    <UploadProgressBar progress={upload.progress} compact />
+                  </View>
                 ) : (
                   <Text style={styles.errorText}>Failed</Text>
                 )}
@@ -448,6 +515,51 @@ export default function ImageUploader({
 }
 
 const styles = StyleSheet.create({
+  uploadStatusCard: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  uploadStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  uploadStatusTitle: {
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  uploadStatusPercent: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  progressTrackCompact: {
+    height: 6,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+  },
+  progressFillCompact: {
+    backgroundColor: colors.white,
+    opacity: 0.95,
+  },
   heroUpload: {
     minHeight: 180,
     borderRadius: borderRadius.lg,
@@ -564,6 +676,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pendingContent: {
+    width: '78%',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   pendingText: {
     color: colors.white,
