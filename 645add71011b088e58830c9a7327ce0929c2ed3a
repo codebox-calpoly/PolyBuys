@@ -1,0 +1,29 @@
+README.md
+  8f4da0f9ff855f38 116-121
+frontend/app/auth/login.tsx
+  8f4da0f9ff855f38 25,28-29
+backend/.env.example
+  8f4da0f9ff855f38 19-21
+backend/convex/AppReviewOTP.ts
+  8f4da0f9ff855f38 2-3,6-8,10-12,18,20-27,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "645add71011b088e58830c9a7327ce0929c2ed3a",
+  "prompts": {
+    "8f4da0f9ff855f38": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "00580f67-f14c-4fa7-93d1-c147833999a8",
+        "model": "premium"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 8,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}
