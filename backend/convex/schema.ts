@@ -15,9 +15,18 @@ export default defineSchema({
     emailVerificationTime: v.optional(v.number()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
+    messageNotificationsEnabled: v.optional(v.boolean()),
   })
     .index('phone', ['phone'])
     .index('email', ['email']),
+
+  userBlocks: defineTable({
+    blockerId: v.string(),
+    blockedId: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_blocker_blocked', ['blockerId', 'blockedId'])
+    .index('by_blocked_blocker', ['blockedId', 'blockerId']),
 
   listings: defineTable({
     title: v.string(),

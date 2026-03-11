@@ -78,7 +78,14 @@ export default function MyListingActionsSheet({
   const actions = getActions(listing.status);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable
           style={[
@@ -129,7 +136,7 @@ export default function MyListingActionsSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.32)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   sheet: {

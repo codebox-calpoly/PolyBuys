@@ -10,6 +10,7 @@ import * as profilesModule from '../profiles';
 import * as savedListingsModule from '../savedListings';
 import * as usersModule from '../users';
 import * as messagesModule from '../messages';
+import * as blocksModule from '../blocks';
 import * as reportsModule from '../reports';
 import * as moderationModule from '../moderation';
 import * as pushNotificationsModule from '../pushNotifications';
@@ -23,6 +24,7 @@ export const modules = {
   '../savedListings.ts': () => Promise.resolve(savedListingsModule),
   '../users.ts': () => Promise.resolve(usersModule),
   '../messages.ts': () => Promise.resolve(messagesModule),
+  '../blocks.ts': () => Promise.resolve(blocksModule),
   '../reports.ts': () => Promise.resolve(reportsModule),
   '../moderation.ts': () => Promise.resolve(moderationModule),
   '../pushNotifications.ts': () => Promise.resolve(pushNotificationsModule),
@@ -130,9 +132,10 @@ export async function createTestListing(
 }
 
 /**
- * Creates a test conversation between buyer and seller
+ * Creates a test conversation between buyer and seller (no messages).
+ * For listUserConversations tests, use createTestConversationWithMessage.
  */
-export async function createTestConversation(
+export async function createTestConversationEmpty(
   t: any,
   listingId: Id<'listings'>,
   buyerId: Id<'users'>,
@@ -150,6 +153,43 @@ export async function createTestConversation(
       buyerLastReadAt: now,
       sellerLastReadAt: now,
     });
+  });
+}
+
+/**
+ * Creates a test conversation between buyer and seller with one message.
+ * listUserConversations only returns conversations with at least one message.
+ */
+export async function createTestConversation(
+  t: any,
+  listingId: Id<'listings'>,
+  buyerId: Id<'users'>,
+  sellerId: Id<'users'>
+): Promise<Id<'conversations'>> {
+  return await t.run(async (ctx: any) => {
+    const now = Date.now();
+    const conversationId = await ctx.db.insert('conversations', {
+      listingId,
+      buyerId,
+      sellerId,
+      participantIds: [buyerId, sellerId],
+      createdAt: now,
+      updatedAt: now,
+      buyerLastReadAt: now,
+      sellerLastReadAt: now,
+    });
+    const messageId = await ctx.db.insert('messages', {
+      conversationId,
+      listingId,
+      senderId: buyerId,
+      recipientId: sellerId,
+      type: 'text',
+      body: 'Test message',
+      createdAt: now,
+      readAt: 0,
+    });
+    await ctx.db.patch(conversationId, { lastMessageId: messageId });
+    return conversationId;
   });
 }
 

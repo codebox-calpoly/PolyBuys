@@ -95,7 +95,14 @@ export function PriceRangePicker({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Animated.View style={[styles.sheet, entranceStyle]}>
           <Pressable style={styles.sheetTapArea} onPress={(e) => e.stopPropagation()}>
@@ -158,7 +165,7 @@ export function PriceRangePicker({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   sheet: {

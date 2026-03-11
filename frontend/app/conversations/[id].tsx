@@ -39,6 +39,8 @@ export default function ConversationDetailScreen() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
+  const blockUser = useMutation(api.blocks.blockUser);
+  const unblockUser = useMutation(api.blocks.unblockUser);
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -74,6 +76,12 @@ export default function ConversationDetailScreen() {
 
     return [...new Set([conversationId, ...siblingIds])] as ConversationId[];
   }, [conversation, conversationId]);
+
+  const otherUserId = conversation?.canonicalOtherUserId ?? null;
+  const isBlockingOther = useQuery(
+    api.blocks.isBlocking,
+    isAuthenticated && otherUserId ? { blockedId: otherUserId } : 'skip'
+  );
 
   const listingId = (conversation?.listing?.id ??
     conversation?.listingId ??
@@ -171,6 +179,36 @@ export default function ConversationDetailScreen() {
     unreadIncomingCount,
   ]);
 
+  const handleBlockPress = () => {
+    if (!otherUserId) return;
+
+    if (isBlockingOther) {
+      unblockUser({ blockedId: otherUserId }).catch((err) => {
+        Alert.alert('Could not unblock', err instanceof Error ? err.message : 'Please try again.');
+      });
+      return;
+    }
+
+    const blockAction = () => {
+      blockUser({ blockedId: otherUserId })
+        .then(() => {
+          Alert.alert('User blocked', 'You will no longer receive messages from this user.');
+        })
+        .catch((err) => {
+          Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
+        });
+    };
+
+    Alert.alert(
+      'Block user',
+      'You will no longer receive messages from this user. They will not be notified.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Block', style: 'destructive', onPress: blockAction },
+      ]
+    );
+  };
+
   const onSend = async () => {
     const trimmed = messageBody.trim();
     if (!trimmed || !conversationId || isSending) {
@@ -242,6 +280,18 @@ export default function ConversationDetailScreen() {
         options={{
           title: headerConversationTitle,
           headerBackTitle: 'Inbox',
+          headerRight: otherUserId
+            ? () => (
+                <Pressable
+                  onPress={handleBlockPress}
+                  style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.headerActionText}>
+                    {isBlockingOther ? 'Unblock' : 'Block'}
+                  </Text>
+                </Pressable>
+              )
+            : undefined,
         }}
       />
 
@@ -324,29 +374,40 @@ export default function ConversationDetailScreen() {
       />
 
       <View style={styles.composerWrap}>
-        <TextInput
-          value={messageBody}
-          onChangeText={setMessageBody}
-          placeholder="Type a message..."
-          style={styles.input}
-          multiline
-          maxLength={2000}
-          editable={!isSending}
-          textAlignVertical="top"
-        />
-        <Pressable
-          onPress={() => {
-            void onSend();
-          }}
-          style={({ pressed }) => [
-            styles.sendButton,
-            (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-          disabled={!messageBody.trim() || isSending}
-        >
-          <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
-        </Pressable>
+        {isBlockingOther ? (
+          <View style={styles.blockedComposer}>
+            <Text style={styles.blockedText}>
+              You have blocked this user. Tap Unblock above to send messages.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <TextInput
+              value={messageBody}
+              onChangeText={setMessageBody}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.muted}
+              style={styles.input}
+              multiline
+              maxLength={2000}
+              editable={!isSending}
+              textAlignVertical="top"
+            />
+            <Pressable
+              onPress={() => {
+                void onSend();
+              }}
+              style={({ pressed }) => [
+                styles.sendButton,
+                (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              disabled={!messageBody.trim() || isSending}
+            >
+              <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+            </Pressable>
+          </>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -535,5 +596,23 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  headerAction: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  headerActionText: {
+    ...typography.subhead,
+    color: colors.destructive,
+    fontWeight: '600',
+  },
+  blockedComposer: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  blockedText: {
+    ...typography.footnote,
+    color: colors.muted,
+    textAlign: 'center',
   },
 });

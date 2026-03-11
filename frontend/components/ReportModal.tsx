@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { colors } from '../theme/tokens';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
 
@@ -60,7 +61,9 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Report listing</Text>
+          <Text style={styles.title}>
+            {targetType === 'profile' ? 'Report profile' : 'Report listing'}
+          </Text>
           <Text style={styles.subtitle}>Select a reason (required)</Text>
 
           {REASONS.map((r) => (
@@ -110,7 +113,7 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.overlayLight,
     justifyContent: 'center',
     padding: 16,
   },

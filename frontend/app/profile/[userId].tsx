@@ -1,10 +1,21 @@
-import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { Doc } from 'convex/_generated/dataModel';
+import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
+import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
@@ -20,6 +31,8 @@ export default function PublicProfileScreen() {
   const { userId: rawUserId } = useLocalSearchParams<{ userId?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { isAuthenticated } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
   let resolvedUserId: string | null = null;
   if (typeof rawUserId === 'string') {
     const trimmedUserId = rawUserId.trim();
@@ -106,7 +119,23 @@ export default function PublicProfileScreen() {
         </View>
 
         {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
+
+        {isAuthenticated && resolvedUserId && (
+          <Pressable
+            style={({ pressed }) => [styles.reportButton, pressed && styles.reportButtonPressed]}
+            onPress={() => setReportOpen(true)}
+          >
+            <Text style={styles.reportButtonText}>Report</Text>
+          </Pressable>
+        )}
       </View>
+
+      <ReportModal
+        isVisible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetId={profile._id}
+        targetType="profile"
+      />
 
       <Text style={styles.sectionTitle}>Listings</Text>
       <View style={[styles.grid, isWideLayout && styles.gridWide]}>
@@ -191,6 +220,19 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.text,
     lineHeight: 22,
+  },
+  reportButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 0,
+  },
+  reportButtonPressed: {
+    opacity: 0.7,
+  },
+  reportButtonText: {
+    ...typography.footnote,
+    color: colors.destructive,
+    fontWeight: '600',
   },
   sectionTitle: {
     ...typography.title2,

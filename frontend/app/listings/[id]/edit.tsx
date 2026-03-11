@@ -111,9 +111,10 @@ export default function EditListingScreen() {
       return;
     }
 
-    const parsedPrice = Number(price);
+    const trimmed = price.trim();
+    const parsedPrice = trimmed === '' ? NaN : Number(trimmed);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      showAlert('Invalid price', 'Please enter a valid non-negative price.');
+      showAlert('Invalid price', 'Please enter a valid non-negative price in dollars.');
       return;
     }
 
@@ -227,14 +228,26 @@ export default function EditListingScreen() {
 
         <View style={styles.section}>
           <Text style={styles.label}>Price</Text>
-          <TextInput
-            style={styles.input}
-            value={price}
-            onChangeText={setPrice}
-            placeholder="0.00"
-            placeholderTextColor={colors.muted}
-            keyboardType="decimal-pad"
-          />
+          <View style={styles.priceInputWrap}>
+            <Text style={styles.pricePrefix}>$</Text>
+            <TextInput
+              style={[styles.input, styles.priceInput]}
+              value={price}
+              onChangeText={(text) => {
+                const filtered = text.replace(/[^0-9.]/g, '');
+                const parts = filtered.split('.');
+                if (parts.length > 2) return;
+                if (parts[1]?.length > 2) return;
+                setPrice(filtered);
+              }}
+              placeholder="15"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <Text style={styles.helperText}>
+            Enter amount in dollars. Decimals optional (e.g. 15 or 15.50)
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -400,6 +413,29 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 112,
     textAlignVertical: 'top',
+  },
+  priceInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.muted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.white,
+  },
+  pricePrefix: {
+    ...typography.body,
+    color: colors.text,
+    paddingLeft: spacing.md,
+  },
+  priceInput: {
+    flex: 1,
+    borderWidth: 0,
+    margin: 0,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginTop: spacing.xs,
   },
   optionsContainer: {
     flexDirection: 'row',

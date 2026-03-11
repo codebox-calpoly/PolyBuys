@@ -12,6 +12,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
+import { Switch } from 'react-native';
+import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -47,6 +49,8 @@ export default function SettingsScreen() {
   const entranceStyle = useEntranceAnimation();
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
+  const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
+  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
   const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
@@ -56,6 +60,16 @@ export default function SettingsScreen() {
     loadMore: loadMoreSavedListings,
   } = usePaginatedQuery(api.savedListings.getMySavedListings, savedArgs, { initialNumItems: 20 });
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
+  const messageNotificationsEnabled = useQuery(
+    api.users.getMessageNotificationsEnabled,
+    isAuthenticated ? {} : 'skip'
+  );
+  const updateMessageNotificationsEnabled = useMutation(
+    api.users.updateMessageNotificationsEnabled
+  );
+  const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
+  const removePushToken = useMutation(api.pushNotifications.removePushToken);
+  const deleteAccount = useMutation(api.users.deleteAccount);
   const { mappedUrls: avatarUrls } = useResolvedImageUrls(
     profile?.picture ? [profile.picture] : []
   );
@@ -87,6 +101,12 @@ export default function SettingsScreen() {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  useEffect(() => {
+    if (typeof messageNotificationsEnabled === 'boolean') {
+      setMessageNotificationsValue(messageNotificationsEnabled);
+    }
+  }, [messageNotificationsEnabled]);
+
   const handleAuthAction = async () => {
     if (!isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fsettings' as never);
@@ -98,6 +118,62 @@ export default function SettingsScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign out';
       Alert.alert('Sign Out Failed', message);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'Are you sure? This will permanently delete your account and all your data. You can always sign back up later.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount({});
+              await signOut();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Failed to delete account';
+              Alert.alert('Delete Account Failed', message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMessageNotificationsToggle = async (value: boolean) => {
+    if (isUpdatingMessageNotifications) return;
+
+    const previousValue = messageNotificationsValue;
+    setMessageNotificationsValue(value);
+    setIsUpdatingMessageNotifications(true);
+
+    try {
+      await updateMessageNotificationsEnabled({ enabled: value });
+
+      if (value) {
+        try {
+          await requestPermissionAndSyncToken(recordPushToken);
+        } catch {
+          // Permission denied or sync failed - preference is still updated
+        }
+      } else {
+        try {
+          await removePushToken({});
+        } catch {
+          // Best-effort token removal
+        }
+      }
+    } catch (error) {
+      setMessageNotificationsValue(previousValue);
+      const message =
+        error instanceof Error ? error.message : 'Failed to update notification preference';
+      Alert.alert('Notification Update Failed', message);
+    } finally {
+      setIsUpdatingMessageNotifications(false);
     }
   };
 
@@ -165,10 +241,14 @@ export default function SettingsScreen() {
               {profile.major} • {yearLabel}
             </Text>
             <View style={styles.statsRow}>
-              <Text style={styles.statNumber}>{listingsCount}</Text>
-              <Text style={styles.statLabel}> Listings</Text>
-              <Text style={styles.statNumber}>{itemsSoldCount}</Text>
-              <Text style={styles.statLabel}> Items Sold</Text>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{listingsCount}</Text>
+                <Text style={styles.statLabel}>Listings</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{itemsSoldCount}</Text>
+                <Text style={styles.statLabel}>Items Sold</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -203,6 +283,23 @@ export default function SettingsScreen() {
         </Pressable>
       </Animated.View>
 
+      <View style={styles.notificationsSection}>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.notificationRow}>
+          <Text style={styles.notificationLabel}>Message notifications</Text>
+          <Switch
+            value={messageNotificationsValue}
+            onValueChange={(value) => void handleMessageNotificationsToggle(value)}
+            disabled={isUpdatingMessageNotifications || messageNotificationsEnabled === undefined}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.white}
+          />
+        </View>
+        <Text style={styles.notificationHint}>
+          Get notified when someone messages you about a listing.
+        </Text>
+      </View>
+
       <View style={styles.tabs}>
         <Pressable
           style={[styles.tab, activeTab === 'listings' && styles.tabActive]}
@@ -227,13 +324,22 @@ export default function SettingsScreen() {
       </View>
 
       {activeTab === 'listings' ? (
-        <View style={[styles.grid, isWideLayout && styles.gridWide]}>
-          {displayListings.map((listing, index) => (
-            <View key={listing._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
-              <ListingCard listing={listing} index={index} />
-            </View>
-          ))}
-        </View>
+        displayListings.length === 0 ? (
+          <View style={styles.emptyTab}>
+            <Text style={styles.emptyTabTitle}>No listings</Text>
+            <Text style={styles.emptyTabBody}>
+              Post your first listing to find them quickly here.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.grid, isWideLayout && styles.gridWide]}>
+            {displayListings.map((listing, index) => (
+              <View key={listing._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
+                <ListingCard listing={listing} index={index} />
+              </View>
+            ))}
+          </View>
+        )
       ) : savedListingsStatus === 'LoadingFirstPage' ? (
         <View style={styles.emptyTab}>
           <ScreenState variant="loading" title="Loading saved listings..." />
@@ -290,6 +396,17 @@ export default function SettingsScreen() {
           <Text style={styles.secondaryButtonText}>
             {isLoading ? 'Signing out...' : 'Sign out'}
           </Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.deleteButton,
+            pressed && styles.buttonPressed,
+            isLoading && styles.buttonDisabled,
+          ]}
+          onPress={handleDeleteAccount}
+          disabled={isLoading}
+        >
+          <Text style={styles.deleteButtonText}>Delete account</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -392,7 +509,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginTop: spacing.xs,
-    gap: 2,
+    gap: spacing.lg,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.xs,
   },
   statNumber: {
     ...typography.title2,
@@ -402,6 +524,31 @@ const styles = StyleSheet.create({
   statLabel: {
     ...typography.footnote,
     color: colors.text,
+  },
+  notificationsSection: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notificationLabel: {
+    ...typography.body,
+    color: colors.text,
+  },
+  notificationHint: {
+    ...typography.footnote,
+    color: colors.muted,
   },
   bioRow: {
     flexDirection: 'row',
@@ -505,6 +652,17 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: spacing.lg,
+    gap: spacing.md,
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.md,
+    paddingHorizontal: 0,
+  },
+  deleteButtonText: {
+    ...typography.subhead,
+    color: colors.destructive,
+    fontWeight: '600',
   },
   primaryButton: {
     backgroundColor: colors.primary,

@@ -19,9 +19,10 @@ import { api } from 'convex/_generated/api';
 import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'success';
+type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'push' | 'success';
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
 
 function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
@@ -38,6 +39,7 @@ export default function LoginScreen() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const panelEntrance = useEntranceAnimation();
   const createProfile = useMutation(api.profiles.createProfile);
+  const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
 
   const profileForRedirect = useQuery(
     api.profiles.getCurrentProfile,
@@ -49,7 +51,7 @@ export default function LoginScreen() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState('2026');
+  const [year, setYear] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -202,7 +204,8 @@ export default function LoginScreen() {
       return;
     }
 
-    const parsedYear = Number(year);
+    const yearInput = year.trim() || '2026';
+    const parsedYear = Number(yearInput);
     if (
       !Number.isInteger(parsedYear) ||
       parsedYear < PROFILE_BOUNDS.MIN_YEAR ||
@@ -225,11 +228,7 @@ export default function LoginScreen() {
         major: trimmedMajor,
         year: parsedYear,
       });
-      setStep('success');
-      const t = setTimeout(() => {
-        router.replace(postAuthRedirect);
-      }, 1500);
-      return () => clearTimeout(t);
+      setStep('push');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create profile';
       setError(message);
@@ -243,6 +242,7 @@ export default function LoginScreen() {
   const isVerificationStep = typeof step === 'object' && 'email' in step;
   const isCheckingStep = step === 'checking';
   const isProfileStep = step === 'profile';
+  const isPushStep = step === 'push';
   const isSuccessStep = step === 'success';
   const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
 
@@ -279,6 +279,57 @@ export default function LoginScreen() {
         <View style={[styles.content, styles.centeredContent]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.stateText}>Setting up your account...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const handlePushEnable = async () => {
+    try {
+      await requestPermissionAndSyncToken(recordPushToken);
+    } catch {
+      // Permission denied - continue anyway
+    }
+    setStep('success');
+    setTimeout(() => {
+      router.replace(postAuthRedirect);
+    }, 1500);
+  };
+
+  const handlePushSkip = () => {
+    setStep('success');
+    setTimeout(() => {
+      router.replace(postAuthRedirect);
+    }, 1500);
+  };
+
+  if (isPushStep) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.background}>
+          <View style={styles.orbTop} />
+          <View style={styles.orbBottom} />
+          <View style={styles.scrollContent}>
+            <Animated.View style={[styles.content, panelEntrance]}>
+              <Text style={styles.eyebrow}>Stay in the loop</Text>
+              <Text style={styles.title}>Enable notifications</Text>
+              <Text style={styles.subtitle}>
+                Get notified when someone messages you about a listing.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                onPress={() => void handlePushEnable()}
+              >
+                <Text style={styles.buttonText}>Enable notifications</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.skipButton, pressed && styles.buttonPressed]}
+                onPress={handlePushSkip}
+              >
+                <Text style={styles.skipButtonText}>Not now</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
         </View>
       </View>
     );
@@ -686,6 +737,16 @@ const styles = StyleSheet.create({
   linkText: {
     color: colors.primary,
     ...typography.footnote,
+    fontWeight: '600',
+  },
+  skipButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  skipButtonText: {
+    color: colors.muted,
+    ...typography.subhead,
     fontWeight: '600',
   },
 });
