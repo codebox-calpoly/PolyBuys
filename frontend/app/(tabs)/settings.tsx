@@ -77,7 +77,7 @@ export default function SettingsScreen() {
     setEmail('');
     setBio('');
     setMajor('');
-    setYear('2026');
+    setYear('');
   }, [isAuthenticated]);
 
   const handleAuthAction = async () => {

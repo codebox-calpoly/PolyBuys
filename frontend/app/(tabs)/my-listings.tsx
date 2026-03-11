@@ -16,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { showAlert } from '../../utils/showAlert';
 
 function getStatusLabel(status: Doc<'listings'>['status']) {
   switch (status) {
@@ -43,6 +44,8 @@ export default function MyListingsScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDelete(id: string, title: string) {
+    if (deletingId !== null) return;
+
     const confirmed =
       Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`)
@@ -63,11 +66,7 @@ export default function MyListingsScreen() {
       setDeletingId(id);
       await deleteListing({ id: id as Id<'listings'> });
     } catch {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert('Failed to delete listing. Please try again.');
-      } else {
-        Alert.alert('Error', 'Failed to delete listing. Please try again.');
-      }
+      showAlert('Error', 'Failed to delete listing. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -157,7 +156,7 @@ export default function MyListingsScreen() {
               <Pressable
                 style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
                 onPress={() => handleDelete(item._id, item.title)}
-                disabled={deletingId === item._id}
+                disabled={deletingId !== null}
               >
                 {deletingId === item._id ? (
                   <ActivityIndicator size="small" color="#fff" />

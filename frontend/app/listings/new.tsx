@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,19 +16,12 @@ import ImageUploader from '@/components/ImageUploader';
 import TagInput from '../../components/TagInput';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { showAlert } from '../../utils/showAlert';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
 const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
-
-function showAlert(title: string, message: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-}
 
 function getListingActionError(error: unknown, fallbackTitle: string) {
   const rawMessage = error instanceof Error ? error.message : 'Unknown error';
