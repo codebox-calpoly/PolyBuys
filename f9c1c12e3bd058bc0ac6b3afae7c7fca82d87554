@@ -1,0 +1,48 @@
+frontend/hooks/useAuth.ts
+  f44010f559db42e6 20-21,30-33
+frontend/components/ListingCard.tsx
+  f44010f559db42e6 117-118,140-144,146-156,158,160-162,164,166-173,175-176,178-180,199-201
+frontend/app/(tabs)/my-listings.tsx
+  f44010f559db42e6 11,21-24,29-36,64-66,68-93,109,112,114,136,139,141,145-166,170-172,204-218,225-228,233,237-270,284-289,294,297-298,300,314-318,320,323,325,329,333,338,428-430,438,447,453,457-484,486,528-542,544-547,549-551,555,579,583-586,588,593
+frontend/components/ImageUploader.tsx
+  f44010f559db42e6 5-6,12,46-74,412-413,417,421-429,487-490,518-562,680-683
+frontend/app/listings/[id]/edit.tsx
+  f44010f559db42e6 6,17,22,28-35,95-99,103-109,115,120,125,134-135,143,149,153,167,186-192,252,276,347,358,369,382-387,393-396,412,438,440
+frontend/components/MyListingActionsSheet.tsx
+  f44010f559db42e6 1-202
+frontend/app/_layout.tsx
+  f44010f559db42e6 13-15,56,80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "f9c1c12e3bd058bc0ac6b3afae7c7fca82d87554",
+  "prompts": {
+    "5213fd44575c7d08": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "24080ab7-2075-437e-87ec-9806000e7851",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 54,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "f44010f559db42e6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e7456072-ec76-41ca-a622-9defd88fbca9",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 918,
+      "total_deletions": 376,
+      "accepted_lines": 748,
+      "overriden_lines": 0
+    }
+  }
+}
