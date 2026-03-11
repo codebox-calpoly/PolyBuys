@@ -1,0 +1,52 @@
+frontend/app/(tabs)/search.tsx
+  147d427d54d21344 119
+frontend/app/(tabs)/settings.tsx
+  147d427d54d21344 1,84-89,92,106-108
+frontend/app/(tabs)/inbox.tsx
+  147d427d54d21344 1,131-136,168
+frontend/app/(tabs)/index.tsx
+  147d427d54d21344 170,242,246
+frontend/app/(tabs)/my-listings.tsx
+  147d427d54d21344 3,76-81,185-186
+frontend/app/listings/[id]/edit.tsx
+  f44010f559db42e6 28,31,33,150
+frontend/components/ListingCard.tsx
+  147d427d54d21344 129,172
+frontend/app/listings/[id].tsx
+  147d427d54d21344 101,127
+frontend/app/listings/new.tsx
+  f44010f559db42e6 28,31,33,145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "875e552be1f4a90b08fad056414a1f1604cba364",
+  "prompts": {
+    "147d427d54d21344": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ab44d4af-c326-40de-96bb-0cf68da8a133",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 49,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    },
+    "f44010f559db42e6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e7456072-ec76-41ca-a622-9defd88fbca9",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 33,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
