@@ -124,6 +124,7 @@ export default function PublicProfileScreen() {
           <Pressable
             style={({ pressed }) => [styles.reportButton, pressed && styles.reportButtonPressed]}
             onPress={() => setReportOpen(true)}
+            hitSlop={6}
           >
             <Text style={styles.reportButtonText}>Report</Text>
           </Pressable>
@@ -225,6 +226,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   reportButtonPressed: {
     opacity: 0.7,

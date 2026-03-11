@@ -82,6 +82,10 @@ export default function ConversationDetailScreen() {
     api.blocks.isBlocking,
     isAuthenticated && otherUserId ? { blockedId: otherUserId } : 'skip'
   );
+  const isBlockedByOther = useQuery(
+    api.blocks.isBlockedBy,
+    isAuthenticated && otherUserId ? { blockerId: otherUserId } : 'skip'
+  );
 
   const listingId = (conversation?.listing?.id ??
     conversation?.listingId ??
@@ -182,7 +186,7 @@ export default function ConversationDetailScreen() {
   const handleBlockPress = () => {
     if (!otherUserId) return;
 
-    if (isBlockingOther) {
+    if (isBlockingOther === true) {
       unblockUser({ blockedId: otherUserId }).catch((err) => {
         Alert.alert('Could not unblock', err instanceof Error ? err.message : 'Please try again.');
       });
@@ -211,7 +215,7 @@ export default function ConversationDetailScreen() {
 
   const onSend = async () => {
     const trimmed = messageBody.trim();
-    if (!trimmed || !conversationId || isSending) {
+    if (!trimmed || !conversationId || isSending || isBlockingOther === true || isBlockedByOther) {
       return;
     }
 
@@ -287,7 +291,7 @@ export default function ConversationDetailScreen() {
                   style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
                 >
                   <Text style={styles.headerActionText}>
-                    {isBlockingOther ? 'Unblock' : 'Block'}
+                    {isBlockingOther === true ? 'Unblock' : 'Block'}
                   </Text>
                 </Pressable>
               )
@@ -374,10 +378,16 @@ export default function ConversationDetailScreen() {
       />
 
       <View style={styles.composerWrap}>
-        {isBlockingOther ? (
+        {isBlockingOther === true ? (
           <View style={styles.blockedComposer}>
             <Text style={styles.blockedText}>
               You have blocked this user. Tap Unblock above to send messages.
+            </Text>
+          </View>
+        ) : isBlockedByOther ? (
+          <View style={styles.blockedComposer}>
+            <Text style={styles.blockedText}>
+              You cannot send messages in this conversation because this user has blocked you.
             </Text>
           </View>
         ) : (

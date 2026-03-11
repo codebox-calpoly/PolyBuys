@@ -37,10 +37,20 @@ export const blockUser = mutation({
       throw new ConvexError('You cannot block yourself');
     }
 
+    const normalizedBlockedId = await ctx.db.normalizeId('users', args.blockedId);
+    if (!normalizedBlockedId) {
+      throw new ConvexError('Target user not found');
+    }
+    const targetUser = await ctx.db.get(normalizedBlockedId);
+    if (!targetUser) {
+      throw new ConvexError('Target user not found');
+    }
+    const blockedId = normalizedBlockedId as string;
+
     const existing = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
-        q.eq('blockerId', blockerId).eq('blockedId', args.blockedId)
+        q.eq('blockerId', blockerId).eq('blockedId', blockedId)
       )
       .first();
 
@@ -50,7 +60,7 @@ export const blockUser = mutation({
 
     const blockId = await ctx.db.insert('userBlocks', {
       blockerId,
-      blockedId: args.blockedId,
+      blockedId,
       createdAt: Date.now(),
     });
 
@@ -92,6 +102,23 @@ export const isBlocking = query({
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
         q.eq('blockerId', blockerId).eq('blockedId', args.blockedId)
+      )
+      .first();
+    return block !== null;
+  },
+});
+
+/**
+ * Check if the current user is blocked by the given user.
+ */
+export const isBlockedBy = query({
+  args: { blockerId: v.string() },
+  handler: async (ctx, args) => {
+    const blockedId = await requireAuthUserId(ctx);
+    const block = await ctx.db
+      .query('userBlocks')
+      .withIndex('by_blocker_blocked', (q) =>
+        q.eq('blockerId', args.blockerId).eq('blockedId', blockedId)
       )
       .first();
     return block !== null;

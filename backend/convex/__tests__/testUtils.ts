@@ -133,7 +133,7 @@ export async function createTestListing(
 
 /**
  * Creates a test conversation between buyer and seller (no messages).
- * For listUserConversations tests, use createTestConversationWithMessage.
+ * For listUserConversations tests, use createTestConversation.
  */
 export async function createTestConversationEmpty(
   t: any,

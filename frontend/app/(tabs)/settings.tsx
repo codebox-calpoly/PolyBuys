@@ -133,10 +133,20 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await deleteAccount({});
-              await signOut();
             } catch (error) {
               const message = error instanceof Error ? error.message : 'Failed to delete account';
               Alert.alert('Delete Account Failed', message);
+              return;
+            }
+
+            try {
+              await signOut();
+            } catch (error) {
+              const details = error instanceof Error ? `\n\nDetails: ${error.message}` : '';
+              Alert.alert(
+                'Account Deleted',
+                `Your account was deleted, but we could not sign you out automatically. Please sign out manually.${details}`
+              );
             }
           },
         },
@@ -152,20 +162,36 @@ export default function SettingsScreen() {
     setIsUpdatingMessageNotifications(true);
 
     try {
-      await updateMessageNotificationsEnabled({ enabled: value });
-
       if (value) {
+        let permissionGranted = false;
         try {
-          await requestPermissionAndSyncToken(recordPushToken);
-        } catch {
-          // Permission denied or sync failed - preference is still updated
+          permissionGranted = await requestPermissionAndSyncToken(recordPushToken);
+        } catch (error) {
+          setMessageNotificationsValue(previousValue);
+          const message =
+            error instanceof Error ? error.message : 'Unable to enable notifications right now.';
+          Alert.alert('Notification Update Failed', message);
+          return;
         }
+
+        if (!permissionGranted) {
+          setMessageNotificationsValue(previousValue);
+          Alert.alert(
+            'Notification Update Failed',
+            'Push permission was not granted. Enable notifications in system settings and try again.'
+          );
+          return;
+        }
+
+        await updateMessageNotificationsEnabled({ enabled: true });
       } else {
         try {
           await removePushToken({});
         } catch {
           // Best-effort token removal
         }
+
+        await updateMessageNotificationsEnabled({ enabled: false });
       }
     } catch (error) {
       setMessageNotificationsValue(previousValue);

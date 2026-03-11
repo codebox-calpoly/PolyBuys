@@ -284,23 +284,24 @@ export default function LoginScreen() {
     );
   }
 
-  const handlePushEnable = async () => {
-    try {
-      await requestPermissionAndSyncToken(recordPushToken);
-    } catch {
-      // Permission denied - continue anyway
-    }
+  const finishAndRedirect = () => {
     setStep('success');
     setTimeout(() => {
       router.replace(postAuthRedirect);
     }, 1500);
   };
 
+  const handlePushEnable = async () => {
+    try {
+      await requestPermissionAndSyncToken(recordPushToken);
+    } catch {
+      // Permission denied - continue anyway
+    }
+    finishAndRedirect();
+  };
+
   const handlePushSkip = () => {
-    setStep('success');
-    setTimeout(() => {
-      router.replace(postAuthRedirect);
-    }, 1500);
+    finishAndRedirect();
   };
 
   if (isPushStep) {
