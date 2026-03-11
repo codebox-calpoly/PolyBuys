@@ -35,7 +35,7 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState('2026');
+  const [year, setYear] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function SettingsScreen() {
       setEmail(user?.email ?? '');
       setBio('');
       setMajor('');
-      setYear('2026');
+      setYear('');
     }
 
     setLoadedProfileKey(nextKey);
@@ -216,6 +216,7 @@ export default function SettingsScreen() {
             value={name}
             onChangeText={setName}
             placeholder="Your full name"
+            placeholderTextColor="#9aaa9f"
           />
 
           <Text style={styles.label}>Email *</Text>
@@ -224,6 +225,7 @@ export default function SettingsScreen() {
             value={email}
             onChangeText={setEmail}
             placeholder="you@calpoly.edu"
+            placeholderTextColor="#9aaa9f"
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -235,6 +237,7 @@ export default function SettingsScreen() {
             value={bio}
             onChangeText={setBio}
             placeholder="Tell others about yourself"
+            placeholderTextColor="#9aaa9f"
             multiline
           />
 
@@ -244,6 +247,7 @@ export default function SettingsScreen() {
             value={major}
             onChangeText={setMajor}
             placeholder="Computer Science"
+            placeholderTextColor="#9aaa9f"
           />
 
           <Text style={styles.label}>Year *</Text>
@@ -252,6 +256,7 @@ export default function SettingsScreen() {
             value={year}
             onChangeText={setYear}
             placeholder="2026"
+            placeholderTextColor="#9aaa9f"
             keyboardType="number-pad"
           />
 
@@ -273,27 +278,23 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Session</Text>
-        <Text style={styles.sectionBody}>
-          {isAuthenticated
-            ? 'You are signed in and can post or edit listings.'
-            : 'Sign in with your Cal Poly email to post and manage listings.'}
-        </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.button,
-            (isSigningOut || isLoading) && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleAuthAction}
-          disabled={isSigningOut || isLoading}
-        >
-          <Text style={styles.buttonText}>
-            {isAuthenticated ? (isSigningOut ? 'Signing out...' : 'Sign out') : 'Sign in'}
-          </Text>
-        </Pressable>
-      </View>
+      {isAuthenticated && (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Session</Text>
+          <Text style={styles.sectionBody}>You are signed in and can post or edit listings.</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              (isSigningOut || isLoading) && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={handleAuthAction}
+            disabled={isSigningOut || isLoading}
+          >
+            <Text style={styles.buttonText}>{isSigningOut ? 'Signing out...' : 'Sign out'}</Text>
+          </Pressable>
+        </View>
+      )}
     </ScrollView>
   );
 }

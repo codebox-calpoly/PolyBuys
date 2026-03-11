@@ -1,16 +1,19 @@
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { api } from 'convex/_generated/api';
-import type { Doc } from 'convex/_generated/dataModel';
+import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 
@@ -36,6 +39,39 @@ export default function MyListingsScreen() {
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
+  const deleteListing = useMutation(api.listings.deleteListing);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(id: string, title: string) {
+    const confirmed =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`)
+        : await new Promise<boolean>((resolve) =>
+            Alert.alert(
+              'Delete listing',
+              `Are you sure you want to delete "${title}"? This cannot be undone.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+              ]
+            )
+          );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(id);
+      await deleteListing({ id: id as Id<'listings'> });
+    } catch {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Failed to delete listing. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete listing. Please try again.');
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   if (!isAuthenticated) {
     return (
@@ -117,6 +153,19 @@ export default function MyListingsScreen() {
             >
               <Text style={styles.primaryButtonText}>Edit</Text>
             </Pressable>
+            {item.status !== 'deleted' && (
+              <Pressable
+                style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
+                onPress={() => handleDelete(item._id, item.title)}
+                disabled={deletingId === item._id}
+              >
+                {deletingId === item._id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                )}
+              </Pressable>
+            )}
           </View>
         </View>
       )}
@@ -294,5 +343,19 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.985 }],
+  },
+  deleteButton: {
+    backgroundColor: '#b3261e',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

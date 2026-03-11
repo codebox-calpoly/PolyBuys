@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useAction } from 'convex/react';
+import { useAction, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import ImageUploader from '@/components/ImageUploader';
@@ -21,6 +22,15 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
+const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
+
+function showAlert(title: string, message: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 function getListingActionError(error: unknown, fallbackTitle: string) {
   const rawMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -29,6 +39,14 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
       title: 'Listing needs edits',
       message:
         'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.',
+    };
+  }
+
+  if (rawMessage.toLowerCase().includes(PROFILE_SETUP_ERROR_FRAGMENT)) {
+    return {
+      title: 'Profile setup required',
+      message:
+        'Please complete your profile setup before creating a listing. Go to your Profile tab to fill in your details.',
     };
   }
 
@@ -43,6 +61,7 @@ export default function NewListingScreen() {
   const createListing = useAction(api.listings.createListing);
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
+  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -57,7 +76,7 @@ export default function NewListingScreen() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing');
+      showAlert('Sign In Required', 'Please sign in to create a listing');
       router.replace('/auth/login');
     }
   }, [isAuthenticated, isLoading, router]);
@@ -67,32 +86,45 @@ export default function NewListingScreen() {
       return;
     }
 
+    if (profile === undefined) {
+      showAlert('Please wait', 'Your profile is still loading. Please try again in a moment.');
+      return;
+    }
+
+    if (profile === null) {
+      showAlert(
+        'Profile setup required',
+        'Please complete your profile setup before creating a listing. Go to your Profile tab to fill in your details.'
+      );
+      return;
+    }
+
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
 
     if (!trimmedTitle || trimmedTitle.length < 5) {
-      Alert.alert('Missing fields', 'Title must be at least 5 characters.');
+      showAlert('Missing fields', 'Title must be at least 5 characters.');
       return;
     }
 
     if (!trimmedDescription) {
-      Alert.alert('Missing fields', 'Description is required.');
+      showAlert('Missing fields', 'Description is required.');
       return;
     }
 
     const parsedPrice = Number(price);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Invalid price', 'Please enter a valid non-negative price.');
+      showAlert('Invalid price', 'Please enter a valid non-negative price.');
       return;
     }
 
     if (hasPendingUploads) {
-      Alert.alert('Uploads in progress', 'Please wait for image uploads to finish.');
+      showAlert('Uploads in progress', 'Please wait for image uploads to finish.');
       return;
     }
 
     if (images.length < 1 || images.length > 8) {
-      Alert.alert('Invalid images', 'Please upload between 1 and 8 images.');
+      showAlert('Invalid images', 'Please upload between 1 and 8 images.');
       return;
     }
 
@@ -108,11 +140,11 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      Alert.alert('Success', 'Listing created.');
+      showAlert('Success', 'Listing created.');
       router.replace('/');
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
-      Alert.alert(actionError.title, actionError.message);
+      showAlert(actionError.title, actionError.message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -152,6 +184,15 @@ export default function NewListingScreen() {
           Make it clear, detailed, and easy for students to trust.
         </Text>
 
+        {profile === null && (
+          <Pressable style={styles.profileBanner} onPress={() => router.push('/settings')}>
+            <Text style={styles.profileBannerTitle}>⚠️ Profile setup required</Text>
+            <Text style={styles.profileBannerText}>
+              Complete your profile before creating a listing. Tap here to go to your Profile.
+            </Text>
+          </Pressable>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.label}>Title *</Text>
           <TextInput
@@ -159,6 +200,7 @@ export default function NewListingScreen() {
             value={title}
             onChangeText={setTitle}
             placeholder="Enter listing title"
+            placeholderTextColor="#9aaa9f"
             maxLength={100}
           />
         </View>
@@ -170,6 +212,7 @@ export default function NewListingScreen() {
             value={description}
             onChangeText={setDescription}
             placeholder="Describe your item"
+            placeholderTextColor="#9aaa9f"
             multiline
             numberOfLines={4}
           />
@@ -182,6 +225,7 @@ export default function NewListingScreen() {
             value={price}
             onChangeText={setPrice}
             placeholder="0.00"
+            placeholderTextColor="#9aaa9f"
             keyboardType="decimal-pad"
           />
         </View>
@@ -418,5 +462,24 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.9,
+  },
+  profileBanner: {
+    backgroundColor: '#fff8e1',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ffe082',
+    padding: 14,
+    marginBottom: 8,
+    gap: 4,
+  },
+  profileBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6d4c00',
+  },
+  profileBannerText: {
+    fontSize: 14,
+    color: '#8d6e0a',
+    lineHeight: 20,
   },
 });

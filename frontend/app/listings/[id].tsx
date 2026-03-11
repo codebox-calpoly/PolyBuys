@@ -28,6 +28,10 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function getAppOrigin() {
   const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
   if (!configuredOrigin) {
@@ -100,6 +104,11 @@ export default function ListingDetailScreen() {
     if (Platform.OS === 'web' && listing && typeof document !== 'undefined') {
       document.title = `${listing.title} - PolyBuys`;
     }
+    return () => {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.title = 'PolyBuys';
+      }
+    };
   }, [listing]);
 
   if (!listingId) {
@@ -191,11 +200,11 @@ export default function ListingDetailScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
             <Text style={styles.metaLabel}>Category</Text>
-            <Text style={styles.metaValue}>{listing.category}</Text>
+            <Text style={styles.metaValue}>{capitalize(listing.category)}</Text>
           </View>
           <View style={styles.metaChip}>
             <Text style={styles.metaLabel}>Condition</Text>
-            <Text style={styles.metaValue}>{listing.condition}</Text>
+            <Text style={styles.metaValue}>{capitalize(listing.condition)}</Text>
           </View>
         </View>
 

@@ -157,10 +157,14 @@ export default function HomeScreen() {
 
   const handleCreateListing = () => {
     if (!isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/auth/login') },
-      ]);
+      if (Platform.OS === 'web') {
+        router.push('/settings');
+      } else {
+        Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/auth/login') },
+        ]);
+      }
       return;
     }
     router.push('/listings/new');
@@ -317,7 +321,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   createButton: {
-    backgroundColor: '#1c7f50',
+    backgroundColor: '#154734',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
