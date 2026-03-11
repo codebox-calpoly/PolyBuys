@@ -1,0 +1,23 @@
+frontend/package.json
+  a0160c86c45d622a 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "b2648512d9ae1e1ccd9747f894f82ba795691c52",
+  "prompts": {
+    "a0160c86c45d622a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "26f88155-3a53-4c4b-9da9-8b12b50b7f06",
+        "model": "default"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
