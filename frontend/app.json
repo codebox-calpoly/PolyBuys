@@ -57,6 +57,14 @@
           "origin": "https://polybuys.com"
         }
       ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "taylor-labs-llc",
+          "project": "polybuys"
+        }
+      ],
       "expo-font",
       "expo-notifications"
     ],

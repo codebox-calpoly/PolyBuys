@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { ConvexReactClient } from 'convex/react';
 import { useConvexAuth } from 'convex/react';
@@ -7,6 +8,13 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+
+Sentry.init({
+  dsn: 'https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976',
+  sendDefaultPii: true,
+  enableLogs: true,
+  // spotlight: __DEV__,
+});
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
@@ -30,7 +38,7 @@ function PushNotificationsBootstrap() {
   return null;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
@@ -75,3 +83,5 @@ export default function RootLayout() {
     </ConvexAuthProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
