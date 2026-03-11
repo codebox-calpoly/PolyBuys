@@ -1,0 +1,171 @@
+backend/convex/schema.ts
+  ab36f1cb67ca9f82 89-97
+frontend/components/ListingCard.tsx
+  ab36f1cb67ca9f82 1,3-6,21,31,34-35,37,40-43,48-51,53-54,58-59,62-63,66-67,70-73,76,78,83,85,91-92,105,108,111,115-116,118-123,125-140,142,147,150-152,154-155,157-158,164-165,168-170,173-175,177-179,183-184,187,189-196,198-201,205,207,209-215,217-222,229,231-232,235-237,239,242,244-246,248-252,255-258,260-263
+  40ff2e97d541c90c 7,22,36,38-39,52,56,61,64,141,143-146,148-149,176,202-204,216,223-228,230
+  f70a8e36a62101d3 9-20,90
+backend/convex/__tests__/schema.test.ts
+  ab36f1cb67ca9f82 68-86
+frontend/components/ui/index.ts
+  ab36f1cb67ca9f82 1-9
+frontend/components/FilterBar.tsx
+  40ff2e97d541c90c 2,74-76,87,101-103,114,128-130,141,152-153,189,225
+  ab36f1cb67ca9f82 7,61,67-68,70-72,85,89,94,97-99,112,116,121,124-126,139,143,185,187-188,190,196-198,207,209,217-219,221,223-224,226
+frontend/app/listings/new.tsx
+  f70a8e36a62101d3 189-197,394-399
+  40ff2e97d541c90c 202-203,264,288
+  ab36f1cb67ca9f82 21,158,167,182-183,359,381,405-408,424,450,452
+  6725f54696e17f32 6,14,26-34,46-50,65,80,90-91,95-102,107,112,118,123,128,144,148,198-201,204-210,483-498
+frontend/hooks/useReducedMotion.ts
+  f70a8e36a62101d3 9
+  ab36f1cb67ca9f82 1-8,10-27
+frontend/app/(tabs)/index.tsx
+  ab36f1cb67ca9f82 14,26,28,84,158-173,251-257,259,262-263,331,340,380-384,386,388,390,392,396-398,400-401,403-404,407-411
+  40ff2e97d541c90c 23,56,127-136,265,300-303,307-308,313-315,323-324,393,405
+frontend/hooks/useEntranceAnimation.ts
+  ab36f1cb67ca9f82 2-4,6-9,12-17,21,23,28,30,37
+frontend/components/ui/AppButton.tsx
+  ab36f1cb67ca9f82 1-43
+frontend/theme/motion.ts
+  ab36f1cb67ca9f82 1-10
+frontend/components/ui/AppText.tsx
+  ab36f1cb67ca9f82 1-33
+frontend/app/auth/login.tsx
+  ab36f1cb67ca9f82 1,13,17-18,21-22,25-26,28-30,32-33,39,45,48,51-52,57,72-99,181-226,228-229,232,234-378,529-530,541-546,548-549,562,573,593,597-598,612,616-617,621,625-626,630-631,634-635,638-639,658,671
+  40ff2e97d541c90c 611
+backend/convex/savedListings.ts
+  40ff2e97d541c90c 10
+  ab36f1cb67ca9f82 1-9,11-181
+frontend/components/SafetyBanner.tsx
+  f70a8e36a62101d3 1-41
+frontend/app/(tabs)/inbox.tsx
+  40ff2e97d541c90c 18,176,193-194
+  ab36f1cb67ca9f82 19,67-68,153,228,232,241,244-247,250,261,264,267-268,271,274-275,282,311,340,343,345
+frontend/app/(tabs)/my-listings.tsx
+  ab36f1cb67ca9f82 9,14,16,19,22,43-44,116-117,120-121,138,147-148,150-156,159-160,162,171,174-190,217-224,236-240,244,246-258,261-276,279,281,285-292,301-302,305-306,309-311,314-316,318-320,322,325-326,328-336,339-340,343,346-347,351,355-356,359-361,364-365,368,372,375-376,380,384,390,394,396,412-415,417-419
+  40ff2e97d541c90c 49,51-82,198-216,232,259-260,277-278,323,398-399,403-404,406-411,420-422
+frontend/app/listings/[id].tsx
+  40ff2e97d541c90c 28,65-66,162-183,188-190,395-410,465,482,580,584,640,644,648-649,651-652,654-656,659-660
+  f70a8e36a62101d3 494-496,499,550,561,577,605-606,611,616,622-624,626,647,676-677
+  ab36f1cb67ca9f82 6,9-10,18,32-33,64,67-70,73-74,76-84,123-141,260-310,321-322,336-339,344-345,347-355,357-363,365-366,368-372,375,380,383-386,425,485,493,498,500,504,507-535,542,544,547,566,570-574,576,578-579,581-583,585-596,599,602,608,614,619,621,625,627-632,634-635,637,639,664-665,667-668,672
+backend/convex/_generated/api.d.ts
+  6725f54696e17f32 21,41
+frontend/theme/tokens.ts
+  40ff2e97d541c90c 31-53
+  ab36f1cb67ca9f82 1-30,54-130
+backend/convex/profiles.ts
+  ab36f1cb67ca9f82 79-91
+frontend/app/profile/edit.tsx
+  40ff2e97d541c90c 66,213-214
+  ab36f1cb67ca9f82 1-65,67-212,215-282
+frontend/app/profile/[userId].tsx
+  40ff2e97d541c90c 1-204,206-213
+  f70a8e36a62101d3 205
+frontend/app.json
+  f70a8e36a62101d3 9,11
+  40ff2e97d541c90c 10,12-14,38-46
+frontend/app/_layout.tsx
+  ab36f1cb67ca9f82 64-67
+  40ff2e97d541c90c 68-71
+frontend/app/(tabs)/_layout.tsx
+  ab36f1cb67ca9f82 7,94,100,156,160,163,175-176,183-184,192-193,201,204,206,209,221,229-231
+  f70a8e36a62101d3 218
+frontend/components/HiddenBanner.tsx
+  40ff2e97d541c90c 2,18-19,29-30,32-34,38-39,44
+frontend/app/(tabs)/settings.tsx
+  40ff2e97d541c90c 21,35-41,71-72,75-76,125,220-222,231-233,249,273-276
+  f70a8e36a62101d3 66-67,488
+  ab36f1cb67ca9f82 5,8,12,19-20,22-31,33,45,49,51-60,62,64-65,68,70,73-74,77-80,86,98-120,130-149,153-154,161-184,186-198,200-201,203-204,206,208-214,216-219,223-230,234-237,239-245,247-248,250-255,257-272,280,283,290,308-309,315-316,318,320-334,340-341,347,349-350,352-354,358-362,364-447,449-450,452,454-457,459-465,469-470,472-475,477-487,489,491-494,496-498,500-501,503,505-510,512-518,520,522,524-525,527,531-534,539
+frontend/app/conversations/[id].tsx
+  f70a8e36a62101d3 20,272,295-296,399,402,405-407,424,435-436,442
+  40ff2e97d541c90c 21,229,237,245-248
+  6725f54696e17f32 437
+  ab36f1cb67ca9f82 22,287-288,377,383-385,388-389,392-395,397-398,408,415,417,423,427-428,431-432,438,440-441,445-446,453-456,469-472,475,479,481,485,488,491,494,499,502,507,510-511,515-519,522,526,528,530-536,539-544,550-551
+backend/convex/__tests__/saved-listings.test.ts
+  40ff2e97d541c90c 155-172
+  ab36f1cb67ca9f82 1-154,173-185
+backend/convex/listings.ts
+  40ff2e97d541c90c 526-538,811-812
+backend/convex/__tests__/listings.test.ts
+  40ff2e97d541c90c 377-413
+backend/convex/__tests__/testUtils.ts
+  ab36f1cb67ca9f82 10,23
+frontend/components/ui/Chip.tsx
+  ab36f1cb67ca9f82 1-61
+frontend/hooks/useRecentSearches.ts
+  ab36f1cb67ca9f82 1-45
+frontend/components/ScreenState.tsx
+  40ff2e97d541c90c 1-98
+frontend/components/ListingUnavailable.tsx
+  40ff2e97d541c90c 4,20-21,36,41,43-44,47,55-56,60-61,67,70,79-80
+frontend/app/(tabs)/search.tsx
+  6725f54696e17f32 1
+  ab36f1cb67ca9f82 7,9,19-23,31-36,71-73,81,109-142,144-147,149,153-156,159-171,173-174,176-180,182-185,187-190,192-194,197-207,209-217,219-221,229,242,250,252-261,263-266,268-271,273-282,284-286,288,291-292,297-300,304,307-308,311,317
+  40ff2e97d541c90c 18,208,222-228
+frontend/components/ui/Field.tsx
+  ab36f1cb67ca9f82 1-65
+frontend/components/ImageUploader.tsx
+  ab36f1cb67ca9f82 369,373-374,384-385,493-494,498-500,502-503,505,510-512,520-521,523-524
+  f70a8e36a62101d3 4,362-365,368,370-372,375-376,378-383,386-403,443,451-487,495-497,501,504,506-509,513-519,522
+frontend/components/ui/AppPressable.tsx
+  ab36f1cb67ca9f82 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "af933c20a9588c6789656748b97540694abe654e",
+  "prompts": {
+    "40ff2e97d541c90c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1604ebf1-754b-4547-a5cc-a2bb17d645e5",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 976,
+      "total_deletions": 211,
+      "accepted_lines": 919,
+      "overriden_lines": 0
+    },
+    "6725f54696e17f32": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "14ec0d97-76a4-40ee-a18c-79cc75fede76",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 77,
+      "total_deletions": 12,
+      "accepted_lines": 76,
+      "overriden_lines": 0
+    },
+    "ab36f1cb67ca9f82": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "031ff26d-d8c1-45c1-b393-bc2732dd88b1",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 3635,
+      "total_deletions": 1695,
+      "accepted_lines": 3130,
+      "overriden_lines": 0
+    },
+    "f70a8e36a62101d3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1dd536c7-67c0-4a7a-9d33-72ebf9428464",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 230,
+      "total_deletions": 82,
+      "accepted_lines": 212,
+      "overriden_lines": 0
+    }
+  }
+}
