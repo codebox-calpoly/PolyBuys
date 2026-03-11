@@ -1,0 +1,27 @@
+frontend/metro.config.js
+  3843465d821e4cde 1-7
+frontend/app/_layout.tsx
+  3843465d821e4cde 1,12-17,86-87
+frontend/app.json
+  3843465d821e4cde 60-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "c28bbfb94ab3dc6650b48bd2fa06d818086aae3d",
+  "prompts": {
+    "3843465d821e4cde": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "269d033e-6f52-4fca-9221-a2e049d4f9e1",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 1,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    }
+  }
+}
