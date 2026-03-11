@@ -56,6 +56,10 @@ export default function RootLayout() {
             name="messages/[id]"
             options={{ title: 'Messages', headerBackTitle: 'Back' }}
           />
+          <Stack.Screen
+            name="conversations/[id]"
+            options={{ title: 'Conversation', headerBackTitle: 'Inbox' }}
+          />
           <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerShown: false }} />
           <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
         </Stack>

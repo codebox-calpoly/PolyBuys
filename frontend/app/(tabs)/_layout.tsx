@@ -1,6 +1,9 @@
 import { Link, Slot, usePathname } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useQuery } from 'convex/react';
+import { api } from 'convex/_generated/api';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { useAuth } from '../../hooks/useAuth';
 
 type WebTab = {
   href: '/' | '/search' | '/my-listings' | '/inbox' | '/settings';
@@ -23,7 +26,7 @@ function isTabActive(pathname: string, href: WebTab['href']) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function WebTabsHeaderLayout() {
+function WebTabsHeaderLayout({ unreadCount }: { unreadCount: number }) {
   const pathname = usePathname();
 
   return (
@@ -43,10 +46,21 @@ function WebTabsHeaderLayout() {
                 active && styles.webTabLabelActive,
               ]);
 
+              const isInboxTab = tab.href === '/inbox';
+              const showUnreadBadge = isInboxTab && unreadCount > 0;
+              const formattedUnreadCount = unreadCount > 9 ? '9+' : String(unreadCount);
+
               return (
                 <Link key={tab.href} href={tab.href as never} asChild>
                   <Pressable style={tabButtonStyle}>
-                    <Text style={tabLabelStyle}>{tab.label}</Text>
+                    <View style={styles.webTabInner}>
+                      <Text style={tabLabelStyle}>{tab.label}</Text>
+                      {showUnreadBadge ? (
+                        <View style={styles.webUnreadBadge}>
+                          <Text style={styles.webUnreadBadgeText}>{formattedUnreadCount}</Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </Pressable>
                 </Link>
               );
@@ -62,9 +76,17 @@ function WebTabsHeaderLayout() {
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
+  const { isAuthenticated } = useAuth();
+  const conversations = useQuery(api.messages.listUserConversations, isAuthenticated ? {} : 'skip');
+  const unreadCount =
+    conversations?.reduce(
+      (count, conversation) =>
+        count + (conversation.unreadCount ?? (conversation.hasUnread ? 1 : 0)),
+      0
+    ) ?? 0;
 
   if (Platform.OS === 'web') {
-    return <WebTabsHeaderLayout />;
+    return <WebTabsHeaderLayout unreadCount={unreadCount} />;
   }
 
   const isDarkMode = colorScheme === 'dark';
@@ -109,6 +131,11 @@ export default function TabsLayout() {
           sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }}
           md="chat"
         />
+        {unreadCount > 0 ? (
+          <NativeTabs.Trigger.Badge>
+            {unreadCount > 9 ? '9+' : String(unreadCount)}
+          </NativeTabs.Trigger.Badge>
+        ) : null}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
         {/* NativeTabs expects plain text inside Trigger.Label. */}
@@ -164,6 +191,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
+  webTabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   webTabButtonActive: {
     backgroundColor: '#154734',
   },
@@ -174,6 +206,21 @@ const styles = StyleSheet.create({
   },
   webTabLabelActive: {
     color: '#fff',
+  },
+  webUnreadBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d93025',
+  },
+  webUnreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   headerSpacer: {
     width: 84,
