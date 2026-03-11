@@ -4,11 +4,15 @@ import { motion } from '../theme/motion';
 import { useReducedMotion } from './useReducedMotion';
 
 export function useEntranceAnimation(delay = 0, distance: number = motion.distance) {
-  const reduceMotion = useReducedMotion();
-  const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
-  const translateY = useRef(new Animated.Value(reduceMotion ? 0 : distance)).current;
+  const { reduceMotion, isResolved } = useReducedMotion();
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(distance)).current;
 
   useEffect(() => {
+    if (!isResolved) {
+      return;
+    }
+
     if (reduceMotion) {
       opacity.setValue(1);
       translateY.setValue(0);
@@ -34,7 +38,7 @@ export function useEntranceAnimation(delay = 0, distance: number = motion.distan
 
     animation.start();
     return () => animation.stop();
-  }, [delay, distance, reduceMotion, opacity, translateY]);
+  }, [delay, distance, isResolved, reduceMotion, opacity, translateY]);
 
   return useMemo(
     () => ({

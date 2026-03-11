@@ -47,7 +47,10 @@ export const colors = {
   warningBg: '#fff9eb',
   warningBorder: '#f0d37a',
   warningText: '#6c4f20',
+  warningTextMuted: '#8d6e0a',
   warningLink: '#8a5a00',
+  locationDark: '#6ea48e',
+  overlayLight: 'rgba(0,0,0,0.08)',
   /** Placeholder/empty state surfaces */
   placeholderBg: '#f3f7f5',
   placeholderBorder: '#d8e6df',

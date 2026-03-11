@@ -58,10 +58,10 @@ export default function ListingCard({
   const { mappedUrls } = useResolvedImageUrls(listing.images ?? []);
   const imageUrl = mappedUrls[0];
   const [isHovered, setIsHovered] = useState(false);
-  const reduceMotion = useReducedMotion();
+  const { reduceMotion, isResolved: isReducedMotionResolved } = useReducedMotion();
 
   const alreadyAnimated = animatedListingIds.has(listing._id);
-  const shouldAnimate = !alreadyAnimated && !reduceMotion;
+  const shouldAnimate = isReducedMotionResolved && !alreadyAnimated && !reduceMotion;
 
   const opacity = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
   const translateY = useRef(new Animated.Value(shouldAnimate ? motion.distance : 0)).current;
@@ -155,8 +155,8 @@ export default function ListingCard({
           {listing.title}
         </Text>
         <Text style={styles.listingPrice}>${listing.price}</Text>
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </Pressable>
+      {footer ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
   );
 }

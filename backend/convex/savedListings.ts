@@ -124,25 +124,55 @@ export const getSavedStateForListings = query({
       return {} as Record<string, boolean>;
     }
 
-    const saved = await ctx.db
-      .query('savedListings')
-      .withIndex('by_user_createdAt', (q) => q.eq('userId', identity.subject))
-      .collect();
-
-    const savedSet = new Set(saved.map((s) => s.listingId));
     const result: Record<string, boolean> = {};
     for (const id of args.listingIds) {
-      result[id] = savedSet.has(id);
+      const saved = await ctx.db
+        .query('savedListings')
+        .withIndex('by_user_listing', (q) => q.eq('userId', identity.subject).eq('listingId', id))
+        .unique();
+      result[id] = !!saved;
     }
     return result;
   },
 });
 
+type PublicListing = {
+  _id: Id<'listings'>;
+  title: string;
+  description: string;
+  price: number;
+  sellerId: string;
+  images: string[];
+  condition: Doc<'listings'>['condition'];
+  category: Doc<'listings'>['category'];
+  status: Doc<'listings'>['status'];
+  createdAt: number;
+  postedOn: number;
+  tags?: string[];
+};
+
+function toPublicListing(listing: Doc<'listings'>): PublicListing {
+  return {
+    _id: listing._id,
+    title: listing.title,
+    description: listing.description,
+    price: listing.price,
+    sellerId: listing.sellerId,
+    images: listing.images,
+    condition: listing.condition,
+    category: listing.category,
+    status: listing.status,
+    createdAt: listing.createdAt,
+    postedOn: listing.postedOn,
+    tags: listing.tags,
+  };
+}
+
 export type SavedListingItem = {
   _id: Id<'savedListings'>;
   listingId: Id<'listings'>;
   createdAt: number;
-  listing: Doc<'listings'> | null;
+  listing: PublicListing | null;
   isUnavailable: boolean;
 };
 
@@ -167,7 +197,7 @@ export const getMySavedListings = query({
         _id: saved._id,
         listingId: saved.listingId,
         createdAt: saved.createdAt,
-        listing: listingDoc,
+        listing: listingDoc ? toPublicListing(listingDoc) : null,
         isUnavailable: listingDoc ? isListingUnavailable(listingDoc) : true,
       });
     }

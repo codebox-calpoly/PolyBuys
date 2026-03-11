@@ -3,7 +3,7 @@ import { colors, typography, spacing, borderRadius } from '../theme/tokens';
 
 export type ScreenStateVariant = 'loading' | 'empty' | 'error';
 
-interface ScreenStateProps {
+export interface ScreenStateProps {
   variant: ScreenStateVariant;
   title: string;
   message?: string;

@@ -481,10 +481,10 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   profileBanner: {
-    backgroundColor: '#fff8e1',
+    backgroundColor: colors.warningBg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ffe082',
+    borderColor: colors.warningBorder,
     padding: 14,
     marginBottom: 8,
     gap: 4,
@@ -492,11 +492,11 @@ const styles = StyleSheet.create({
   profileBannerTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#6d4c00',
+    color: colors.warningText,
   },
   profileBannerText: {
     fontSize: 14,
-    color: '#8d6e0a',
+    color: colors.warningTextMuted,
     lineHeight: 20,
   },
 });

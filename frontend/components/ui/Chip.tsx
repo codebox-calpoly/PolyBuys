@@ -1,6 +1,6 @@
 import { View, StyleSheet, type ViewProps } from 'react-native';
 import { AppText } from './AppText';
-import { colors, borderRadius, spacing } from '../../theme/tokens';
+import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 
 export type ChipVariant = 'default' | 'category' | 'location' | 'outline';
 
@@ -32,10 +32,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
-    gap: 3,
+    gap: spacing.xs,
   },
   label: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
   },
 });
 

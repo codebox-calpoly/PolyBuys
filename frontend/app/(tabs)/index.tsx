@@ -161,12 +161,19 @@ export default function HomeScreen() {
   );
 
   const handleToggleSave = useCallback(
-    (listingId: Id<'listings'>) => {
+    async (listingId: Id<'listings'>) => {
       if (!isAuthenticated) {
         router.push('/auth/login?returnTo=%2F' as never);
         return;
       }
-      void toggleSavedListing({ listingId });
+
+      try {
+        await toggleSavedListing({ listingId });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to save listing right now.';
+        Alert.alert('Save failed', message);
+      }
     },
     [isAuthenticated, router, toggleSavedListing]
   );
@@ -325,7 +332,7 @@ export default function HomeScreen() {
                 listing={item}
                 index={index}
                 isSaved={savedState?.[item._id] ?? false}
-                onToggleSave={() => handleToggleSave(item._id as Id<'listings'>)}
+                onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
               />
             )}
             numColumns={2}

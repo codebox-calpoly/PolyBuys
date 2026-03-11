@@ -20,10 +20,17 @@ export default function PublicProfileScreen() {
   const { userId: rawUserId } = useLocalSearchParams<{ userId?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const resolvedUserId =
-    typeof rawUserId === 'string' && rawUserId.trim().length > 0
-      ? decodeURIComponent(rawUserId.trim())
-      : null;
+  let resolvedUserId: string | null = null;
+  if (typeof rawUserId === 'string') {
+    const trimmedUserId = rawUserId.trim();
+    if (trimmedUserId.length > 0) {
+      try {
+        resolvedUserId = decodeURIComponent(trimmedUserId);
+      } catch {
+        resolvedUserId = null;
+      }
+    }
+  }
 
   const profile = useQuery(
     api.profiles.getProfileByUserId,

@@ -2,18 +2,13 @@ import { v, ConvexError } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
+import { PROFILE_BOUNDS } from '@polybuys/shared';
 
 export const PAYLOAD_BOUNDS = {
-  NAME_MIN: 1,
-  NAME_MAX: 100,
-  BIO_MAX: 500,
-  MAJOR_MIN: 1,
-  MAJOR_MAX: 100,
-  HIDDEN_REASON_MAX: 500,
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
+  ...PROFILE_BOUNDS,
   MIN_RATING: 0,
   MAX_RATING: 5,
+  HIDDEN_REASON_MAX: 500,
 };
 
 function normalizeEmailInput(email: string) {

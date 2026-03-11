@@ -112,7 +112,7 @@ export default function ProfileEditScreen() {
         await updateProfile({
           name: trimmedName,
           email: normalizedEmail,
-          bio: trimmedBio,
+          bio: trimmedBio || undefined,
           major: trimmedMajor,
           year: parsedYear,
         });

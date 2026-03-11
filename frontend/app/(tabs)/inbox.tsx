@@ -71,7 +71,7 @@ function ConversationRow({
           <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
         ) : (
           <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-            <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
+            <Text style={styles.thumbnailPlaceholderText}>No image</Text>
           </View>
         )}
         <View style={styles.rowBody}>

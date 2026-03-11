@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   sizeSm: {
-    minHeight: 36,
+    minHeight: MIN_TOUCH_TARGET,
   },
   sizeLg: {
     minHeight: 48,

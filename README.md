@@ -108,6 +108,11 @@ For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 - **Run frontend**: `npm run dev:frontend`
 - **Run backend**: `npm run dev:backend`
 
+### Sentry Privacy Defaults
+
+- Client crash reporting uses Sentry with `sendDefaultPii` disabled by default.
+- To explicitly allow default PII fields, set `EXPO_PUBLIC_ENABLE_SENTRY_PII=true` in frontend env config.
+
 Pre-commit hooks automatically format and lint your code before each commit.
 
 ## Contributing

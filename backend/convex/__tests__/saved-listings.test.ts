@@ -41,7 +41,9 @@ describe('Saved listings', () => {
     const t = await setupTestWithProfiles();
     const listingId = await createTestListing(t, 'bob-id' as Id<'users'>);
 
-    await expect(t.mutation(api.savedListings.toggleSavedListing, { listingId })).rejects.toThrow();
+    await expect(t.mutation(api.savedListings.toggleSavedListing, { listingId })).rejects.toThrow(
+      'You must be logged in to save listings'
+    );
   });
 
   it('toggleSavedListing saves when not saved', async () => {
@@ -166,6 +168,42 @@ describe('Saved listings', () => {
     expect(result.page.length).toBe(1);
     expect(result.page[0].isUnavailable).toBe(true);
     expect(result.page[0].listing?.status).toBe('sold');
+  });
+
+  it('getMySavedListings marks deleted listing as unavailable', async () => {
+    const t = await setupTestWithProfiles();
+    const listingId = await createTestListing(t, 'bob-id' as Id<'users'>, {
+      status: 'deleted',
+    });
+    const asAlice = t.withIdentity(aliceIdentity);
+
+    await asAlice.mutation(api.savedListings.saveListing, { listingId });
+
+    const result = await asAlice.query(api.savedListings.getMySavedListings, {
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+
+    expect(result.page.length).toBe(1);
+    expect(result.page[0].isUnavailable).toBe(true);
+    expect(result.page[0].listing?.status).toBe('deleted');
+  });
+
+  it('getMySavedListings marks hidden listing as unavailable', async () => {
+    const t = await setupTestWithProfiles();
+    const listingId = await createTestListing(t, 'bob-id' as Id<'users'>);
+    const asAlice = t.withIdentity(aliceIdentity);
+
+    await t.run(async (ctx: any) => {
+      await ctx.db.patch(listingId, { isHidden: true });
+    });
+    await asAlice.mutation(api.savedListings.saveListing, { listingId });
+
+    const result = await asAlice.query(api.savedListings.getMySavedListings, {
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+
+    expect(result.page.length).toBe(1);
+    expect(result.page[0].isUnavailable).toBe(true);
   });
 
   it('toggleSavedListing rejects non-existent listing', async () => {

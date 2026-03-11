@@ -75,9 +75,10 @@ export default function ListingDetailScreen() {
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
   const { width: screenWidth } = useWindowDimensions();
   const contentMaxWidth = 980;
-  const contentPadding = 14 * 2;
-  const cardPadding = spacing.lg * 2;
-  const imageWidth = Math.min(screenWidth, contentMaxWidth) - contentPadding - cardPadding;
+  const contentHorizontalPadding = spacing.lg * 2;
+  const cardHorizontalPadding = spacing.xl * 2;
+  const imageWidth =
+    Math.min(screenWidth, contentMaxWidth) - contentHorizontalPadding - cardHorizontalPadding;
   const sellerProfile = useQuery(
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
@@ -174,8 +175,12 @@ export default function ListingDetailScreen() {
     try {
       setMarkingSold(true);
       await updateListingStatus({ id: listing._id, status: 'sold' });
-    } catch {
-      Alert.alert('Error', 'Failed to mark listing as sold. Please try again.');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to mark listing as sold. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       setMarkingSold(false);
     }
@@ -421,8 +426,11 @@ export default function ListingDetailScreen() {
           <Pressable
             style={({ pressed }) => [styles.reportLink, pressed && styles.buttonPressed]}
             onPress={() => setReportOpen(true)}
+            accessible
+            accessibilityLabel="Report listing"
+            accessibilityRole="button"
           >
-            <Text style={styles.reportLinkText}></Text>
+            <Text style={styles.reportLinkText}>Report listing</Text>
           </Pressable>
         )}
 

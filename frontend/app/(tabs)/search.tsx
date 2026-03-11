@@ -188,6 +188,7 @@ export default function SearchScreen() {
         </View>
       ) : isSearching ? (
         <FlatList
+          key={isWideLayout ? 'wide' : 'narrow'}
           data={allListings}
           keyExtractor={(item) => item._id}
           renderItem={({ item, index }) => (
@@ -197,7 +198,6 @@ export default function SearchScreen() {
               isSaved={savedState?.[item._id] ?? false}
               onToggleSave={() => handleToggleSave(item._id)}
               onPress={() => handleListingPress(item)}
-              key={isWideLayout ? 'wide' : 'narrow'}
             />
           )}
           numColumns={isWideLayout ? 2 : 1}

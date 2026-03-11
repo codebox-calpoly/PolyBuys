@@ -11,7 +11,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -49,12 +49,12 @@ export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
-  const savedListingsResult = useQuery(
-    api.savedListings.getMySavedListings,
-    isAuthenticated && activeTab === 'saved'
-      ? { paginationOpts: { numItems: 50, cursor: null } }
-      : 'skip'
-  );
+  const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
+  const {
+    results: savedListings,
+    status: savedListingsStatus,
+    loadMore: loadMoreSavedListings,
+  } = usePaginatedQuery(api.savedListings.getMySavedListings, savedArgs, { initialNumItems: 20 });
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const { mappedUrls: avatarUrls } = useResolvedImageUrls(
     profile?.picture ? [profile.picture] : []
@@ -244,18 +244,18 @@ export default function SettingsScreen() {
             </View>
           ))}
         </View>
-      ) : savedListingsResult === undefined ? (
+      ) : savedListingsStatus === 'LoadingFirstPage' ? (
         <View style={styles.emptyTab}>
           <ScreenState variant="loading" title="Loading saved listings..." />
         </View>
-      ) : savedListingsResult.page.length === 0 ? (
+      ) : savedListings.length === 0 ? (
         <View style={styles.emptyTab}>
           <Text style={styles.emptyTabTitle}>No saved listings</Text>
           <Text style={styles.emptyTabBody}>Save listings you like to find them quickly here.</Text>
         </View>
       ) : (
         <View style={[styles.grid, isWideLayout && styles.gridWide]}>
-          {savedListingsResult.page.map((item, index) =>
+          {savedListings.map((item, index) =>
             item.listing ? (
               <View key={item._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
                 <ListingCard
@@ -273,6 +273,16 @@ export default function SettingsScreen() {
                 />
               </View>
             ) : null
+          )}
+          {savedListingsStatus === 'CanLoadMore' && (
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+              onPress={() => loadMoreSavedListings(20)}
+              accessibilityRole="button"
+              accessibilityLabel="Load more saved listings"
+            >
+              <Text style={styles.secondaryButtonText}>Load more</Text>
+            </Pressable>
           )}
         </View>
       )}

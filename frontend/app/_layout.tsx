@@ -9,9 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
+const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
+
 Sentry.init({
   dsn: 'https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976',
-  sendDefaultPii: true,
+  sendDefaultPii: allowSentryPii,
   enableLogs: true,
   // spotlight: __DEV__,
 });

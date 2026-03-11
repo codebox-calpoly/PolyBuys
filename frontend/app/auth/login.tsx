@@ -16,21 +16,17 @@ import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { getEmailValidationError } from '@polybuys/shared';
+import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'success';
+const APP_REVIEW_EMAIL = 'ios@polybuys.com';
 
-const BOUNDS = {
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
-  NAME_MIN: 1,
-  NAME_MAX: 100,
-  MAJOR_MIN: 1,
-  MAJOR_MAX: 100,
-};
+function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
+  return emailAddress.toLowerCase().trim() === APP_REVIEW_EMAIL ? 'ios-review-otp' : 'resend-otp';
+}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -89,8 +85,12 @@ export default function LoginScreen() {
       return () => clearTimeout(t);
     }
 
+    if (authLoading || !isAuthenticated) {
+      return;
+    }
+
     setStep('profile');
-  }, [step, profileData, postAuthRedirect, router]);
+  }, [step, profileData, authLoading, isAuthenticated, postAuthRedirect, router]);
 
   const handleGetStarted = () => {
     setStep('email');
@@ -98,7 +98,10 @@ export default function LoginScreen() {
   };
 
   const handleSendCode = async () => {
-    const emailError = getEmailValidationError(email);
+    const normalizedEmail = email.toLowerCase().trim();
+    const emailError = getEmailValidationError(normalizedEmail, {
+      allowedEmails: [APP_REVIEW_EMAIL],
+    });
     if (emailError) {
       setError(emailError);
       return;
@@ -108,8 +111,8 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      await signIn('resend-otp', { email: email.toLowerCase().trim() });
-      setStep({ email: email.toLowerCase().trim() });
+      await signIn(providerForEmail(normalizedEmail), { email: normalizedEmail });
+      setStep({ email: normalizedEmail });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send code';
       setError(errorMessage);
@@ -134,7 +137,7 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      await signIn('resend-otp', { email: step.email, code: trimmedCode });
+      await signIn(providerForEmail(step.email), { email: step.email, code: trimmedCode });
       verifiedEmailRef.current = step.email;
       setStep('checking');
     } catch (err) {
@@ -153,7 +156,7 @@ export default function LoginScreen() {
     setSuccessMessage(null);
 
     try {
-      await signIn('resend-otp', { email: step.email });
+      await signIn(providerForEmail(step.email), { email: step.email });
       setCode('');
       setSuccessMessage('A new code has been sent to your email');
     } catch (err) {
@@ -175,14 +178,23 @@ export default function LoginScreen() {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
 
-    if (trimmedName.length < BOUNDS.NAME_MIN || trimmedName.length > BOUNDS.NAME_MAX) {
-      Alert.alert('Invalid name', `Name must be ${BOUNDS.NAME_MIN}-${BOUNDS.NAME_MAX} characters.`);
+    if (
+      trimmedName.length < PROFILE_BOUNDS.NAME_MIN ||
+      trimmedName.length > PROFILE_BOUNDS.NAME_MAX
+    ) {
+      Alert.alert(
+        'Invalid name',
+        `Name must be ${PROFILE_BOUNDS.NAME_MIN}-${PROFILE_BOUNDS.NAME_MAX} characters.`
+      );
       return;
     }
-    if (trimmedMajor.length < BOUNDS.MAJOR_MIN || trimmedMajor.length > BOUNDS.MAJOR_MAX) {
+    if (
+      trimmedMajor.length < PROFILE_BOUNDS.MAJOR_MIN ||
+      trimmedMajor.length > PROFILE_BOUNDS.MAJOR_MAX
+    ) {
       Alert.alert(
         'Invalid major',
-        `Major must be ${BOUNDS.MAJOR_MIN}-${BOUNDS.MAJOR_MAX} characters.`
+        `Major must be ${PROFILE_BOUNDS.MAJOR_MIN}-${PROFILE_BOUNDS.MAJOR_MAX} characters.`
       );
       return;
     }
@@ -190,12 +202,12 @@ export default function LoginScreen() {
     const parsedYear = Number(year);
     if (
       !Number.isInteger(parsedYear) ||
-      parsedYear < BOUNDS.MIN_YEAR ||
-      parsedYear > BOUNDS.MAX_YEAR
+      parsedYear < PROFILE_BOUNDS.MIN_YEAR ||
+      parsedYear > PROFILE_BOUNDS.MAX_YEAR
     ) {
       Alert.alert(
         'Invalid year',
-        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
+        `Year must be between ${PROFILE_BOUNDS.MIN_YEAR} and ${PROFILE_BOUNDS.MAX_YEAR}.`
       );
       return;
     }

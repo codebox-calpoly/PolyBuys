@@ -31,14 +31,26 @@ export function useRecentSearches() {
     setRecent((prev) => {
       const filtered = prev.filter((t) => t !== trimmed);
       const next = [trimmed, ...filtered].slice(0, MAX_RECENT);
-      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch((error) => {
+        console.error('[useRecentSearches.addRecent] Failed to persist recent searches', {
+          storageKey: STORAGE_KEY,
+          term: trimmed,
+          next,
+          error,
+        });
+      });
       return next;
     });
   }, []);
 
   const clearRecent = useCallback(() => {
     setRecent([]);
-    void AsyncStorage.removeItem(STORAGE_KEY);
+    void AsyncStorage.removeItem(STORAGE_KEY).catch((error) => {
+      console.error('[useRecentSearches.clearRecent] Failed to clear recent searches', {
+        storageKey: STORAGE_KEY,
+        error,
+      });
+    });
   }, []);
 
   return { recent, loaded, addRecent, clearRecent };

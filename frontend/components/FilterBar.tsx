@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     backgroundColor: colors.location,
-    borderColor: colors.location,
+    borderColor: colors.locationDark,
   },
   chipPressed: {
     opacity: 0.9,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: colors.overlayLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
