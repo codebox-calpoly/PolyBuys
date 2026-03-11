@@ -60,6 +60,7 @@
     ]
   },
   "dependencies": {
+    "@sentry/react-native": "^8.3.0",
     "convex": "^1.32.0"
   }
 }

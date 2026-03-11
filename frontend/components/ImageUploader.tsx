@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { colors, borderRadius, typography, spacing } from '../theme/tokens';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useMutation } from 'convex/react';
@@ -358,79 +359,180 @@ export default function ImageUploader({
     setPendingUploads((prev) => prev.filter((item) => item.localId !== localId));
   }
 
+  const isEmpty = images.length === 0 && pendingUploads.length === 0;
+  const count = images.length + pendingUploads.length;
+  const atMax = count >= maxImages;
+
   return (
     <View>
-      <View style={styles.grid}>
-        {images.map((imageId, index) => (
-          <View key={imageId} style={styles.card}>
-            {mappedUrls[index] ? (
-              <Image source={{ uri: mappedUrls[index] as string }} style={styles.image} />
-            ) : (
-              <View style={[styles.image, styles.placeholder]}>
-                <Text style={styles.placeholderText}>Loading...</Text>
-              </View>
-            )}
-            <Pressable style={styles.removeButton} onPress={() => removeImage(imageId)}>
-              <Text style={styles.removeButtonText}>Remove</Text>
-            </Pressable>
+      {isEmpty ? (
+        <Pressable
+          style={({ pressed }) => [styles.heroUpload, pressed && styles.heroUploadPressed]}
+          onPress={() => void addImage()}
+          accessibilityLabel="Add photos"
+          accessibilityRole="button"
+        >
+          <View style={styles.heroIcon}>
+            <Text style={styles.heroIconText}>📷</Text>
           </View>
-        ))}
-
-        {pendingUploads.map((upload) => (
-          <View key={upload.localId} style={styles.card}>
-            <Image source={{ uri: upload.uri }} style={styles.image} />
-            <View style={styles.pendingOverlay}>
-              {upload.status === 'uploading' ? (
-                <Text style={styles.pendingText}>{Math.round(upload.progress * 100)}%</Text>
+          <Text style={styles.heroTitle}>Add photos</Text>
+          <Text style={styles.heroSubtitle}>
+            Tap to upload from camera or library • 1–{maxImages} photos
+          </Text>
+        </Pressable>
+      ) : (
+        <View style={styles.grid}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.addButton,
+              atMax && styles.addButtonDisabled,
+              pressed && !atMax && styles.addButtonPressed,
+            ]}
+            onPress={() => void addImage()}
+            disabled={atMax}
+            accessibilityLabel={
+              atMax ? 'Maximum photos reached' : `Add photo (${count}/${maxImages})`
+            }
+            accessibilityRole="button"
+          >
+            <Text style={styles.addButtonIcon}>+</Text>
+            <Text style={styles.addButtonText}>
+              {atMax ? `${maxImages}/${maxImages}` : `Add (${count}/${maxImages})`}
+            </Text>
+          </Pressable>
+          {images.map((imageId, index) => (
+            <View key={imageId} style={styles.card}>
+              {mappedUrls[index] ? (
+                <Image source={{ uri: mappedUrls[index] as string }} style={styles.image} />
               ) : (
-                <Text style={styles.errorText}>Failed</Text>
+                <View style={[styles.image, styles.placeholder]}>
+                  <Text style={styles.placeholderText}>Loading...</Text>
+                </View>
               )}
+              <Pressable style={styles.removeButton} onPress={() => removeImage(imageId)}>
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </Pressable>
             </View>
+          ))}
 
-            {upload.status === 'error' ? (
-              <View style={styles.errorActions}>
-                <Pressable style={styles.smallButton} onPress={() => retryUpload(upload.localId)}>
-                  <Text style={styles.smallButtonText}>Retry</Text>
-                </Pressable>
-                <Pressable style={styles.smallButton} onPress={() => removePending(upload.localId)}>
-                  <Text style={styles.smallButtonText}>Remove</Text>
-                </Pressable>
+          {pendingUploads.map((upload) => (
+            <View key={upload.localId} style={styles.card}>
+              <Image source={{ uri: upload.uri }} style={styles.image} />
+              <View style={styles.pendingOverlay}>
+                {upload.status === 'uploading' ? (
+                  <Text style={styles.pendingText}>{Math.round(upload.progress * 100)}%</Text>
+                ) : (
+                  <Text style={styles.errorText}>Failed</Text>
+                )}
               </View>
-            ) : null}
-          </View>
-        ))}
-      </View>
 
-      <Pressable
-        style={[
-          styles.addButton,
-          images.length + pendingUploads.length >= maxImages && styles.addButtonDisabled,
-        ]}
-        onPress={() => {
-          void addImage();
-        }}
-        disabled={images.length + pendingUploads.length >= maxImages}
-      >
-        <Text style={styles.addButtonText}>Add Image</Text>
-      </Pressable>
+              {upload.status === 'error' ? (
+                <View style={styles.errorActions}>
+                  <Pressable style={styles.smallButton} onPress={() => retryUpload(upload.localId)}>
+                    <Text style={styles.smallButtonText}>Retry</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.smallButton}
+                    onPress={() => removePending(upload.localId)}
+                  >
+                    <Text style={styles.smallButtonText}>Remove</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  heroUpload: {
+    minHeight: 180,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    backgroundColor: colors.placeholderBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  heroUploadPressed: {
+    backgroundColor: colors.surface,
+    borderColor: colors.primary,
+    opacity: 0.95,
+  },
+  heroIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  heroIconText: {
+    fontSize: 28,
+  },
+  heroTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  heroSubtitle: {
+    ...typography.footnote,
+    color: colors.muted,
+    textAlign: 'center',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  addButton: {
+    width: 140,
+    height: 140,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.muted,
+    backgroundColor: colors.placeholderBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addButtonPressed: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  addButtonDisabled: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    opacity: 0.7,
+  },
+  addButtonIcon: {
+    fontSize: 32,
+    color: colors.primary,
+    fontWeight: '300',
+    lineHeight: 36,
+  },
+  addButtonText: {
+    ...typography.footnote,
+    color: colors.text,
+    fontWeight: '600',
   },
   card: {
-    width: '31%',
+    width: 140,
   },
   image: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: 8,
-    backgroundColor: '#eaeaea',
+    backgroundColor: colors.grayLight,
   },
   placeholder: {
     alignItems: 'center',
@@ -438,17 +540,17 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.gray,
   },
   removeButton: {
     marginTop: 6,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#ef5350',
+    backgroundColor: colors.destructive,
     alignItems: 'center',
   },
   removeButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -464,11 +566,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pendingText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '700',
   },
   errorText: {
-    color: '#ffdede',
+    color: colors.errorText,
     fontWeight: '700',
   },
   errorActions: {
@@ -480,27 +582,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#455a64',
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   smallButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  addButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1976d2',
-    alignItems: 'center',
-  },
-  addButtonDisabled: {
-    backgroundColor: '#9e9e9e',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 14,
     fontWeight: '600',
   },
 });

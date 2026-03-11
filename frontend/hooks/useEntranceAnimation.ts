@@ -1,31 +1,44 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing } from 'react-native';
+import { Animated } from 'react-native';
+import { motion } from '../theme/motion';
+import { useReducedMotion } from './useReducedMotion';
 
-export function useEntranceAnimation(delay = 0, distance = 16) {
+export function useEntranceAnimation(delay = 0, distance: number = motion.distance) {
+  const { reduceMotion, isResolved } = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(distance)).current;
 
   useEffect(() => {
+    if (!isResolved) {
+      return;
+    }
+
+    if (reduceMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
     const animation = Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 320,
+        duration: motion.duration,
         delay,
-        easing: Easing.out(Easing.cubic),
+        easing: motion.easing,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 320,
+        duration: motion.duration,
         delay,
-        easing: Easing.out(Easing.cubic),
+        easing: motion.easing,
         useNativeDriver: true,
       }),
     ]);
 
     animation.start();
     return () => animation.stop();
-  }, [delay, opacity, translateY]);
+  }, [delay, distance, isResolved, reduceMotion, opacity, translateY]);
 
   return useMemo(
     () => ({

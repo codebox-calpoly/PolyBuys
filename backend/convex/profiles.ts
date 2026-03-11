@@ -2,18 +2,13 @@ import { v, ConvexError } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
+import { PROFILE_BOUNDS } from '@polybuys/shared';
 
 export const PAYLOAD_BOUNDS = {
-  NAME_MIN: 1,
-  NAME_MAX: 100,
-  BIO_MAX: 500,
-  MAJOR_MIN: 1,
-  MAJOR_MAX: 100,
-  HIDDEN_REASON_MAX: 500,
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
+  ...PROFILE_BOUNDS,
   MIN_RATING: 0,
   MAX_RATING: 5,
+  HIDDEN_REASON_MAX: 500,
 };
 
 function normalizeEmailInput(email: string) {
@@ -73,6 +68,19 @@ export const getProfilebyName = query({
     const publicProfiles = profiles.filter((profile) => !profile.isHidden).map(toPublicProfile);
 
     return publicProfiles.length > 0 ? publicProfiles : null;
+  },
+});
+
+// Get public profile by userId (auth identity subject). Used for listing seller blocks.
+export const getProfileByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+      .unique();
+    if (!profile || profile.isHidden) return null;
+    return toPublicProfile(profile);
   },
 });
 

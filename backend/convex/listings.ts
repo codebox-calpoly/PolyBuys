@@ -523,6 +523,19 @@ export const getListings = query({
   },
 });
 
+// Get public active listings by seller (for profile page)
+export const getListingsBySeller = query({
+  args: { sellerId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('listings')
+      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', args.sellerId))
+      .order('desc')
+      .filter((q) => q.and(q.eq(q.field('status'), 'active'), q.neq(q.field('isHidden'), true)))
+      .take(50);
+  },
+});
+
 // Internal query for fetching a listing (used by actions for ownership checks)
 export const internalGetListing = internalQuery({
   args: { id: v.id('listings') },
@@ -783,6 +796,7 @@ export const updateListing = action({
 });
 
 // Update listing status
+// Sold is one-way: once sold, status cannot be changed back to active or inactive
 export const updateListingStatus = mutation({
   args: {
     id: v.id('listings'),
@@ -792,6 +806,9 @@ export const updateListingStatus = mutation({
     const listing = await verifyOwnership(ctx, args.id);
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot change status of a deleted listing');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot change status of a sold listing');
     }
     await ctx.db.patch(args.id, { status: args.status });
   },

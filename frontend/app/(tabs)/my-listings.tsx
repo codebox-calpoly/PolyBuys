@@ -1,18 +1,25 @@
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from 'convex/_generated/api';
-import type { Doc } from 'convex/_generated/dataModel';
+import type { Doc, Id } from 'convex/_generated/dataModel';
+import ListingCard from '../../components/ListingCard';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 function getStatusLabel(status: Doc<'listings'>['status']) {
   switch (status) {
@@ -33,266 +40,399 @@ function getStatusLabel(status: Doc<'listings'>['status']) {
 
 export default function MyListingsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
+  const deleteListing = useMutation(api.listings.deleteListing);
+  const updateListingStatus = useMutation(api.listings.updateListingStatus);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [markingSoldId, setMarkingSoldId] = useState<string | null>(null);
+
+  async function handleMarkSold(id: string, title: string) {
+    const confirmed =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.confirm(`Mark "${title}" as sold? This cannot be undone.`)
+        : await new Promise<boolean>((resolve) =>
+            Alert.alert('Mark as sold', `Mark "${title}" as sold? This cannot be undone.`, [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Mark sold', onPress: () => resolve(true) },
+            ])
+          );
+
+    if (!confirmed) return;
+
+    try {
+      setMarkingSoldId(id);
+      await updateListingStatus({ id: id as Id<'listings'>, status: 'sold' });
+    } catch {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Failed to mark listing as sold. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to mark listing as sold. Please try again.');
+      }
+    } finally {
+      setMarkingSoldId(null);
+    }
+  }
+
+  async function handleDelete(id: string, title: string) {
+    const confirmed =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`)
+        : await new Promise<boolean>((resolve) =>
+            Alert.alert(
+              'Delete listing',
+              `Are you sure you want to delete "${title}"? This cannot be undone.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+              ]
+            )
+          );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(id);
+      await deleteListing({ id: id as Id<'listings'> });
+    } catch {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Failed to delete listing. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete listing. Please try again.');
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const contentPadding = width >= 900 ? spacing.xxl : spacing.lg;
+  const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   if (!isAuthenticated) {
     return (
-      <View style={styles.centeredState}>
-        <Text style={styles.emptyTitle}>Sign in required</Text>
-        <Text style={styles.emptyText}>Sign in to view and manage your listings.</Text>
-        <Pressable
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-          onPress={() => router.push('/auth/login?returnTo=%2Fmy-listings' as never)}
-          disabled={isLoading}
-        >
-          <Text style={styles.primaryButtonText}>Sign in</Text>
-        </Pressable>
+      <View style={styles.page}>
+        <View style={[styles.centeredState, { paddingTop: topSafeSpace }]}>
+          <Text style={styles.emptyTitle}>Sign in required</Text>
+          <Text style={styles.emptyText}>Sign in to view and manage your listings.</Text>
+          <Pressable
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
+            onPress={() => router.push('/auth/login?returnTo=%2Fmy-listings' as never)}
+            disabled={isLoading}
+          >
+            <Text style={styles.primaryButtonText}>Sign in</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
   if (myListings === undefined) {
     return (
-      <View style={styles.centeredState}>
-        <ActivityIndicator size="small" color="#154734" />
-        <Text style={styles.loadingText}>Loading your listings...</Text>
+      <View style={styles.page}>
+        <View style={[styles.centeredState, { paddingTop: topSafeSpace }]}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading your listings...</Text>
+        </View>
       </View>
     );
   }
 
+  const displayListings = myListings.filter((l) => l.status !== 'deleted');
+
   return (
-    <FlatList
-      data={myListings}
-      keyExtractor={(item) => item._id}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.listContent}
-      ListHeaderComponent={
-        <Animated.View style={[styles.heroCard, entranceStyle]}>
-          <Text style={styles.eyebrow}>My Listings</Text>
-          <Text style={styles.title}>Manage what you have posted</Text>
-          <Text style={styles.subtitle}>
-            View your listing statuses and jump into edits quickly.
-          </Text>
+    <View style={styles.page}>
+      <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
+        {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+        <Animated.View style={[styles.headerRow, entranceStyle]}>
+          <Text style={styles.sectionTitle}>My Listings</Text>
+          <Pressable
+            style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
+            onPress={() => router.push('/listings/new')}
+          >
+            <Text style={styles.createChipText}>+ Create</Text>
+          </Pressable>
         </Animated.View>
-      }
-      ListEmptyComponent={
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No listings yet</Text>
-          <Text style={styles.emptyText}>Create your first listing from the Home tab.</Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.price}>${item.price}</Text>
-          </View>
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description}
-          </Text>
-          <View style={styles.metaRow}>
-            <View style={styles.statusChip}>
-              <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
-            </View>
-            {item.isHidden === true && (
-              <View style={styles.hiddenChip}>
-                <Text style={styles.hiddenText}>Hidden</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.actionsRow}>
-            <Pressable
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-              onPress={() => router.push(`/listings/${item._id}`)}
-            >
-              <Text style={styles.secondaryButtonText}>View</Text>
-            </Pressable>
+
+        {displayListings.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No listings yet</Text>
+            <Text style={styles.emptyText}>Create your first listing to get started.</Text>
             <Pressable
               style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-              onPress={() => router.push(`/listings/${item._id}/edit`)}
+              onPress={() => router.push('/listings/new')}
             >
-              <Text style={styles.primaryButtonText}>Edit</Text>
+              <Text style={styles.primaryButtonText}>+ Create listing</Text>
             </Pressable>
           </View>
-        </View>
-      )}
-    />
+        ) : (
+          <FlatList
+            data={displayListings}
+            keyExtractor={(item) => item._id}
+            numColumns={2}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item, index }) => (
+              <ListingCard
+                listing={item}
+                index={index}
+                onPress={() => router.push(`/listings/${item._id}` as never)}
+                footer={
+                  <View style={styles.cardFooter}>
+                    <View style={[styles.statusChip, getStatusChipStyle(item.status)]}>
+                      <Text style={[styles.statusText, getStatusTextStyle(item.status)]}>
+                        {getStatusLabel(item.status)}
+                      </Text>
+                    </View>
+                    {item.isHidden === true && (
+                      <View style={styles.hiddenChip}>
+                        <Text style={styles.hiddenText}>Hidden</Text>
+                      </View>
+                    )}
+                    {item.status === 'active' && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.markSoldButton,
+                          pressed && styles.buttonPressed,
+                          markingSoldId === item._id && styles.buttonDisabled,
+                        ]}
+                        onPress={() => handleMarkSold(item._id, item.title)}
+                        disabled={markingSoldId === item._id}
+                        accessibilityLabel="Mark as sold"
+                        accessibilityRole="button"
+                      >
+                        {markingSoldId === item._id ? (
+                          <ActivityIndicator size="small" color={colors.white} />
+                        ) : (
+                          <Text style={styles.markSoldButtonText}>Mark sold</Text>
+                        )}
+                      </Pressable>
+                    )}
+                    <Pressable
+                      style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
+                      onPress={() => router.push(`/listings/${item._id}/edit` as never)}
+                    >
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.deleteButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                      onPress={() => handleDelete(item._id, item.title)}
+                      disabled={deletingId === item._id}
+                    >
+                      {deletingId === item._id ? (
+                        <ActivityIndicator size="small" color={colors.white} />
+                      ) : (
+                        <Text style={styles.deleteButtonText}>Delete</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                }
+              />
+            )}
+          />
+        )}
+      </View>
+    </View>
   );
 }
 
+function getStatusChipStyle(status: Doc<'listings'>['status']) {
+  switch (status) {
+    case 'active':
+      return { backgroundColor: colors.location };
+    case 'sold':
+      return { backgroundColor: colors.border };
+    case 'inactive':
+      return { backgroundColor: colors.border };
+    case 'deleted':
+      return { backgroundColor: colors.border };
+    default: {
+      const _exhaustive: never = status;
+      void _exhaustive;
+      return {};
+    }
+  }
+}
+
+function getStatusTextStyle(status: Doc<'listings'>['status']) {
+  switch (status) {
+    case 'active':
+      return { color: colors.primary };
+    case 'sold':
+      return { color: colors.muted };
+    case 'inactive':
+      return { color: colors.muted };
+    case 'deleted':
+      return { color: colors.muted };
+    default: {
+      const _exhaustive: never = status;
+      void _exhaustive;
+      return {};
+    }
+  }
+}
+
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center',
+    paddingTop: spacing.lg,
+    gap: spacing.md,
+  },
   centeredState: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 10,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
   },
   loadingText: {
+    ...typography.subhead,
+    color: colors.text,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.title1,
+    flex: 1,
+    color: colors.textDark,
+  },
+  createChip: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  createChipPressed: {
+    opacity: 0.9,
+  },
+  createChipText: {
+    color: colors.white,
     fontSize: 15,
-    color: '#5f7268',
-  },
-  listContent: {
-    width: '100%',
-    maxWidth: 980,
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 26,
-    gap: 12,
-  },
-  heroCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#ffffff',
-    padding: 18,
-    gap: 6,
-    marginBottom: 12,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
-  },
-  eyebrow: {
-    fontSize: 12,
-    color: '#2a6f52',
-    letterSpacing: 0.4,
     fontWeight: '600',
-    textTransform: 'uppercase',
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f2b21',
+  listContainer: {
+    paddingBottom: spacing.xxl,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#556a60',
+  columnWrapper: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   emptyState: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#dde8e2',
-    backgroundColor: '#ffffff',
-    padding: 16,
-    gap: 8,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#163429',
+    ...typography.heading,
+    color: colors.textDark,
     textAlign: 'center',
   },
   emptyText: {
-    fontSize: 14,
-    color: '#5e7268',
+    ...typography.subhead,
+    color: colors.text,
     textAlign: 'center',
   },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#dde8e2',
-    backgroundColor: '#ffffff',
-    padding: 14,
-    gap: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#123428',
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a7f4d',
-  },
-  description: {
-    fontSize: 14,
-    color: '#51665c',
-    lineHeight: 20,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusChip: {
-    backgroundColor: '#edf4ff',
-    borderWidth: 1,
-    borderColor: '#d1dffa',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#2d5ab5',
-  },
-  hiddenChip: {
-    backgroundColor: '#fff3f3',
-    borderWidth: 1,
-    borderColor: '#f3d0d0',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  hiddenText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#b3261e',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
   primaryButton: {
-    backgroundColor: '#154734',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
     minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
+    ...typography.footnoteMed,
+    color: colors.white,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  statusChip: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  statusText: {
+    ...typography.footnote,
     fontWeight: '600',
   },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#154734',
+  hiddenChip: {
+    backgroundColor: colors.category,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  hiddenText: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  markSoldButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  markSoldButtonText: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  editButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  editButtonText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
+  deleteButton: {
+    backgroundColor: colors.destructive,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5fbf8',
   },
-  secondaryButtonText: {
-    color: '#154734',
+  deleteButtonText: {
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
-  },
-  buttonPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.985 }],
   },
 });

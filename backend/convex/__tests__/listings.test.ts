@@ -374,6 +374,43 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('Cannot change status of a deleted listing');
   });
 
+  it('updateListingStatus cannot change status of a sold listing (one-way sold)', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+    await asOwner.mutation(api.listings.updateListingStatus, { id: listingId, status: 'sold' });
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.updateListingStatus, {
+        id: listingId,
+        status: 'active',
+      });
+    }).rejects.toThrowError('Cannot change status of a sold listing');
+
+    await expect(async () => {
+      await asOwner.mutation(api.listings.updateListingStatus, {
+        id: listingId,
+        status: 'inactive',
+      });
+    }).rejects.toThrowError('Cannot change status of a sold listing');
+  });
+
+  it('sold listings are excluded from getListings discovery', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+    await asOwner.mutation(api.listings.updateListingStatus, { id: listingId, status: 'sold' });
+
+    const result = await t.query(api.listings.getListings, {
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+
+    const ids = result.page.map((l: { _id: string }) => l._id);
+    expect(ids).not.toContain(listingId);
+  });
+
   it('updateListing, normalizes tags to be trimmed and in lowercase', async () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);

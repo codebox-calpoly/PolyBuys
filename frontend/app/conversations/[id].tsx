@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -18,6 +17,9 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import SafetyBanner from '../../components/SafetyBanner';
+import { ScreenState } from '../../components/ScreenState';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
 
@@ -224,8 +226,7 @@ export default function ConversationDetailScreen() {
   ) {
     return (
       <View style={styles.centeredState}>
-        <ActivityIndicator size="small" color="#154734" />
-        <Text style={styles.stateText}>Loading conversation...</Text>
+        <ScreenState variant="loading" title="Loading conversation..." />
       </View>
     );
   }
@@ -233,8 +234,7 @@ export default function ConversationDetailScreen() {
   if (!isAuthenticated) {
     return (
       <View style={styles.centeredState}>
-        <ActivityIndicator size="small" color="#154734" />
-        <Text style={styles.stateText}>Redirecting to login...</Text>
+        <ScreenState variant="loading" title="Redirecting to login..." />
       </View>
     );
   }
@@ -242,10 +242,11 @@ export default function ConversationDetailScreen() {
   if (!conversation) {
     return (
       <View style={styles.centeredState}>
-        <Text style={styles.stateTitle}>Conversation unavailable</Text>
-        <Text style={styles.stateText}>
-          This conversation was not found or you no longer have access.
-        </Text>
+        <ScreenState
+          variant="empty"
+          title="Conversation unavailable"
+          message="This conversation was not found or you no longer have access."
+        />
       </View>
     );
   }
@@ -268,7 +269,7 @@ export default function ConversationDetailScreen() {
           <Image source={{ uri: headerThumbnailUrl }} style={styles.headerThumbnail} />
         ) : (
           <View style={[styles.headerThumbnail, styles.thumbnailPlaceholder]}>
-            <Text style={styles.thumbnailPlaceholderText}>No Image</Text>
+            <Text style={styles.thumbnailPlaceholderText}>No image</Text>
           </View>
         )}
         <View style={styles.headerTextWrap}>
@@ -278,16 +279,20 @@ export default function ConversationDetailScreen() {
           <Text style={styles.headerListing} numberOfLines={1}>
             {headerListingTitle}
           </Text>
-          {listingId ? (
-            <Pressable
-              onPress={() => router.push(`/listings/${listingId}`)}
-              style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
-            >
-              <Text style={styles.headerListingLinkText}>View listing</Text>
-            </Pressable>
-          ) : null}
         </View>
+        {listingId ? (
+          <Pressable
+            onPress={() => router.push(`/listings/${listingId}`)}
+            style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="View listing"
+          >
+            <Text style={styles.headerListingLinkText}>View listing</Text>
+          </Pressable>
+        ) : null}
       </View>
+
+      <SafetyBanner />
 
       <FlatList
         ref={listRef}
@@ -369,90 +374,86 @@ export default function ConversationDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
   },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#f3f7f5',
-    paddingHorizontal: 20,
+    gap: spacing.md,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.xl,
   },
   stateTitle: {
-    color: '#0f2b21',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  stateText: {
-    color: '#5a6f65',
-    fontSize: 15,
+    ...typography.title1,
+    color: colors.textDark,
   },
   headerCard: {
-    marginHorizontal: 14,
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 16,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#fff',
-    padding: 10,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.lg,
   },
   headerThumbnail: {
-    width: 54,
-    height: 54,
-    borderRadius: 10,
-    backgroundColor: '#edf2ef',
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.border,
   },
   thumbnailPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   thumbnailPlaceholderText: {
-    color: '#7d8f85',
+    ...typography.footnote,
     fontSize: 10,
+    color: colors.muted,
     fontWeight: '600',
-    textTransform: 'uppercase',
   },
   headerTextWrap: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
+    justifyContent: 'center',
   },
   headerName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f2b21',
+    ...typography.heading,
+    color: colors.textDark,
   },
   headerListing: {
-    fontSize: 13,
-    color: '#4f645b',
-    fontWeight: '500',
+    ...typography.footnoteMed,
+    color: colors.text,
   },
   headerListingLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    backgroundColor: '#eef4ff',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.location,
     borderWidth: 1,
-    borderColor: '#d5e4ff',
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   headerListingLinkText: {
-    color: '#2f5fbd',
-    fontSize: 12,
+    color: colors.primary,
+    ...typography.footnote,
     fontWeight: '600',
   },
   messagesList: {
     flex: 1,
   },
   messagesContent: {
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: 6,
   },
   messageRow: {
     flexDirection: 'row',
@@ -465,87 +466,89 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '82%',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    gap: 4,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
   },
   bubbleSent: {
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
     borderBottomRightRadius: 4,
   },
   bubbleReceived: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#d8e6df',
+    borderColor: colors.border,
     borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: 15,
-    lineHeight: 20,
+    ...typography.subhead,
   },
   messageTextSent: {
-    color: '#ffffff',
+    color: colors.white,
   },
   messageTextReceived: {
-    color: '#173429',
+    color: colors.textDark,
   },
   messageMeta: {
+    ...typography.footnote,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
   },
   messageMetaSent: {
-    color: '#d4e6df',
+    color: colors.border,
   },
   messageMetaReceived: {
-    color: '#6e8278',
+    color: colors.text,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 24,
+    paddingVertical: spacing.xxl,
   },
   emptyStateText: {
-    color: '#5f7268',
-    fontSize: 15,
+    ...typography.subhead,
+    color: colors.text,
   },
   composerWrap: {
     borderTopWidth: 1,
-    borderTopColor: '#d8e6df',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 22 : 12,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
+    gap: spacing.md,
   },
   input: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     maxHeight: 120,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#d6e3dd',
-    backgroundColor: '#f8fbf9',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
-    fontSize: 15,
-    color: '#173429',
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    ...typography.subhead,
+    color: colors.textDark,
   },
   sendButton: {
-    backgroundColor: '#154734',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   sendButtonDisabled: {
     opacity: 0.6,
   },
   sendButtonText: {
-    color: '#fff',
-    fontSize: 15,
+    color: colors.white,
+    ...typography.subhead,
     fontWeight: '700',
   },
   buttonPressed: {

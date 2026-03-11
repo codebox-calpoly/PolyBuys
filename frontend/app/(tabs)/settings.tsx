@@ -1,185 +1,156 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
-import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import ListingCard from '../../components/ListingCard';
+import { ScreenState } from '../../components/ScreenState';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
+import type { Doc } from 'convex/_generated/dataModel';
 
-const BOUNDS = {
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
-};
+function yearToOrdinal(gradYear: number): string {
+  const currentYear = new Date().getFullYear();
+  const yearsLeft = gradYear - currentYear;
+  const yearNum = Math.max(1, Math.min(4, 4 - yearsLeft));
+  const ordinals = ['', '1st', '2nd', '3rd', '4th'];
+  return `${ordinals[yearNum]} Year`;
+}
+
+type TabId = 'listings' | 'saved';
+
+const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
+
+function getAppOrigin() {
+  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
+  if (!configuredOrigin) return DEFAULT_APP_ORIGIN;
+  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, signOut } = useAuth();
+  const { width } = useWindowDimensions();
+  const { isAuthenticated, isLoading, signOut } = useAuth();
   const entranceStyle = useEntranceAnimation();
 
+  const [activeTab, setActiveTab] = useState<TabId>('listings');
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
-  const createProfile = useMutation(api.profiles.createProfile);
-  const updateProfile = useMutation(api.profiles.updateProfile);
+  const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
+  const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
+  const {
+    results: savedListings,
+    status: savedListingsStatus,
+    loadMore: loadMoreSavedListings,
+  } = usePaginatedQuery(api.savedListings.getMySavedListings, savedArgs, { initialNumItems: 20 });
+  const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
+  const { mappedUrls: avatarUrls } = useResolvedImageUrls(
+    profile?.picture ? [profile.picture] : []
+  );
+  const avatarUrl = avatarUrls[0];
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [bio, setBio] = useState('');
-  const [major, setMajor] = useState('');
-  const [year, setYear] = useState('2026');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
+  const listingsCount = myListings?.filter((l) => l.status === 'active').length ?? 0;
+  const itemsSoldCount = myListings?.filter((l) => l.status === 'sold').length ?? 0;
+  const displayListings: Doc<'listings'>[] =
+    myListings?.filter((l): l is Doc<'listings'> => l.status !== 'deleted') ?? [];
+  const isWideLayout = width >= 980;
 
-  useEffect(() => {
-    if (!isAuthenticated || profile === undefined) {
-      return;
+  const handleShareProfile = async () => {
+    if (!profile?.userId) return;
+    const shareUrl = `${getAppOrigin()}/profile/${encodeURIComponent(profile.userId)}`;
+    try {
+      await Share.share({
+        message: `Check out my PolyBuys profile! ${shareUrl}`,
+        url: shareUrl,
+        title: 'My PolyBuys Profile',
+      });
+    } catch {
+      // User cancelled or share failed
     }
-
-    const nextKey = profile?._id ?? 'new-profile';
-    if (loadedProfileKey === nextKey) {
-      return;
-    }
-
-    if (profile) {
-      setName(profile.name);
-      setEmail(profile.email);
-      setBio(profile.bio ?? '');
-      setMajor(profile.major);
-      setYear(String(profile.year));
-    } else {
-      setName(user?.name ?? '');
-      setEmail(user?.email ?? '');
-      setBio('');
-      setMajor('');
-      setYear('2026');
-    }
-
-    setLoadedProfileKey(nextKey);
-  }, [isAuthenticated, loadedProfileKey, profile, user?.email, user?.name]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      return;
-    }
-
-    setLoadedProfileKey(null);
-    setName('');
-    setEmail('');
-    setBio('');
-    setMajor('');
-    setYear('2026');
-  }, [isAuthenticated]);
+  };
 
   const handleAuthAction = async () => {
     if (!isAuthenticated) {
-      router.push('/auth/login');
+      router.push('/auth/login?returnTo=%2Fsettings' as never);
       return;
     }
 
     try {
-      setIsSigningOut(true);
       await signOut();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign out';
       Alert.alert('Sign Out Failed', message);
-    } finally {
-      setIsSigningOut(false);
     }
   };
 
-  const handleSaveProfile = async () => {
-    if (!isAuthenticated) {
-      router.push('/auth/login');
-      return;
-    }
+  if (!isAuthenticated) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.centeredState}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <Animated.View style={[styles.signInCard, entranceStyle]}>
+          <Text style={styles.signInTitle}>Sign in to view your profile</Text>
+          <Text style={styles.signInBody}>
+            Sign in with your Cal Poly email to see your profile, listings, and stats.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
+            onPress={() => router.push('/auth/login?returnTo=%2Fsettings' as never)}
+            disabled={isLoading}
+          >
+            <Text style={styles.primaryButtonText}>Sign in</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+    );
+  }
 
-    const trimmedName = name.trim();
-    const trimmedMajor = major.trim();
-    const trimmedBio = bio.trim();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!trimmedName) {
-      Alert.alert('Missing field', 'Name is required.');
-      return;
-    }
-    if (!trimmedMajor) {
-      Alert.alert('Missing field', 'Major is required.');
-      return;
-    }
-
-    const emailError = getEmailValidationError(normalizedEmail);
-    if (emailError) {
-      Alert.alert('Invalid email', emailError);
-      return;
-    }
-
-    const parsedYear = Number(year);
-    if (
-      !Number.isInteger(parsedYear) ||
-      parsedYear < BOUNDS.MIN_YEAR ||
-      parsedYear > BOUNDS.MAX_YEAR
-    ) {
-      Alert.alert(
-        'Invalid year',
-        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
-      );
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
-      if (!profile) {
-        await createProfile({
-          name: trimmedName,
-          email: normalizedEmail,
-          bio: trimmedBio || undefined,
-          major: trimmedMajor,
-          year: parsedYear,
-        });
-      }
-
-      await updateProfile({
-        name: trimmedName,
-        email: normalizedEmail,
-        bio: trimmedBio,
-        major: trimmedMajor,
-        year: parsedYear,
-      });
-
-      Alert.alert('Profile saved', 'Your profile has been updated.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save profile';
-      Alert.alert('Save failed', message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const statusText = isLoading
-    ? 'Checking your session...'
-    : isAuthenticated
-      ? (user?.email ?? 'Signed in')
-      : 'You are currently signed out.';
-
-  if (isAuthenticated && profile === undefined) {
+  if (profile === undefined) {
     return (
       <View style={styles.loadingState}>
-        <ActivityIndicator size="small" color="#154734" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+        <ScreenState variant="loading" title="Loading profile..." />
       </View>
     );
   }
+
+  if (!profile) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.centeredState}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <Animated.View style={[styles.signInCard, entranceStyle]}>
+          <Text style={styles.signInTitle}>Complete your profile</Text>
+          <Text style={styles.signInBody}>
+            Add your name, major, and year to start selling on PolyBuys.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
+            onPress={() => router.push('/profile/edit')}
+          >
+            <Text style={styles.primaryButtonText}>Set up profile</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+    );
+  }
+
+  const yearLabel = yearToOrdinal(profile.year);
 
   return (
     <ScrollView
@@ -187,110 +158,147 @@ export default function SettingsScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
     >
-      <Animated.View style={[styles.heroCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Profile</Text>
-        <Text style={styles.title}>Manage your PolyBuys profile</Text>
-        <Text style={styles.subtitle}>{statusText}</Text>
+      <Animated.View style={[styles.profileCard, entranceStyle]}>
+        <View style={styles.profileHeader}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarPlaceholderText}>
+                {profile.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{profile.name}</Text>
+            <Text style={styles.profileMeta}>
+              {profile.major} • {yearLabel}
+            </Text>
+            <View style={styles.statsRow}>
+              <Text style={styles.statNumber}>{listingsCount}</Text>
+              <Text style={styles.statLabel}> Listings</Text>
+              <Text style={styles.statNumber}>{itemsSoldCount}</Text>
+              <Text style={styles.statLabel}> Items Sold</Text>
+            </View>
+          </View>
+        </View>
+
+        {profile.bio ? (
+          <View style={styles.bioRow}>
+            <Text style={styles.bioText}>{profile.bio}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/profile/edit')}
+              accessibilityLabel="Edit profile"
+              accessibilityRole="button"
+            >
+              <Text style={styles.editIconText}>✎</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.addBioRow, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/profile/edit')}
+          >
+            <Text style={styles.addBioText}>Add a bio...</Text>
+            <Text style={styles.editIconText}>✎</Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+          onPress={handleShareProfile}
+        >
+          <Text style={styles.shareButtonText}>Share Profile</Text>
+        </Pressable>
       </Animated.View>
 
-      {!isAuthenticated ? (
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Sign in required</Text>
-          <Text style={styles.sectionBody}>
-            Sign in with your Cal Poly email to create and edit your profile details.
+      <View style={styles.tabs}>
+        <Pressable
+          style={[styles.tab, activeTab === 'listings' && styles.tabActive]}
+          onPress={() => setActiveTab('listings')}
+          accessibilityLabel="My listings"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'listings' }}
+        >
+          <Text style={[styles.tabText, activeTab === 'listings' && styles.tabTextActive]}>
+            Listings
           </Text>
-          <Pressable
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            onPress={handleAuthAction}
-          >
-            <Text style={styles.buttonText}>Sign in</Text>
-          </Pressable>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === 'saved' && styles.tabActive]}
+          onPress={() => setActiveTab('saved')}
+          accessibilityLabel="Saved listings"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'saved' }}
+        >
+          <Text style={[styles.tabText, activeTab === 'saved' && styles.tabTextActive]}>Saved</Text>
+        </Pressable>
+      </View>
+
+      {activeTab === 'listings' ? (
+        <View style={[styles.grid, isWideLayout && styles.gridWide]}>
+          {displayListings.map((listing, index) => (
+            <View key={listing._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
+              <ListingCard listing={listing} index={index} />
+            </View>
+          ))}
+        </View>
+      ) : savedListingsStatus === 'LoadingFirstPage' ? (
+        <View style={styles.emptyTab}>
+          <ScreenState variant="loading" title="Loading saved listings..." />
+        </View>
+      ) : savedListings.length === 0 ? (
+        <View style={styles.emptyTab}>
+          <Text style={styles.emptyTabTitle}>No saved listings</Text>
+          <Text style={styles.emptyTabBody}>Save listings you like to find them quickly here.</Text>
         </View>
       ) : (
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Editable profile fields</Text>
-
-          <Text style={styles.label}>Name *</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Your full name"
-          />
-
-          <Text style={styles.label}>Email *</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@calpoly.edu"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Text style={styles.label}>Bio</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell others about yourself"
-            multiline
-          />
-
-          <Text style={styles.label}>Major *</Text>
-          <TextInput
-            style={styles.input}
-            value={major}
-            onChangeText={setMajor}
-            placeholder="Computer Science"
-          />
-
-          <Text style={styles.label}>Year *</Text>
-          <TextInput
-            style={styles.input}
-            value={year}
-            onChangeText={setYear}
-            placeholder="2026"
-            keyboardType="number-pad"
-          />
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.button,
-              isSubmitting && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => {
-              void handleSaveProfile();
-            }}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.buttonText}>
-              {isSubmitting ? 'Saving profile...' : 'Save profile'}
-            </Text>
-          </Pressable>
+        <View style={[styles.grid, isWideLayout && styles.gridWide]}>
+          {savedListings.map((item, index) =>
+            item.listing ? (
+              <View key={item._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
+                <ListingCard
+                  listing={item.listing}
+                  index={index}
+                  isSaved
+                  onToggleSave={() => void toggleSavedListing({ listingId: item.listingId })}
+                  badge={
+                    item.listing?.status === 'sold'
+                      ? 'sold'
+                      : item.isUnavailable
+                        ? 'unavailable'
+                        : undefined
+                  }
+                />
+              </View>
+            ) : null
+          )}
+          {savedListingsStatus === 'CanLoadMore' && (
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+              onPress={() => loadMoreSavedListings(20)}
+              accessibilityRole="button"
+              accessibilityLabel="Load more saved listings"
+            >
+              <Text style={styles.secondaryButtonText}>Load more</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Session</Text>
-        <Text style={styles.sectionBody}>
-          {isAuthenticated
-            ? 'You are signed in and can post or edit listings.'
-            : 'Sign in with your Cal Poly email to post and manage listings.'}
-        </Text>
+      <View style={styles.footer}>
         <Pressable
           style={({ pressed }) => [
-            styles.button,
-            (isSigningOut || isLoading) && styles.buttonDisabled,
+            styles.secondaryButton,
             pressed && styles.buttonPressed,
+            isLoading && styles.buttonDisabled,
           ]}
           onPress={handleAuthAction}
-          disabled={isSigningOut || isLoading}
+          disabled={isLoading}
         >
-          <Text style={styles.buttonText}>
-            {isAuthenticated ? (isSigningOut ? 'Signing out...' : 'Sign out') : 'Sign in'}
+          <Text style={styles.secondaryButtonText}>
+            {isLoading ? 'Signing out...' : 'Sign out'}
           </Text>
         </Pressable>
       </View>
@@ -299,117 +307,249 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3f7f5',
-    gap: 8,
+    backgroundColor: colors.background,
+    gap: spacing.sm,
   },
-  loadingText: {
-    color: '#5f7268',
-    fontSize: 15,
-  },
-  container: {
+  centeredState: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  signInCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xxl,
+    gap: spacing.md,
+    maxWidth: 400,
+  },
+  signInTitle: {
+    ...typography.title1,
+    color: colors.textDark,
+    textAlign: 'center',
+  },
+  signInBody: {
+    ...typography.subhead,
+    color: colors.text,
+    textAlign: 'center',
   },
   content: {
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 26,
-    gap: 14,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
   },
-  heroCard: {
-    borderRadius: 20,
+  profileCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#ffffff',
-    padding: 18,
-    gap: 6,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.md,
+    shadowColor: colors.textDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 2,
   },
-  eyebrow: {
-    fontSize: 12,
-    color: '#2a6f52',
-    letterSpacing: 0.4,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f2b21',
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.border,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#556a60',
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sectionCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#dde8e2',
-    backgroundColor: '#ffffff',
-    padding: 16,
-    gap: 10,
+  avatarPlaceholderText: {
+    ...typography.title1,
+    color: colors.primary,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#163429',
+  profileInfo: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
   },
-  sectionBody: {
+  profileName: {
+    ...typography.title1,
+    fontSize: 24,
+    color: colors.textDark,
+  },
+  profileMeta: {
+    ...typography.subhead,
+    color: colors.text,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: spacing.xs,
+    gap: 2,
+  },
+  statNumber: {
+    ...typography.title2,
+    fontSize: 18,
+    color: colors.textDark,
+  },
+  statLabel: {
+    ...typography.footnote,
+    color: colors.text,
+  },
+  bioRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  bioText: {
+    flex: 1,
+    ...typography.subhead,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  editIcon: {
+    padding: spacing.xs,
+  },
+  editIconText: {
     fontSize: 14,
-    color: '#5e7268',
-    lineHeight: 20,
+    color: colors.muted,
   },
-  label: {
-    marginTop: 6,
-    fontSize: 14,
+  addBioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  addBioText: {
+    ...typography.subhead,
+    color: colors.muted,
+  },
+  shareButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  shareButtonText: {
+    ...typography.body,
     fontWeight: '600',
-    color: '#244539',
+    color: colors.white,
   },
-  input: {
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#f9fbfa',
-    fontSize: 15,
-    color: '#173227',
+    borderColor: colors.border,
+    padding: spacing.xs,
   },
-  textArea: {
-    minHeight: 90,
-    textAlignVertical: 'top',
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderRadius: borderRadius.sm,
   },
-  button: {
-    marginTop: 6,
-    backgroundColor: '#154734',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignSelf: 'flex-start',
+  tabActive: {
+    backgroundColor: colors.location,
+  },
+  tabText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  tabTextActive: {
+    color: colors.textDark,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+  },
+  gridWide: {
+    gap: spacing.lg,
+  },
+  gridItem: {
+    flex: 1,
+    minWidth: 0,
+  },
+  gridItemFull: {
+    width: '100%',
+  },
+  emptyTab: {
+    backgroundColor: colors.surface,
+    flexBasis: '48%',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xxl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  emptyTabTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  emptyTabBody: {
+    ...typography.subhead,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  footer: {
+    marginTop: spacing.lg,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  secondaryButtonText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.primary,
   },
   buttonPressed: {
     opacity: 0.92,
-    transform: [{ scale: 0.985 }],
+    transform: [{ scale: 0.99 }],
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });

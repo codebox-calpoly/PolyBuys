@@ -7,6 +7,7 @@ import type { Id } from '../_generated/dataModel';
 // Import all Convex function modules
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
+import * as savedListingsModule from '../savedListings';
 import * as usersModule from '../users';
 import * as messagesModule from '../messages';
 import * as reportsModule from '../reports';
@@ -19,6 +20,7 @@ import * as serverModule from '../_generated/server';
 export const modules = {
   '../listings.ts': () => Promise.resolve(listingsModule),
   '../profiles.ts': () => Promise.resolve(profilesModule),
+  '../savedListings.ts': () => Promise.resolve(savedListingsModule),
   '../users.ts': () => Promise.resolve(usersModule),
   '../messages.ts': () => Promise.resolve(messagesModule),
   '../reports.ts': () => Promise.resolve(reportsModule),

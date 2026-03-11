@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "platforms": ["ios", "android", "web"],
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.polybuys.polybuys",
@@ -29,6 +35,18 @@
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/profile"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -37,6 +55,15 @@
         "expo-router",
         {
           "origin": "https://polybuys.com"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "taylor-labs-llc",
+          "project": "polybuys",
+          "dsn": "https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976"
         }
       ],
       "expo-font",
