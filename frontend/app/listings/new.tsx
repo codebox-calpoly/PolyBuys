@@ -186,6 +186,15 @@ export default function NewListingScreen() {
           Make it clear, detailed, and easy for students to trust.
         </Text>
 
+        {profile === null && (
+          <Pressable style={styles.profileBanner} onPress={() => router.push('/settings')}>
+            <Text style={styles.profileBannerTitle}>⚠️ Profile setup required</Text>
+            <Text style={styles.profileBannerText}>
+              Complete your profile before creating a listing. Tap here to go to your Profile.
+            </Text>
+          </Pressable>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.label}>Photos</Text>
           <Text style={styles.labelHint}>
@@ -197,20 +206,6 @@ export default function NewListingScreen() {
             onPendingChange={setHasPendingUploads}
           />
         </View>
-
-        {profile === null && (
-          <Pressable
-            style={styles.profileBanner}
-            onPress={() => router.push('/settings')}
-            accessibilityLabel="Go to profile setup"
-            accessibilityRole="button"
-          >
-            <Text style={styles.profileBannerTitle}>⚠️ Profile setup required</Text>
-            <Text style={styles.profileBannerText}>
-              Complete your profile before creating a listing. Tap here to go to your Profile.
-            </Text>
-          </Pressable>
-        )}
 
         <View style={styles.section}>
           <Text style={styles.label}>Title</Text>

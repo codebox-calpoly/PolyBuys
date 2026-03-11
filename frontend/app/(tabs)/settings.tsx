@@ -43,7 +43,6 @@ export default function SettingsScreen() {
   const { isAuthenticated, isLoading, signOut } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const signOutInProgressRef = useRef(false);
-
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
