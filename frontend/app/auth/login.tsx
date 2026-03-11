@@ -22,10 +22,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'success';
-const APP_REVIEW_EMAIL = 'ios@polybuys.com';
+const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
 
 function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
-  return emailAddress.toLowerCase().trim() === APP_REVIEW_EMAIL ? 'ios-review-otp' : 'resend-otp';
+  const normalized = emailAddress.toLowerCase().trim();
+  return APP_REVIEW_EMAIL.length > 0 && normalized === APP_REVIEW_EMAIL
+    ? 'ios-review-otp'
+    : 'resend-otp';
 }
 
 export default function LoginScreen() {
@@ -100,7 +103,7 @@ export default function LoginScreen() {
   const handleSendCode = async () => {
     const normalizedEmail = email.toLowerCase().trim();
     const emailError = getEmailValidationError(normalizedEmail, {
-      allowedEmails: [APP_REVIEW_EMAIL],
+      allowedEmails: APP_REVIEW_EMAIL.length > 0 ? [APP_REVIEW_EMAIL] : undefined,
     });
     if (emailError) {
       setError(emailError);

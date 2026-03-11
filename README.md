@@ -113,6 +113,12 @@ For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 - Client crash reporting uses Sentry with `sendDefaultPii` disabled by default.
 - To explicitly allow default PII fields, set `EXPO_PUBLIC_ENABLE_SENTRY_PII=true` in frontend env config.
 
+### App Review OTP (Optional)
+
+- To enable a fixed Apple App Review login code, configure:
+  - Backend: `AUTH_APP_REVIEW_EMAIL`, `AUTH_APP_REVIEW_CODE` (must be 8 digits)
+  - Frontend: `EXPO_PUBLIC_APP_REVIEW_EMAIL` (same email value)
+
 Pre-commit hooks automatically format and lint your code before each commit.
 
 ## Contributing
