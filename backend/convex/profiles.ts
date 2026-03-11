@@ -76,6 +76,19 @@ export const getProfilebyName = query({
   },
 });
 
+// Get public profile by userId (auth identity subject). Used for listing seller blocks.
+export const getProfileByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+      .unique();
+    if (!profile || profile.isHidden) return null;
+    return toPublicProfile(profile);
+  },
+});
+
 // Get the current authenticated user's full profile (including non-public fields)
 export const getCurrentProfile = query({
   args: {},

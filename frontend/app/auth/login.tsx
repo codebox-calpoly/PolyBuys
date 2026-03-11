@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -10,26 +10,51 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from 'convex/_generated/api';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useAuth } from '../../hooks/useAuth';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-type Step = 'email' | { email: string };
+type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'success';
+
+const BOUNDS = {
+  MIN_YEAR: 1900,
+  MAX_YEAR: 9999,
+  NAME_MIN: 1,
+  NAME_MAX: 100,
+  MAJOR_MIN: 1,
+  MAJOR_MAX: 100,
+};
 
 export default function LoginScreen() {
   const router = useRouter();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const panelEntrance = useEntranceAnimation();
+  const createProfile = useMutation(api.profiles.createProfile);
 
-  const [step, setStep] = useState<Step>('email');
+  const profileForRedirect = useQuery(
+    api.profiles.getCurrentProfile,
+    isAuthenticated ? {} : 'skip'
+  );
+
+  const [step, setStep] = useState<Step>('welcome');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [major, setMajor] = useState('');
+  const [year, setYear] = useState('2026');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const verifiedEmailRef = useRef<string | null>(null);
 
   const normalizedReturnTo = Array.isArray(returnTo) ? returnTo[0] : returnTo;
   const postAuthRedirect: Href =
@@ -39,8 +64,40 @@ export default function LoginScreen() {
       ? (normalizedReturnTo as Href)
       : '/';
 
+  const shouldQueryProfile = step === 'checking' || step === 'profile';
+  const profileData = useQuery(api.profiles.getCurrentProfile, shouldQueryProfile ? {} : 'skip');
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || profileForRedirect === undefined) {
+      return;
+    }
+    if (profileForRedirect && (step === 'welcome' || step === 'email')) {
+      router.replace(postAuthRedirect);
+    }
+  }, [authLoading, isAuthenticated, profileForRedirect, step, postAuthRedirect, router]);
+
+  useEffect(() => {
+    if (step !== 'checking' || profileData === undefined) {
+      return;
+    }
+
+    if (profileData) {
+      setStep('success');
+      const t = setTimeout(() => {
+        router.replace(postAuthRedirect);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+
+    setStep('profile');
+  }, [step, profileData, postAuthRedirect, router]);
+
+  const handleGetStarted = () => {
+    setStep('email');
+    setError(null);
+  };
+
   const handleSendCode = async () => {
-    // Validate email
     const emailError = getEmailValidationError(email);
     if (emailError) {
       setError(emailError);
@@ -78,7 +135,8 @@ export default function LoginScreen() {
 
     try {
       await signIn('resend-otp', { email: step.email, code: trimmedCode });
-      router.replace(postAuthRedirect);
+      verifiedEmailRef.current = step.email;
+      setStep('checking');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
       setError(errorMessage);
@@ -113,9 +171,211 @@ export default function LoginScreen() {
     setSuccessMessage(null);
   };
 
+  const handleCompleteProfile = async () => {
+    const trimmedName = name.trim();
+    const trimmedMajor = major.trim();
+
+    if (trimmedName.length < BOUNDS.NAME_MIN || trimmedName.length > BOUNDS.NAME_MAX) {
+      Alert.alert('Invalid name', `Name must be ${BOUNDS.NAME_MIN}-${BOUNDS.NAME_MAX} characters.`);
+      return;
+    }
+    if (trimmedMajor.length < BOUNDS.MAJOR_MIN || trimmedMajor.length > BOUNDS.MAJOR_MAX) {
+      Alert.alert(
+        'Invalid major',
+        `Major must be ${BOUNDS.MAJOR_MIN}-${BOUNDS.MAJOR_MAX} characters.`
+      );
+      return;
+    }
+
+    const parsedYear = Number(year);
+    if (
+      !Number.isInteger(parsedYear) ||
+      parsedYear < BOUNDS.MIN_YEAR ||
+      parsedYear > BOUNDS.MAX_YEAR
+    ) {
+      Alert.alert(
+        'Invalid year',
+        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await createProfile({
+        name: trimmedName,
+        email: verifiedEmailRef.current ?? undefined,
+        major: trimmedMajor,
+        year: parsedYear,
+      });
+      setStep('success');
+      const t = setTimeout(() => {
+        router.replace(postAuthRedirect);
+      }, 1500);
+      return () => clearTimeout(t);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create profile';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isWelcomeStep = step === 'welcome';
   const isEmailStep = step === 'email';
-  const isVerificationStep = !isEmailStep;
-  const verificationEmail = typeof step === 'string' ? '' : step.email;
+  const isVerificationStep = typeof step === 'object' && 'email' in step;
+  const isCheckingStep = step === 'checking';
+  const isProfileStep = step === 'profile';
+  const isSuccessStep = step === 'success';
+  const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
+
+  if (isWelcomeStep) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.background}>
+          <View style={styles.orbTop} />
+          <View style={styles.orbBottom} />
+          <View style={styles.scrollContent}>
+            <Animated.View style={[styles.content, panelEntrance]}>
+              <Text style={styles.eyebrow}>PolyBuys</Text>
+              <Text style={styles.title}>Welcome</Text>
+              <Text style={styles.subtitle}>
+                Buy and sell with fellow Cal Poly students. Sign in with your @calpoly.edu email to
+                get started.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                onPress={handleGetStarted}
+              >
+                <Text style={styles.buttonText}>Get Started</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (isCheckingStep) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.content, styles.centeredContent]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.stateText}>Setting up your account...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isSuccessStep) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.background}>
+          <View style={styles.orbTop} />
+          <View style={styles.orbBottom} />
+          <View style={styles.scrollContent}>
+            <Animated.View style={[styles.content, panelEntrance]}>
+              <Text style={styles.eyebrow}>PolyBuys</Text>
+              <Text style={styles.title}>You&apos;re all set!</Text>
+              <Text style={styles.subtitle}>Your account is ready. Taking you to the app...</Text>
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={styles.successSpinner}
+              />
+            </Animated.View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (isProfileStep) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.background}>
+          <View style={styles.orbTop} />
+          <View style={styles.orbBottom} />
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Animated.View style={[styles.content, panelEntrance]}>
+              <Text style={styles.eyebrow}>Complete your profile</Text>
+              <Text style={styles.title}>Almost there</Text>
+              <Text style={styles.subtitle}>
+                Add a few details so other students can find you on the marketplace.
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Display name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your name"
+                  placeholderTextColor={colors.muted}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  editable={!isLoading}
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Major</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Computer Science"
+                  placeholderTextColor={colors.muted}
+                  value={major}
+                  onChangeText={setMajor}
+                  autoCapitalize="words"
+                  editable={!isLoading}
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Graduation year</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="2026"
+                  placeholderTextColor={colors.muted}
+                  value={year}
+                  onChangeText={setYear}
+                  keyboardType="number-pad"
+                  editable={!isLoading}
+                />
+              </View>
+
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.button,
+                  pressed && styles.buttonPressed,
+                  isLoading && styles.buttonDisabled,
+                ]}
+                onPress={() => void handleCompleteProfile()}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.buttonText}>Continue</Text>
+                )}
+              </Pressable>
+            </Animated.View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -138,7 +398,7 @@ export default function LoginScreen() {
                 : 'Enter the 8-digit code we sent to your email.'}
             </Text>
 
-            {!isEmailStep && (
+            {isVerificationStep && (
               <View style={styles.emailChip}>
                 <Text style={styles.emailHighlight}>{verificationEmail}</Text>
               </View>
@@ -150,7 +410,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="you@calpoly.edu"
-                  placeholderTextColor="#8a8a8a"
+                  placeholderTextColor={colors.muted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -166,7 +426,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, styles.codeInput]}
                   placeholder="12345678"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.muted}
                   value={code}
                   onChangeText={setCode}
                   keyboardType="number-pad"
@@ -199,7 +459,7 @@ export default function LoginScreen() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.buttonText}>{isEmailStep ? 'Send code' : 'Verify code'}</Text>
               )}
@@ -228,7 +488,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#eef5f1',
+    backgroundColor: colors.background,
   },
   background: {
     flex: 1,
@@ -239,7 +499,7 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
     borderRadius: 140,
-    backgroundColor: '#d8ece2',
+    backgroundColor: colors.border,
     top: -80,
     right: -80,
   },
@@ -248,84 +508,94 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: '#d2e9dd',
+    backgroundColor: colors.location,
     bottom: -90,
     left: -80,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 28,
   },
   content: {
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    shadowColor: '#0f172a',
+    borderColor: colors.border,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl,
+    shadowColor: colors.textDark,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 3,
   },
+  centeredContent: {
+    marginHorizontal: spacing.lg,
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  stateText: {
+    ...typography.subhead,
+    color: colors.text,
+  },
   eyebrow: {
-    fontSize: 12,
-    color: '#2a6f52',
+    ...typography.footnote,
+    color: colors.primary,
     letterSpacing: 0.4,
     fontWeight: '600',
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   title: {
+    ...typography.title1,
     fontSize: 30,
-    fontWeight: '700',
-    color: '#0f2b21',
+    color: colors.textDark,
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#5e7268',
+    ...typography.subhead,
+    color: colors.text,
     marginBottom: 18,
     lineHeight: 22,
   },
   emailChip: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: '#edf6f1',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.location,
     borderWidth: 1,
-    borderColor: '#d4e4dc',
-    paddingHorizontal: 12,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
     paddingVertical: 7,
     marginBottom: 14,
   },
   emailHighlight: {
-    color: '#154734',
+    ...typography.footnote,
+    color: colors.primary,
     fontWeight: '600',
-    fontSize: 13,
   },
   inputContainer: {
     marginBottom: 14,
   },
   label: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#244539',
-    marginBottom: 8,
+    color: colors.textDark,
+    marginBottom: spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 13,
-    fontSize: 16,
-    backgroundColor: '#f9fbfa',
+    ...typography.body,
+    backgroundColor: colors.background,
   },
   codeInput: {
     textAlign: 'center',
@@ -334,36 +604,39 @@ const styles = StyleSheet.create({
     letterSpacing: 5,
   },
   errorContainer: {
-    backgroundColor: '#fff0f0',
-    borderRadius: 10,
+    backgroundColor: colors.errorBg,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#f6cdcd',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
+    borderColor: colors.errorBorder,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
   },
   errorText: {
-    color: '#ad2020',
-    fontSize: 14,
+    color: colors.errorText,
+    ...typography.footnote,
     textAlign: 'center',
   },
   successContainer: {
-    backgroundColor: '#eef8f0',
-    borderRadius: 10,
+    backgroundColor: colors.location,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#cce8d4',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
   },
   successText: {
-    color: '#1e6b37',
-    fontSize: 14,
+    color: colors.primary,
+    ...typography.footnote,
     textAlign: 'center',
   },
+  successSpinner: {
+    marginTop: spacing.md,
+  },
   button: {
-    backgroundColor: '#154734',
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -377,25 +650,25 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: colors.white,
+    ...typography.body,
     fontWeight: '600',
   },
   footerText: {
-    fontSize: 13,
-    color: '#677a71',
+    ...typography.footnote,
+    color: colors.text,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   secondaryActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 14,
-    gap: 12,
+    gap: spacing.md,
   },
   linkText: {
-    color: '#154734',
-    fontSize: 14,
+    color: colors.primary,
+    ...typography.footnote,
     fontWeight: '600',
   },
 });

@@ -15,6 +15,8 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { ScreenState } from '../../components/ScreenState';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationRowItem = {
   _id: string;
@@ -62,6 +64,8 @@ function ConversationRow({
       <Pressable
         style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
         onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Conversation with ${otherUserName} about ${listingTitle}`}
       >
         {thumbnail ? (
           <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
@@ -146,7 +150,7 @@ export default function InboxScreen() {
   if (authLoading) {
     return (
       <View style={styles.centeredState}>
-        <ActivityIndicator size="small" color="#154734" />
+        <ActivityIndicator size="small" color={colors.primary} />
         <Text style={styles.stateText}>Loading inbox...</Text>
       </View>
     );
@@ -169,8 +173,7 @@ export default function InboxScreen() {
   if (conversations === undefined) {
     return (
       <View style={styles.centeredState}>
-        <ActivityIndicator size="small" color="#154734" />
-        <Text style={styles.stateText}>Loading conversations...</Text>
+        <ScreenState variant="loading" title="Loading conversations..." />
       </View>
     );
   }
@@ -184,8 +187,11 @@ export default function InboxScreen() {
       contentContainerStyle={styles.content}
       ListEmptyComponent={
         <Animated.View style={[styles.card, entranceStyle]}>
-          <Text style={styles.emptyTitle}>No conversations yet</Text>
-          <Text style={styles.emptyBody}>Start by messaging a seller from any listing page.</Text>
+          <ScreenState
+            variant="empty"
+            title="No conversations yet"
+            message="Start by messaging a seller from any listing page."
+          />
         </Animated.View>
       }
       renderItem={({ item, index }) => {
@@ -212,147 +218,135 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
   },
   centeredState: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
   },
   stateTitle: {
-    fontSize: 20,
-    color: '#0f2b21',
-    fontWeight: '700',
+    ...typography.title1,
+    color: colors.textDark,
     textAlign: 'center',
   },
   stateText: {
-    fontSize: 15,
-    color: '#5a6f65',
+    ...typography.subhead,
+    color: colors.text,
   },
   signInButton: {
-    marginTop: 8,
-    backgroundColor: '#154734',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   signInButtonText: {
-    color: '#fff',
+    color: colors.white,
+    ...typography.subhead,
     fontWeight: '600',
-    fontSize: 15,
   },
   content: {
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 26,
-    gap: 10,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.sm,
   },
   row: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    padding: 10,
+    borderColor: colors.border,
+    padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    gap: spacing.md,
+    shadowColor: colors.textDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
   thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: 10,
-    backgroundColor: '#eef2ef',
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.border,
   },
   thumbnailPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   thumbnailPlaceholderText: {
-    fontSize: 10,
-    color: '#7d8f85',
+    ...typography.footnote,
+    color: colors.muted,
     textTransform: 'uppercase',
     fontWeight: '600',
   },
   rowBody: {
     flex: 1,
-    gap: 4,
+    gap: 2,
+    minWidth: 0,
   },
   rowTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: spacing.sm,
   },
   otherUserName: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f2b21',
+    ...typography.heading,
+    color: colors.textDark,
   },
   timestamp: {
-    fontSize: 12,
-    color: '#6b7f75',
+    ...typography.footnote,
+    color: colors.text,
     fontVariant: ['tabular-nums'],
   },
   listingTitle: {
-    fontSize: 13,
-    color: '#4d6358',
-    fontWeight: '500',
+    ...typography.footnoteMed,
+    color: colors.text,
   },
   previewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   messagePreview: {
     flex: 1,
-    fontSize: 15,
-    color: '#5a6f65',
+    ...typography.subhead,
+    color: colors.text,
   },
   unreadText: {
     fontWeight: '700',
-    color: '#0f2b21',
+    color: colors.textDark,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#ffffff',
-    padding: 18,
-    gap: 8,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    gap: spacing.sm,
     alignItems: 'center',
   },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0f2b21',
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#5a6f65',
-    textAlign: 'center',
-  },
   separator: {
-    height: 10,
+    height: spacing.sm,
   },
   buttonPressed: {
     opacity: 0.92,

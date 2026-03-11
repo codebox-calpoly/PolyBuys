@@ -1,11 +1,12 @@
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
+  Keyboard,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -14,8 +15,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ListingCard from '../../components/ListingCard';
-import type { Doc } from 'convex/_generated/dataModel';
-import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { ScreenState } from '../../components/ScreenState';
+import type { Doc, Id } from 'convex/_generated/dataModel';
+import { useAuth } from '../../hooks/useAuth';
+import { useRecentSearches } from '../../hooks/useRecentSearches';
+import { useRouter } from 'expo-router';
+import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -23,10 +28,14 @@ const SEARCH_DEBOUNCE_MS = 300;
 export default function SearchScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const entranceStyle = useEntranceAnimation();
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const { recent, loaded, addRecent } = useRecentSearches();
+  const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
+
+  const inputRef = useRef<TextInput>(null);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isInputFocused, setIsInputFocused] = useState(false);
   const [allListings, setAllListings] = useState<Doc<'listings'>[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
@@ -56,21 +65,25 @@ export default function SearchScreen() {
 
   const queryFilterVersion = currentFilterVersionRef.current;
 
-  const listingsResult = useQuery(api.listings.searchAndFilterListings, {
-    filters: {
-      searchTerm: searchTerm.length > 0 ? searchTerm : undefined,
-      sortBy: 'newest',
-    },
-    paginationOpts: {
-      numItems: PAGE_SIZE,
-      cursor,
-    },
-  });
+  const listingsResult = useQuery(
+    api.listings.searchAndFilterListings,
+    searchTerm.length > 0
+      ? {
+          filters: {
+            searchTerm,
+            sortBy: 'newest',
+          },
+          paginationOpts: {
+            numItems: PAGE_SIZE,
+            cursor,
+          },
+        }
+      : 'skip'
+  );
 
   useEffect(() => {
     if (listingsResult && queryFilterVersion === filterVersionRef.current) {
       if (cursor === null) {
-        // Keep first-page results reactive instead of one-time processing.
         setAllListings(listingsResult.page);
         setIsDone(listingsResult.isDone);
         setIsLoadingMore(false);
@@ -93,70 +106,127 @@ export default function SearchScreen() {
     }
   }, [isDone, isLoadingMore, listingsResult?.continueCursor]);
 
+  const savedState = useQuery(
+    api.savedListings.getSavedStateForListings,
+    isAuthenticated && allListings.length > 0
+      ? { listingIds: allListings.map((l) => l._id) }
+      : 'skip'
+  );
+
+  const handleToggleSave = useCallback(
+    (listingId: Id<'listings'>) => {
+      if (!isAuthenticated) {
+        router.push('/auth/login?returnTo=%2Fsearch' as never);
+        return;
+      }
+      void toggleSavedListing({ listingId });
+    },
+    [isAuthenticated, router, toggleSavedListing]
+  );
+
+  const handleRecentPress = useCallback((term: string) => {
+    setSearchInput(term);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleListingPress = useCallback(
+    (listing: Doc<'listings'>) => {
+      if (searchTerm.length > 0) {
+        addRecent(searchTerm);
+      }
+      router.push(`/listings/${listing._id}` as never);
+    },
+    [searchTerm, addRecent, router]
+  );
+
+  const isSearching = searchTerm.length > 0;
   const isInitialLoading =
-    listingsResult === undefined && cursor === null && allListings.length === 0;
-  const showEmptyState = !isInitialLoading && allListings.length === 0;
-  const contentPadding = width >= 900 ? 24 : 14;
+    isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
+  const showEmptyResults = isSearching && !isInitialLoading && allListings.length === 0;
+  const showRecentSearches = !isSearching && loaded;
+  const contentPadding = width >= 900 ? spacing.xxl : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
+  const isWideLayout = width >= 980;
 
   return (
     <View style={styles.page}>
-      <FlatList
-        data={allListings}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item, index }) => <ListingCard listing={item} index={index} />}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingHorizontal: contentPadding, paddingTop: topSafeSpace + 16 },
-          (isInitialLoading || showEmptyState) && styles.listContentCentered,
-        ]}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListHeaderComponent={
-          <Animated.View style={[styles.header, entranceStyle]}>
-            <Text style={styles.title}>Search listings instantly</Text>
-            <Text style={styles.subtitle}>Find by title, topic, or keyword.</Text>
-            <View style={[styles.searchInputWrap, isInputFocused && styles.searchInputWrapFocused]}>
-              <TextInput
-                value={searchInput}
-                onChangeText={setSearchInput}
-                placeholder="Try: desk, calculator, bike..."
-                style={styles.searchInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
+      <View style={[styles.searchHeader, { paddingTop: topSafeSpace + spacing.md }]}>
+        <View style={styles.searchBarWrap}>
+          <TextInput
+            ref={inputRef}
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search desk, calculator, bike..."
+            placeholderTextColor={colors.muted}
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
+          />
+        </View>
+      </View>
+
+      {showRecentSearches ? (
+        <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
+          <Text style={styles.sectionTitle}>Recent searches</Text>
+          {recent.length === 0 ? (
+            <Text style={styles.emptyRecent}>No recent searches yet.</Text>
+          ) : (
+            <View style={styles.recentList}>
+              {recent.map((term) => (
+                <Pressable
+                  key={term}
+                  style={({ pressed }) => [styles.recentItem, pressed && styles.recentItemPressed]}
+                  onPress={() => handleRecentPress(term)}
+                >
+                  <Text style={styles.recentItemText}>{term}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+      ) : isSearching ? (
+        <FlatList
+          data={allListings}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item, index }) => (
+            <ListingCard
+              listing={item}
+              index={index}
+              isSaved={savedState?.[item._id] ?? false}
+              onToggleSave={() => handleToggleSave(item._id)}
+              onPress={() => handleListingPress(item)}
+            />
+          )}
+          numColumns={isWideLayout ? 2 : 1}
+          columnWrapperStyle={isWideLayout ? styles.columnWrapper : undefined}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingHorizontal: contentPadding },
+            (isInitialLoading || showEmptyResults) && styles.listContentCentered,
+          ]}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={
+            <View style={styles.stateContainer}>
+              <ScreenState
+                variant={isInitialLoading ? 'loading' : 'empty'}
+                title={isInitialLoading ? 'Searching...' : 'Nothing matched'}
+                message={isInitialLoading ? undefined : `No listings found for "${searchTerm}".`}
               />
             </View>
-          </Animated.View>
-        }
-        ListEmptyComponent={
-          isInitialLoading ? (
-            <View style={styles.stateContainer}>
-              <ActivityIndicator size="small" color="#154734" />
-              <Text style={styles.stateText}>Loading listings...</Text>
-            </View>
-          ) : (
-            <View style={styles.stateContainer}>
-              <Text style={styles.emptyTitle}>Nothing matched yet</Text>
-              <Text style={styles.stateText}>
-                {searchTerm.length > 0
-                  ? `No listings found for "${searchTerm}".`
-                  : 'Try searching for what you need.'}
-              </Text>
-            </View>
-          )
-        }
-        ListFooterComponent={
-          isLoadingMore ? (
-            <View style={styles.footerLoader}>
-              <ActivityIndicator size="small" color="#154734" />
-              <Text style={styles.footerText}>Loading more...</Text>
-            </View>
-          ) : null
-        }
-      />
+          }
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.footerText}>Loading more...</Text>
+              </View>
+            ) : null
+          }
+        />
+      ) : null}
     </View>
   );
 }
@@ -164,84 +234,87 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
+  },
+  searchHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchBarWrap: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  searchInput: {
+    ...typography.body,
+    paddingVertical: spacing.sm,
+    color: colors.textDark,
+  },
+  content: {
+    paddingTop: spacing.xl,
+  },
+  sectionTitle: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  emptyRecent: {
+    ...typography.subhead,
+    color: colors.muted,
+  },
+  recentList: {
+    gap: spacing.xs,
+  },
+  recentItem: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+  },
+  recentItemPressed: {
+    backgroundColor: colors.location,
+  },
+  recentItemText: {
+    ...typography.body,
+    color: colors.textDark,
   },
   listContent: {
-    width: '100%',
-    maxWidth: 1120,
-    alignSelf: 'center',
-    paddingBottom: 26,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   listContentCentered: {
     flexGrow: 1,
   },
-  header: {
-    marginBottom: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#ffffff',
-    padding: 18,
-    gap: 8,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f2b21',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#5c6f66',
-    marginBottom: 4,
-  },
-  searchInputWrap: {
-    borderWidth: 1,
-    borderColor: '#d4e1db',
-    borderRadius: 14,
-    backgroundColor: '#f8fbf9',
-    paddingHorizontal: 14,
-    paddingVertical: 2,
-  },
-  searchInputWrapFocused: {
-    borderColor: '#2a7a57',
-    backgroundColor: '#ffffff',
-  },
-  searchInput: {
-    fontSize: 16,
-    paddingVertical: 12,
+  columnWrapper: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginBottom: spacing.lg,
   },
   stateContainer: {
     flex: 1,
-    minHeight: 260,
+    minHeight: 200,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-  },
-  emptyTitle: {
-    color: '#1a2f26',
-    fontSize: 21,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  stateText: {
-    color: '#667972',
-    fontSize: 15,
-    textAlign: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
   },
   footerLoader: {
-    paddingVertical: 20,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
   footerText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#666',
+    marginTop: spacing.sm,
+    ...typography.footnote,
+    color: colors.text,
   },
 });

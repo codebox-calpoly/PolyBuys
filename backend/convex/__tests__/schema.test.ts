@@ -65,4 +65,23 @@ describe('Convex schema', () => {
     expect(searchIndex.filterFields).toContain('category');
     expect(searchIndex.filterFields).toContain('condition');
   });
+
+  it('defines the savedListings table', () => {
+    const savedListings = schemaJson.tables.find(
+      (table: any) => table.tableName === 'savedListings'
+    );
+    expect(savedListings).toBeDefined();
+    const fields = Object.keys(savedListings.documentType.value);
+    expect(fields).toEqual(['userId', 'listingId', 'createdAt']);
+  });
+
+  it('exposes indexes for savedListings', () => {
+    const savedListings = schemaJson.tables.find(
+      (table: any) => table.tableName === 'savedListings'
+    );
+    const indexNames = savedListings.indexes.map((i: any) => i.indexDescriptor);
+    expect(indexNames).toContain('by_user_listing');
+    expect(indexNames).toContain('by_user_createdAt');
+    expect(indexNames).toContain('by_listing');
+  });
 });

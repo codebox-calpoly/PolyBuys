@@ -61,6 +61,14 @@ export default function RootLayout() {
             options={{ title: 'Conversation', headerBackTitle: 'Inbox' }}
           />
           <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerShown: false }} />
+          <Stack.Screen
+            name="profile/edit"
+            options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
+          />
+          <Stack.Screen
+            name="profile/[userId]"
+            options={{ title: 'Profile', headerBackTitle: 'Back' }}
+          />
           <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>

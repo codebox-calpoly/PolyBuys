@@ -18,6 +18,7 @@ import type * as moderation from "../moderation.js";
 import type * as profiles from "../profiles.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as reports from "../reports.js";
+import type * as savedListings from "../savedListings.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   profiles: typeof profiles;
   pushNotifications: typeof pushNotifications;
   reports: typeof reports;
+  savedListings: typeof savedListings;
   users: typeof users;
 }>;
 

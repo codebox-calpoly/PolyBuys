@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { colors, typography } from '../../theme/tokens';
 
 type WebTab = {
   href: '/' | '/search' | '/my-listings' | '/inbox' | '/settings';
@@ -90,14 +91,13 @@ export default function TabsLayout() {
   }
 
   const isDarkMode = colorScheme === 'dark';
-  const tabTint = Platform.OS === 'ios' ? (isDarkMode ? '#ffffff' : '#111111') : '#154734';
-  const nativeTabLabelStyle = Platform.OS === 'ios' ? styles.iosTabLabel : undefined;
+  const tabTint = isDarkMode ? colors.white : colors.primary;
 
   return (
     <NativeTabs
       minimizeBehavior="onScrollDown"
       tintColor={tabTint}
-      labelStyle={nativeTabLabelStyle}
+      labelStyle={styles.nativeTabLabel}
     >
       <NativeTabs.Trigger name="index" disableTransparentOnScrollEdge>
         {/* NativeTabs expects plain text inside Trigger.Label. */}
@@ -153,14 +153,14 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   webRoot: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   webHeaderBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#ececec',
+    borderBottomColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   webHeaderContent: {
     width: '100%',
@@ -172,17 +172,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brand: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#154734',
+    ...typography.title1,
+    color: colors.primary,
   },
   webTabsPill: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#d8d8d8',
-    backgroundColor: '#f5f5f5',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     padding: 4,
     gap: 4,
   },
@@ -190,6 +189,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   webTabInner: {
     flexDirection: 'row',
@@ -197,15 +198,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   webTabButtonActive: {
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
   },
   webTabLabel: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
   },
   webTabLabelActive: {
-    color: '#fff',
+    color: colors.white,
   },
   webUnreadBadge: {
     minWidth: 18,
@@ -214,10 +215,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#d93025',
+    backgroundColor: colors.category,
   },
   webUnreadBadgeText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
@@ -225,7 +226,8 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 84,
   },
-  iosTabLabel: {
-    color: '#111111',
+  nativeTabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

@@ -86,6 +86,15 @@ export default defineSchema({
     .index('by_name', ['name'])
     .index('by_userId', ['userId']),
 
+  savedListings: defineTable({
+    userId: v.string(),
+    listingId: v.id('listings'),
+    createdAt: v.number(),
+  })
+    .index('by_user_listing', ['userId', 'listingId'])
+    .index('by_user_createdAt', ['userId', 'createdAt'])
+    .index('by_listing', ['listingId']),
+
   reports: defineTable({
     targetId: v.string(), // Can be listing or profile ID
     targetType: v.union(v.literal('listing'), v.literal('profile')),
