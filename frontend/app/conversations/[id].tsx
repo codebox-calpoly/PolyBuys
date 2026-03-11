@@ -86,6 +86,10 @@ export default function ConversationDetailScreen() {
     api.blocks.isBlockedBy,
     isAuthenticated && otherUserId ? { blockerId: otherUserId } : 'skip'
   );
+  const isBlockStatusLoading =
+    isAuthenticated &&
+    otherUserId !== null &&
+    (isBlockingOther === undefined || isBlockedByOther === undefined);
 
   const listingId = (conversation?.listing?.id ??
     conversation?.listingId ??
@@ -215,7 +219,14 @@ export default function ConversationDetailScreen() {
 
   const onSend = async () => {
     const trimmed = messageBody.trim();
-    if (!trimmed || !conversationId || isSending || isBlockingOther === true || isBlockedByOther) {
+    if (
+      !trimmed ||
+      !conversationId ||
+      isSending ||
+      isBlockStatusLoading ||
+      isBlockingOther === true ||
+      isBlockedByOther === true
+    ) {
       return;
     }
 
@@ -245,7 +256,8 @@ export default function ConversationDetailScreen() {
     (isAuthenticated &&
       (conversationList === undefined ||
         currentUserSubject === undefined ||
-        (conversation !== null && messages === undefined)))
+        (conversation !== null && messages === undefined) ||
+        isBlockStatusLoading))
   ) {
     return (
       <View style={styles.centeredState}>
@@ -384,7 +396,7 @@ export default function ConversationDetailScreen() {
               You have blocked this user. Tap Unblock above to send messages.
             </Text>
           </View>
-        ) : isBlockedByOther ? (
+        ) : isBlockedByOther === true ? (
           <View style={styles.blockedComposer}>
             <Text style={styles.blockedText}>
               You cannot send messages in this conversation because this user has blocked you.

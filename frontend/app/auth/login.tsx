@@ -40,6 +40,9 @@ export default function LoginScreen() {
   const panelEntrance = useEntranceAnimation();
   const createProfile = useMutation(api.profiles.createProfile);
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
+  const updateMessageNotificationsEnabled = useMutation(
+    api.users.updateMessageNotificationsEnabled
+  );
 
   const profileForRedirect = useQuery(
     api.profiles.getCurrentProfile,
@@ -204,7 +207,12 @@ export default function LoginScreen() {
       return;
     }
 
-    const yearInput = year.trim() || '2026';
+    const currentYear = new Date().getFullYear();
+    const boundedCurrentYear = Math.min(
+      Math.max(currentYear, PROFILE_BOUNDS.MIN_YEAR),
+      PROFILE_BOUNDS.MAX_YEAR
+    );
+    const yearInput = year.trim().length > 0 ? year.trim() : String(boundedCurrentYear);
     const parsedYear = Number(yearInput);
     if (
       !Number.isInteger(parsedYear) ||
@@ -291,16 +299,41 @@ export default function LoginScreen() {
     }, 1500);
   };
 
+  const persistMessageNotificationsPreference = async (enabled: boolean) => {
+    await updateMessageNotificationsEnabled({ enabled });
+  };
+
   const handlePushEnable = async () => {
     try {
       await requestPermissionAndSyncToken(recordPushToken);
     } catch {
       // Permission denied - continue anyway
     }
+
+    const messageNotificationsEnabled = true;
+    try {
+      await persistMessageNotificationsPreference(messageNotificationsEnabled);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save notification preference.';
+      Alert.alert('Notification preference not saved', message);
+      return;
+    }
+
     finishAndRedirect();
   };
 
-  const handlePushSkip = () => {
+  const handlePushSkip = async () => {
+    const messageNotificationsEnabled = false;
+    try {
+      await persistMessageNotificationsPreference(messageNotificationsEnabled);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save notification preference.';
+      Alert.alert('Notification preference not saved', message);
+      return;
+    }
+
     finishAndRedirect();
   };
 
@@ -325,7 +358,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.skipButton, pressed && styles.buttonPressed]}
-                onPress={handlePushSkip}
+                onPress={() => void handlePushSkip()}
               >
                 <Text style={styles.skipButtonText}>Not now</Text>
               </Pressable>

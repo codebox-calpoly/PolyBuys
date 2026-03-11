@@ -5,7 +5,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -33,14 +32,6 @@ function yearToOrdinal(gradYear: number): string {
 }
 
 type TabId = 'listings' | 'saved';
-
-const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
-
-function getAppOrigin() {
-  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
-  if (!configuredOrigin) return DEFAULT_APP_ORIGIN;
-  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
-}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -80,20 +71,6 @@ export default function SettingsScreen() {
   const displayListings: Doc<'listings'>[] =
     myListings?.filter((l): l is Doc<'listings'> => l.status !== 'deleted') ?? [];
   const isWideLayout = width >= 980;
-
-  const handleShareProfile = async () => {
-    if (!profile?.userId) return;
-    const shareUrl = `${getAppOrigin()}/profile/${encodeURIComponent(profile.userId)}`;
-    try {
-      await Share.share({
-        message: `Check out my PolyBuys profile! ${shareUrl}`,
-        url: shareUrl,
-        title: 'My PolyBuys Profile',
-      });
-    } catch {
-      // User cancelled or share failed
-    }
-  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -185,13 +162,41 @@ export default function SettingsScreen() {
 
         await updateMessageNotificationsEnabled({ enabled: true });
       } else {
+        let removePushTokenSucceeded = false;
+        let removePushTokenError: unknown = null;
         try {
           await removePushToken({});
-        } catch {
-          // Best-effort token removal
+          removePushTokenSucceeded = true;
+        } catch (error) {
+          removePushTokenError = error;
         }
 
-        await updateMessageNotificationsEnabled({ enabled: false });
+        try {
+          await updateMessageNotificationsEnabled({ enabled: false });
+        } catch (error) {
+          const updatePreferenceMessage =
+            error instanceof Error ? error.message : 'Failed to update notification preference';
+
+          if (removePushTokenSucceeded) {
+            Alert.alert(
+              'Notification partially updated',
+              `This device push token was removed, but we could not save your notification preference.\n\nDetails: ${updatePreferenceMessage}`
+            );
+            return;
+          }
+
+          setMessageNotificationsValue(previousValue);
+          const removeTokenMessage =
+            removePushTokenError instanceof Error
+              ? removePushTokenError.message
+              : 'Failed to remove this device push token.';
+
+          Alert.alert(
+            'Notification Update Failed',
+            `We could not disable notifications.\n\nToken removal: ${removeTokenMessage}\nPreference update: ${updatePreferenceMessage}`
+          );
+          return;
+        }
       }
     } catch (error) {
       setMessageNotificationsValue(previousValue);
@@ -301,12 +306,15 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
-        <Pressable
-          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
-          onPress={handleShareProfile}
-        >
-          <Text style={styles.shareButtonText}>Share Profile</Text>
-        </Pressable>
+        {/*
+          Temporarily hidden.
+          <Pressable
+            style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+            onPress={handleShareProfile}
+          >
+            <Text style={styles.shareButtonText}>Share Profile</Text>
+          </Pressable>
+        */}
       </Animated.View>
 
       <View style={styles.notificationsSection}>
@@ -588,10 +596,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   editIcon: {
-    padding: spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.sm,
   },
   editIconText: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.muted,
   },
   addBioRow: {
@@ -603,19 +615,6 @@ const styles = StyleSheet.create({
   addBioText: {
     ...typography.subhead,
     color: colors.muted,
-  },
-  shareButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  shareButtonText: {
-    ...typography.body,
-    fontWeight: '600',
-    color: colors.white,
   },
   tabs: {
     flexDirection: 'row',

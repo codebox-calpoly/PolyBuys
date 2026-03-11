@@ -31,7 +31,7 @@ export default function PublicProfileScreen() {
   const { userId: rawUserId } = useLocalSearchParams<{ userId?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   let resolvedUserId: string | null = null;
   if (typeof rawUserId === 'string') {
@@ -58,6 +58,8 @@ export default function PublicProfileScreen() {
   );
   const avatarUrl = avatarUrls[0];
   const isWideLayout = width >= 980;
+  const canReportProfile =
+    isAuthenticated && resolvedUserId !== null && user?._id !== resolvedUserId;
 
   if (!resolvedUserId) {
     return (
@@ -120,7 +122,7 @@ export default function PublicProfileScreen() {
 
         {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
 
-        {isAuthenticated && resolvedUserId && (
+        {canReportProfile && (
           <Pressable
             style={({ pressed }) => [styles.reportButton, pressed && styles.reportButtonPressed]}
             onPress={() => setReportOpen(true)}
@@ -132,7 +134,7 @@ export default function PublicProfileScreen() {
       </View>
 
       <ReportModal
-        isVisible={reportOpen}
+        isVisible={canReportProfile && reportOpen}
         onClose={() => setReportOpen(false)}
         targetId={profile._id}
         targetType="profile"

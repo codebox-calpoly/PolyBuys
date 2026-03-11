@@ -25,6 +25,23 @@ export async function hasBlockBetween(
   return block1 !== null || block2 !== null;
 }
 
+async function getValidatedPeerUserId(
+  ctx: { db: QueryCtx['db'] },
+  peerUserId: string
+): Promise<string> {
+  const normalizedPeerUserId = await ctx.db.normalizeId('users', peerUserId);
+  if (!normalizedPeerUserId) {
+    throw new ConvexError('Target user not found');
+  }
+
+  const peerUser = await ctx.db.get(normalizedPeerUserId);
+  if (!peerUser) {
+    throw new ConvexError('Target user not found');
+  }
+
+  return normalizedPeerUserId as string;
+}
+
 /**
  * Block another user. Prevents messaging in both directions.
  */
@@ -32,20 +49,11 @@ export const blockUser = mutation({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
+    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
 
-    if (blockerId === args.blockedId) {
+    if (blockerId === blockedId) {
       throw new ConvexError('You cannot block yourself');
     }
-
-    const normalizedBlockedId = await ctx.db.normalizeId('users', args.blockedId);
-    if (!normalizedBlockedId) {
-      throw new ConvexError('Target user not found');
-    }
-    const targetUser = await ctx.db.get(normalizedBlockedId);
-    if (!targetUser) {
-      throw new ConvexError('Target user not found');
-    }
-    const blockedId = normalizedBlockedId as string;
 
     const existing = await ctx.db
       .query('userBlocks')
@@ -75,11 +83,12 @@ export const unblockUser = mutation({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
+    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
 
     const existing = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
-        q.eq('blockerId', blockerId).eq('blockedId', args.blockedId)
+        q.eq('blockerId', blockerId).eq('blockedId', blockedId)
       )
       .first();
 
@@ -98,10 +107,11 @@ export const isBlocking = query({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
+    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
     const block = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
-        q.eq('blockerId', blockerId).eq('blockedId', args.blockedId)
+        q.eq('blockerId', blockerId).eq('blockedId', blockedId)
       )
       .first();
     return block !== null;
@@ -115,10 +125,11 @@ export const isBlockedBy = query({
   args: { blockerId: v.string() },
   handler: async (ctx, args) => {
     const blockedId = await requireAuthUserId(ctx);
+    const blockerId = await getValidatedPeerUserId(ctx, args.blockerId);
     const block = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
-        q.eq('blockerId', args.blockerId).eq('blockedId', blockedId)
+        q.eq('blockerId', blockerId).eq('blockedId', blockedId)
       )
       .first();
     return block !== null;
