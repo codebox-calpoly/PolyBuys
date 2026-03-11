@@ -18,6 +18,7 @@ import Head from 'expo-router/head';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { getConvexErrorDisplay } from '../../lib/convexError';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
@@ -87,8 +88,9 @@ export default function ListingDetailScreen() {
         pathname: '/conversations/[id]',
         params: { id: String(convo.conversationId) },
       });
-    } catch {
-      Alert.alert('Unable to start conversation right now.');
+    } catch (error) {
+      const { title, message } = getConvexErrorDisplay(error, 'Couldn’t start conversation');
+      Alert.alert(title, message);
     } finally {
       setIsStartingConversation(false);
     }

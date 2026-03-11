@@ -6,6 +6,7 @@ import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
+import { getConvexErrorDisplay } from '../lib/convexError';
 
 interface ImageUploaderProps {
   images: string[];
@@ -255,15 +256,10 @@ export default function ImageUploader({
       revokeObjectUrl(localId);
       onImagesChange((prev) => [...prev, storageId]);
     } catch (error) {
+      const { message } = getConvexErrorDisplay(error, 'Upload failed');
       setPendingUploads((prev) =>
         prev.map((upload) =>
-          upload.localId === localId
-            ? {
-                ...upload,
-                status: 'error',
-                error: error instanceof Error ? error.message : 'Upload failed',
-              }
-            : upload
+          upload.localId === localId ? { ...upload, status: 'error', error: message } : upload
         )
       );
     }

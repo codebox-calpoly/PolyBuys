@@ -17,6 +17,7 @@ import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
+import { getConvexErrorDisplay } from '../../lib/convexError';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 
 type ConversationId = Id<'conversations'>;
@@ -200,8 +201,8 @@ export default function ConversationDetailScreen() {
       setMessageBody('');
       scrollToBottom(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      const { title, message } = getConvexErrorDisplay(error, 'Message failed');
+      Alert.alert(title, message);
     } finally {
       setIsSending(false);
     }

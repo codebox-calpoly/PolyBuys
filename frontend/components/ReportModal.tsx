@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import { getConvexErrorDisplay } from '../lib/convexError';
 
 type ReportReason = 'scam' | 'inappropriate' | 'spam';
 
@@ -50,8 +51,8 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
       Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
       handleClose();
     } catch (err) {
-      const msg = String((err as Error)?.message ?? 'Unable to submit report right now.');
-      Alert.alert('Could not submit report', msg);
+      const { title, message } = getConvexErrorDisplay(err, 'Could not submit report');
+      Alert.alert(title, message);
       setSubmitting(false);
     }
   };

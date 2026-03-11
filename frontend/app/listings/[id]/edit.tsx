@@ -18,26 +18,10 @@ import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { getConvexErrorDisplay } from '../../../lib/convexError';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
-const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
-
-function getListingActionError(error: unknown, fallbackTitle: string) {
-  const rawMessage = error instanceof Error ? error.message : 'Unknown error';
-  if (rawMessage.includes(MODERATION_ERROR_FRAGMENT)) {
-    return {
-      title: 'Listing needs edits',
-      message:
-        'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.',
-    };
-  }
-
-  return {
-    title: fallbackTitle,
-    message: rawMessage,
-  };
-}
 
 export default function EditListingScreen() {
   const router = useRouter();
@@ -126,8 +110,8 @@ export default function EditListingScreen() {
       Alert.alert('Success', 'Listing updated.');
       router.back();
     } catch (error) {
-      const actionError = getListingActionError(error, 'Update failed');
-      Alert.alert(actionError.title, actionError.message);
+      const { title, message } = getConvexErrorDisplay(error, 'Update failed');
+      Alert.alert(title, message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);

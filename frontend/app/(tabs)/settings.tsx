@@ -16,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { getConvexErrorDisplay } from '../../lib/convexError';
 
 const BOUNDS = {
   MIN_YEAR: 1900,
@@ -90,8 +91,8 @@ export default function SettingsScreen() {
       setIsSigningOut(true);
       await signOut();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to sign out';
-      Alert.alert('Sign Out Failed', message);
+      const { title, message } = getConvexErrorDisplay(error, 'Sign out failed');
+      Alert.alert(title, message);
     } finally {
       setIsSigningOut(false);
     }
@@ -159,8 +160,8 @@ export default function SettingsScreen() {
 
       Alert.alert('Profile saved', 'Your profile has been updated.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save profile';
-      Alert.alert('Save failed', message);
+      const { title, message } = getConvexErrorDisplay(error, 'Save failed');
+      Alert.alert(title, message);
     } finally {
       setIsSubmitting(false);
     }
