@@ -1,6 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { mutation } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { requireAuthUserId } from './lib/authIdentity';
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_REPORTS_PER_DAY = 10;
@@ -19,13 +20,7 @@ export const createReport = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // 1. Validate user is authenticated
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to report content');
-    }
-
-    const reporterId = identity.subject;
+    const reporterId = await requireAuthUserId(ctx, 'You must be logged in to report content');
 
     // 2. Validate notes length if provided
     if (args.notes && args.notes.length > MAX_NOTES_LENGTH) {

@@ -23,19 +23,6 @@ import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
 
-function canonicalParticipantId(value: string) {
-  const [base] = value.split('|');
-  return base;
-}
-
-function isSameParticipantId(left: string, right: string) {
-  return left === right || canonicalParticipantId(left) === canonicalParticipantId(right);
-}
-
-function matchesAnyParticipantId(value: string, candidates: string[]) {
-  return candidates.some((candidate) => isSameParticipantId(value, candidate));
-}
-
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
@@ -116,17 +103,11 @@ export default function ConversationDetailScreen() {
         }
       : 'skip'
   );
-  const participantKeys = useMemo(
-    () =>
-      [currentUserSubject, user?._id].filter(
-        (value): value is string => typeof value === 'string' && value.length > 0
-      ),
-    [currentUserSubject, user?._id]
-  );
+  const currentUserId = currentUserSubject ?? user?._id ?? null;
   const unreadIncomingCount =
     messages?.filter(
       (message) =>
-        message.readAt === 0 && matchesAnyParticipantId(message.recipientId, participantKeys)
+        message.readAt === 0 && currentUserId !== null && message.recipientId === currentUserId
     ).length ?? 0;
 
   const scrollToBottom = (animated: boolean) => {
@@ -303,7 +284,7 @@ export default function ConversationDetailScreen() {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
-          const isSent = matchesAnyParticipantId(item.senderId, participantKeys);
+          const isSent = currentUserId !== null && item.senderId === currentUserId;
           const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
           return (
             <View

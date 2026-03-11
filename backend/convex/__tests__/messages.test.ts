@@ -292,62 +292,6 @@ describe('Messages queries and mutations', () => {
       expect(messages[1].body).toBe('Second message');
       expect(messages[2].body).toBe('Third message');
     });
-
-    it('aggregates messages across siblingConversationIds', async () => {
-      const t = createConvexTest();
-
-      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
-      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
-      const listingId = await createTestListing(t, seller.id);
-      const primaryConversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-      const siblingConversationId = await t.run(async (ctx) => {
-        const now = Date.now();
-        return await ctx.db.insert('conversations', {
-          listingId,
-          buyerId: `${buyer.id}|legacy-buyer`,
-          sellerId: seller.id,
-          participantIds: [`${buyer.id}|legacy-buyer`, seller.id],
-          createdAt: now + 1,
-          updatedAt: now + 1,
-          buyerLastReadAt: now + 1,
-          sellerLastReadAt: now + 1,
-        });
-      });
-
-      await t.run(async (ctx) => {
-        await ctx.db.insert('messages', {
-          conversationId: primaryConversationId,
-          listingId,
-          senderId: buyer.id,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Primary thread message',
-          createdAt: Date.now(),
-          readAt: 0,
-        });
-
-        await ctx.db.insert('messages', {
-          conversationId: siblingConversationId,
-          listingId,
-          senderId: `${buyer.id}|legacy-buyer`,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Sibling thread message',
-          createdAt: Date.now() + 1000,
-          readAt: 0,
-        });
-      });
-
-      const asSeller = t.withIdentity(seller.identity);
-      const messages = await asSeller.query(api.messages.getConversationHistory, {
-        conversationId: primaryConversationId,
-        siblingConversationIds: [siblingConversationId],
-      });
-
-      expect(messages).toHaveLength(2);
-      expect(messages[0].body).toBe('Primary thread message');
-      expect(messages[1].body).toBe('Sibling thread message');
-    });
   });
 
   describe('listUserConversations', () => {
@@ -445,32 +389,22 @@ describe('Messages queries and mutations', () => {
       expect(conversations[0].updatedAt).toBeGreaterThan(conversations[1].updatedAt);
     });
 
-    it('resolves other user name for aliased participant ids', async () => {
+    it('resolves other user name from profile', async () => {
       const t = createConvexTest();
 
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
 
-      await createTestProfile(t, `${buyer.id}|profile-alias`, {
+      await t.run(async (ctx) => {
+        await ctx.db.patch(buyer.id, { name: '' });
+      });
+      await createTestProfile(t, buyer.id, {
         name: 'Buyer Profile Name',
         email: 'buyer@calpoly.edu',
       });
 
-      await t.run(async (ctx) => {
-        await ctx.db.patch(buyer.id, { name: '' });
-        const now = Date.now();
-        await ctx.db.insert('conversations', {
-          listingId,
-          buyerId: `${buyer.id}|conversation-alias`,
-          sellerId: seller.id,
-          participantIds: [`${buyer.id}|conversation-alias`, seller.id],
-          createdAt: now,
-          updatedAt: now,
-          buyerLastReadAt: now,
-          sellerLastReadAt: now,
-        });
-      });
+      await createTestConversation(t, listingId, buyer.id, seller.id);
 
       const asSeller = t.withIdentity(seller.identity);
       const conversations = await asSeller.query(api.messages.listUserConversations);
@@ -758,67 +692,6 @@ describe('Messages queries and mutations', () => {
       expect(message!.readAt).toBeGreaterThan(0);
     });
 
-    it('marks unread messages as read across siblingConversationIds', async () => {
-      const t = createConvexTest();
-
-      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
-      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
-      const listingId = await createTestListing(t, seller.id);
-      const primaryConversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-      const siblingConversationId = await t.run(async (ctx) => {
-        const now = Date.now();
-        return await ctx.db.insert('conversations', {
-          listingId,
-          buyerId: `${buyer.id}|legacy-buyer`,
-          sellerId: seller.id,
-          participantIds: [`${buyer.id}|legacy-buyer`, seller.id],
-          createdAt: now + 1,
-          updatedAt: now + 1,
-          buyerLastReadAt: now + 1,
-          sellerLastReadAt: now + 1,
-        });
-      });
-
-      const [primaryMessageId, siblingMessageId] = await t.run(async (ctx) => {
-        const firstId = await ctx.db.insert('messages', {
-          conversationId: primaryConversationId,
-          listingId,
-          senderId: buyer.id,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Unread in primary',
-          createdAt: Date.now(),
-          readAt: 0,
-        });
-        const secondId = await ctx.db.insert('messages', {
-          conversationId: siblingConversationId,
-          listingId,
-          senderId: `${buyer.id}|legacy-buyer`,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Unread in sibling',
-          createdAt: Date.now() + 1000,
-          readAt: 0,
-        });
-        return [firstId, secondId] as const;
-      });
-
-      const asSeller = t.withIdentity(seller.identity);
-      await asSeller.mutation(api.messages.markMessagesAsRead, {
-        conversationId: primaryConversationId,
-        siblingConversationIds: [siblingConversationId],
-      });
-
-      const [primaryMessage, siblingMessage] = await t.run(async (ctx) => {
-        const first = await ctx.db.get(primaryMessageId);
-        const second = await ctx.db.get(siblingMessageId);
-        return [first, second] as const;
-      });
-
-      expect(primaryMessage!.readAt).toBeGreaterThan(0);
-      expect(siblingMessage!.readAt).toBeGreaterThan(0);
-    });
-
     it('does not mark messages sent by the user as read', async () => {
       const t = createConvexTest();
 
@@ -914,62 +787,6 @@ describe('Messages queries and mutations', () => {
       expect(messages).toHaveLength(2);
       expect(messages[0].body).toBe('Message 1');
       expect(messages[1].body).toBe('Message 2');
-    });
-
-    it('returns messages across siblingConversationIds', async () => {
-      const t = createConvexTest();
-
-      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
-      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
-      const listingId = await createTestListing(t, seller.id);
-      const primaryConversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-      const siblingConversationId = await t.run(async (ctx) => {
-        const now = Date.now();
-        return await ctx.db.insert('conversations', {
-          listingId,
-          buyerId: `${buyer.id}|legacy-buyer`,
-          sellerId: seller.id,
-          participantIds: [`${buyer.id}|legacy-buyer`, seller.id],
-          createdAt: now + 1,
-          updatedAt: now + 1,
-          buyerLastReadAt: now + 1,
-          sellerLastReadAt: now + 1,
-        });
-      });
-
-      await t.run(async (ctx) => {
-        await ctx.db.insert('messages', {
-          conversationId: primaryConversationId,
-          listingId,
-          senderId: buyer.id,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Primary 1',
-          createdAt: Date.now(),
-          readAt: 0,
-        });
-
-        await ctx.db.insert('messages', {
-          conversationId: siblingConversationId,
-          listingId,
-          senderId: `${buyer.id}|legacy-buyer`,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Sibling 1',
-          createdAt: Date.now() + 1000,
-          readAt: 0,
-        });
-      });
-
-      const asSeller = t.withIdentity(seller.identity);
-      const messages = await asSeller.query(api.messages.messagesByConversation, {
-        conversationId: primaryConversationId,
-        siblingConversationIds: [siblingConversationId],
-      });
-
-      expect(messages).toHaveLength(2);
-      expect(messages[0].body).toBe('Primary 1');
-      expect(messages[1].body).toBe('Sibling 1');
     });
   });
 

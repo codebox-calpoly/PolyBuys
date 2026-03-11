@@ -3,6 +3,7 @@ import { query, mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
 import { PROFILE_BOUNDS } from '@polybuys/shared';
+import { getStableUserId, requireAuthUserId } from './lib/authIdentity';
 
 export const PAYLOAD_BOUNDS = {
   ...PROFILE_BOUNDS,
@@ -88,14 +89,12 @@ export const getProfileByUserId = query({
 export const getCurrentProfile = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
+    const userId = await getStableUserId(ctx);
+    if (!userId) return null;
 
     return await ctx.db
       .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .unique();
   },
 });
@@ -111,11 +110,9 @@ export const createProfile = mutation({
     year: v.number(),
   },
   handler: async (ctx, args) => {
+    const userId = await requireAuthUserId(ctx);
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to create a profile');
-    }
-    const emailFromIdentity = identity.email?.toLowerCase().trim();
+    const emailFromIdentity = identity?.email?.toLowerCase().trim();
     const email = args.email ? normalizeEmailInput(args.email) : emailFromIdentity;
     if (!email) {
       throw new ConvexError('Email is required to create a profile');
@@ -141,14 +138,14 @@ export const createProfile = mutation({
 
     const existingProfile = await ctx.db
       .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .unique();
     if (existingProfile) {
       throw new ConvexError('Profile already exists for this user');
     }
 
     const profileId = await ctx.db.insert('profiles', {
-      userId: identity.subject,
+      userId,
       name: args.name,
       email,
       bio: args.bio,
@@ -181,12 +178,11 @@ export const updateProfile = mutation({
     hiddenReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError('You must be logged in');
+    const userId = await requireAuthUserId(ctx);
 
     const profile = await ctx.db
       .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .unique();
 
     if (!profile) throw new ConvexError('Profile not found');
@@ -291,21 +287,18 @@ export const updateProfile = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError('You must be logged in');
-
+    await requireAuthUserId(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
 export const setProfilePicture = mutation({
   args: { storageId: v.id('_storage') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError('You must be logged in');
+    const userId = await requireAuthUserId(ctx);
 
     const profile = await ctx.db
       .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .unique();
 
     if (!profile) throw new ConvexError('Profile not found');
@@ -325,11 +318,10 @@ export const getProfilePictureUrl = query({
 export const viewActiveListings = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError('You must be logged in');
+    const userId = await requireAuthUserId(ctx);
     return await ctx.db
       .query('listings')
-      .filter((q) => q.eq(q.field('sellerId'), identity.subject))
+      .filter((q) => q.eq(q.field('sellerId'), userId))
       .filter((q) => q.eq(q.field('status'), 'active'))
       .collect();
   },

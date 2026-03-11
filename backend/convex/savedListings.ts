@@ -2,6 +2,7 @@ import { v, ConvexError } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
+import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
 
 function isListingUnavailable(listing: Doc<'listings'>): boolean {
   return (
@@ -15,10 +16,7 @@ function isListingUnavailable(listing: Doc<'listings'>): boolean {
 export const toggleSavedListing = mutation({
   args: { listingId: v.id('listings') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to save listings');
-    }
+    const userId = await requireAuthUserId(ctx, 'You must be logged in to save listings');
 
     const listing = await ctx.db.get(args.listingId);
     if (!listing) {
@@ -27,9 +25,7 @@ export const toggleSavedListing = mutation({
 
     const existing = await ctx.db
       .query('savedListings')
-      .withIndex('by_user_listing', (q) =>
-        q.eq('userId', identity.subject).eq('listingId', args.listingId)
-      )
+      .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', args.listingId))
       .unique();
 
     if (existing) {
@@ -38,7 +34,7 @@ export const toggleSavedListing = mutation({
     }
 
     await ctx.db.insert('savedListings', {
-      userId: identity.subject,
+      userId,
       listingId: args.listingId,
       createdAt: Date.now(),
     });
@@ -49,10 +45,7 @@ export const toggleSavedListing = mutation({
 export const saveListing = mutation({
   args: { listingId: v.id('listings') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to save listings');
-    }
+    const userId = await requireAuthUserId(ctx, 'You must be logged in to save listings');
 
     const listing = await ctx.db.get(args.listingId);
     if (!listing) {
@@ -61,9 +54,7 @@ export const saveListing = mutation({
 
     const existing = await ctx.db
       .query('savedListings')
-      .withIndex('by_user_listing', (q) =>
-        q.eq('userId', identity.subject).eq('listingId', args.listingId)
-      )
+      .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', args.listingId))
       .unique();
 
     if (existing) {
@@ -71,7 +62,7 @@ export const saveListing = mutation({
     }
 
     await ctx.db.insert('savedListings', {
-      userId: identity.subject,
+      userId,
       listingId: args.listingId,
       createdAt: Date.now(),
     });
@@ -81,16 +72,11 @@ export const saveListing = mutation({
 export const unsaveListing = mutation({
   args: { listingId: v.id('listings') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to unsave listings');
-    }
+    const userId = await requireAuthUserId(ctx, 'You must be logged in to unsave listings');
 
     const existing = await ctx.db
       .query('savedListings')
-      .withIndex('by_user_listing', (q) =>
-        q.eq('userId', identity.subject).eq('listingId', args.listingId)
-      )
+      .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', args.listingId))
       .unique();
 
     if (existing) {
@@ -102,14 +88,12 @@ export const unsaveListing = mutation({
 export const isListingSaved = query({
   args: { listingId: v.id('listings') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return false;
+    const userId = await getStableUserId(ctx);
+    if (!userId) return false;
 
     const saved = await ctx.db
       .query('savedListings')
-      .withIndex('by_user_listing', (q) =>
-        q.eq('userId', identity.subject).eq('listingId', args.listingId)
-      )
+      .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', args.listingId))
       .unique();
 
     return !!saved;
@@ -119,8 +103,8 @@ export const isListingSaved = query({
 export const getSavedStateForListings = query({
   args: { listingIds: v.array(v.id('listings')) },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || args.listingIds.length === 0) {
+    const userId = await getStableUserId(ctx);
+    if (!userId || args.listingIds.length === 0) {
       return {} as Record<string, boolean>;
     }
 
@@ -128,7 +112,7 @@ export const getSavedStateForListings = query({
     for (const id of args.listingIds) {
       const saved = await ctx.db
         .query('savedListings')
-        .withIndex('by_user_listing', (q) => q.eq('userId', identity.subject).eq('listingId', id))
+        .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', id))
         .unique();
       result[id] = !!saved;
     }
@@ -179,14 +163,11 @@ export type SavedListingItem = {
 export const getMySavedListings = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to view saved listings');
-    }
+    const userId = await requireAuthUserId(ctx, 'You must be logged in to view saved listings');
 
     const result = await ctx.db
       .query('savedListings')
-      .withIndex('by_user_createdAt', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_user_createdAt', (q) => q.eq('userId', userId))
       .order('desc')
       .paginate(args.paginationOpts);
 

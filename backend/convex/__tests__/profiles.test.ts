@@ -18,7 +18,7 @@ describe('Profiles mutations', () => {
     const t = convexTest(schema as any, modules);
     const asUser = t.withIdentity({
       name: 'Alice',
-      subject: 'alice-id',
+      subject: 'alice-stable-id',
       email: 'ALICE@calpoly.edu',
     });
 
@@ -34,7 +34,30 @@ describe('Profiles mutations', () => {
     });
 
     expect(profile?.email).toBe('alice@calpoly.edu');
-    expect(profile?.userId).toBe('alice-id');
+    expect(profile?.userId).toBe('alice-stable-id');
+  });
+
+  it('createProfile does not allow duplicate profile for same user (onboarding once)', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-stable-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    await asUser.mutation(api.profiles.createProfile, {
+      name: 'Alice',
+      major: 'Computer Science',
+      year: 2026,
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.profiles.createProfile, {
+        name: 'Alice Again',
+        major: 'Computer Science',
+        year: 2026,
+      });
+    }).rejects.toThrowError('Profile already exists for this user');
   });
 
   it('createProfile rejects when no email is provided or available on identity', async () => {
