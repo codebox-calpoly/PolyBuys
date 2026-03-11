@@ -1,0 +1,97 @@
+packages/shared/constants/profile.ts
+  8fb84137491e9f56 1-9
+frontend/components/FilterBar.tsx
+  8fb84137491e9f56 196,213
+backend/convex/AppReviewOTP.ts
+  8f4da0f9ff855f38 1-20
+frontend/components/ScreenState.tsx
+  8fb84137491e9f56 6
+README.md
+  8fb84137491e9f56 111-115
+frontend/app/profile/[userId].tsx
+  8fb84137491e9f56 23-33
+frontend/components/ListingCard.tsx
+  8fb84137491e9f56 61,64,159
+frontend/hooks/useEntranceAnimation.ts
+  8fb84137491e9f56 7-9,12-15,41
+frontend/app.json
+  8fb84137491e9f56 65-66
+frontend/hooks/useReducedMotion.ts
+  8fb84137491e9f56 8-10,19-20,25-28,32
+frontend/components/ui/Chip.tsx
+  8fb84137491e9f56 3,35,38
+frontend/app/auth/login.tsx
+  8f4da0f9ff855f38 19,25,27-29,101-104,114-115,140,159
+  8fb84137491e9f56 88-89,93,182-183,187,192-193,197,205-206,210
+packages/shared/index.ts
+  8fb84137491e9f56 6-8
+frontend/app/(tabs)/settings.tsx
+  8fb84137491e9f56 14,52-57,247,251,258,277-285
+frontend/app/(tabs)/index.tsx
+  8fb84137491e9f56 164,169-175
+frontend/app/_layout.tsx
+  8fb84137491e9f56 12-13,16
+frontend/app/(tabs)/search.tsx
+  8fb84137491e9f56 191
+frontend/app/listings/[id].tsx
+  8fb84137491e9f56 78-79,81,178-183,429-431,433
+frontend/theme/tokens.ts
+  8fb84137491e9f56 50,52-53
+backend/convex/savedListings.ts
+  8fb84137491e9f56 129-133,139-169,175,200
+backend/convex/__tests__/saved-listings.test.ts
+  8fb84137491e9f56 45,173-206
+frontend/app/profile/edit.tsx
+  8fb84137491e9f56 115
+packages/shared/utils/index.ts
+  8f4da0f9ff855f38 33-71,75,78,83-91
+frontend/hooks/useRecentSearches.ts
+  8fb84137491e9f56 34-41,48-53
+packages/shared/utils/__tests__/utils.test.ts
+  8f4da0f9ff855f38 4-7,42-82
+frontend/components/ui/AppPressable.tsx
+  8fb84137491e9f56 60
+backend/convex/auth.ts
+  8f4da0f9ff855f38 2,6
+frontend/app/(tabs)/inbox.tsx
+  8fb84137491e9f56 74
+frontend/app/listings/new.tsx
+  8fb84137491e9f56 484,487,495,499
+backend/convex/profiles.ts
+  8fb84137491e9f56 5,8,11
+packages/shared/constants/index.ts
+  8fb84137491e9f56 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "fe5f8b360580c97174fda77564e3e3e1cfdf67b8",
+  "prompts": {
+    "8f4da0f9ff855f38": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "00580f67-f14c-4fa7-93d1-c147833999a8",
+        "model": "premium"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 196,
+      "total_deletions": 64,
+      "accepted_lines": 148,
+      "overriden_lines": 0
+    },
+    "8fb84137491e9f56": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "875cd724-3a00-4494-88df-f1b8bfe14742",
+        "model": "premium"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 233,
+      "total_deletions": 89,
+      "accepted_lines": 221,
+      "overriden_lines": 0
+    }
+  }
+}
