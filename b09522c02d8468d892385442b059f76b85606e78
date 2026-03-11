@@ -1,0 +1,68 @@
+backend/convex/messages.ts
+  5213fd44575c7d08 5-6,30-35,97,107-109,113-114,212,214-217,222-225,228,243,245,247-253,309-310,312,538,540,582
+frontend/app/(tabs)/index.tsx
+  b65ca13a4b61e7bc 66-67,112,147,254,307,326,342-369,446-452
+  5213fd44575c7d08 436-437
+backend/convex/profiles.ts
+  5213fd44575c7d08 6,92-93,97,113,115,141,181,185,290,297,301,321,324
+backend/convex/__tests__/profiles.test.ts
+  5213fd44575c7d08 21,37,40-60
+docs/SCHEMA_MIGRATION.md
+  5213fd44575c7d08 13-17,19,21,23-25,33,35-37,40-41,103-106,110-111
+backend/convex/savedListings.ts
+  5213fd44575c7d08 5,19,79,115
+backend/convex/reports.ts
+  5213fd44575c7d08 4,23
+frontend/app/conversations/[id].tsx
+  5213fd44575c7d08 106,110
+frontend/components/TagPicker.tsx
+  5213fd44575c7d08 13,73,124,128-129,135-136,140,145-148,150-151,154-157,161,165,170-171,176,180,182-183,186-187,190,194,201,205-208,212,217-220,224
+backend/convex/listings.ts
+  5213fd44575c7d08 6,34,39,121,155-156,596,640,688,695,840
+frontend/app/auth/login.tsx
+  5213fd44575c7d08 620-621
+backend/convex/__tests__/messages.test.ts
+  5213fd44575c7d08 400-402
+frontend/components/TagInput.tsx
+  5213fd44575c7d08 4,106,145-147,149-150,154,159-161,163-165,168,171-174,178,185,189,194,199-200,208,210-211,214-215,218,222
+backend/convex/lib/authIdentity.ts
+  5213fd44575c7d08 1-35
+backend/convex/pushNotifications.ts
+  5213fd44575c7d08 5,24,43-44
+frontend/components/ListingCard.tsx
+  b65ca13a4b61e7bc 24-25,46-47,59,107-108,113-114,131,169,197,199,224-226,296,304-305
+  5213fd44575c7d08 167-168,175-176,179-180,188-189,198,220,231-233,239,277-289,293-294,297,303,306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "b09522c02d8468d892385442b059f76b85606e78",
+  "prompts": {
+    "5213fd44575c7d08": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "24080ab7-2075-437e-87ec-9806000e7851",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 372,
+      "total_deletions": 645,
+      "accepted_lines": 312,
+      "overriden_lines": 0
+    },
+    "b65ca13a4b61e7bc": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8d5283b1-5855-4cd2-95f9-9988912108eb",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 92,
+      "total_deletions": 31,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    }
+  }
+}
