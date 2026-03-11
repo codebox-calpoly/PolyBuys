@@ -116,7 +116,7 @@ export default function SearchScreen() {
   const handleToggleSave = useCallback(
     (listingId: Id<'listings'>) => {
       if (!isAuthenticated) {
-        router.push('/auth/login?returnTo=%2Fsearch' as never);
+        router.replace('/auth/login?returnTo=%2Fsearch' as never);
         return;
       }
       void toggleSavedListing({ listingId });

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -128,6 +128,12 @@ export default function InboxScreen() {
     []
   );
 
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/auth/login?returnTo=%2Finbox' as never);
+    }
+  }, [authLoading, isAuthenticated, router]);
+
   const formatTimestamp = useCallback(
     (timestamp: number) => {
       const value = new Date(timestamp);
@@ -159,13 +165,7 @@ export default function InboxScreen() {
   if (!isAuthenticated) {
     return (
       <View style={styles.centeredState}>
-        <Text style={styles.stateTitle}>Sign in to view your inbox</Text>
-        <Pressable
-          style={({ pressed }) => [styles.signInButton, pressed && styles.buttonPressed]}
-          onPress={() => router.push('/auth/login?returnTo=%2Finbox' as never)}
-        >
-          <Text style={styles.signInButtonText}>Sign In</Text>
-        </Pressable>
+        <ScreenState variant="loading" title="Redirecting to login..." />
       </View>
     );
   }
@@ -228,28 +228,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
-  stateTitle: {
-    ...typography.title1,
-    color: colors.textDark,
-    textAlign: 'center',
-  },
   stateText: {
     ...typography.subhead,
     color: colors.text,
-  },
-  signInButton: {
-    marginTop: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  signInButtonText: {
-    color: colors.white,
-    ...typography.subhead,
-    fontWeight: '600',
   },
   content: {
     width: '100%',

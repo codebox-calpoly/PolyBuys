@@ -126,7 +126,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${listing.price}`}
+          accessibilityLabel={`${listing.title}, $${listing.price}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
           accessibilityRole="button"
         >
           <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
@@ -169,7 +169,7 @@ export default function ListingCard({
           <Pressable
             style={({ pressed }) => [styles.saveButton, pressed && { opacity: 0.8 }]}
             onPress={onToggleSave}
-            accessibilityLabel={isSaved ? 'Unsave listing' : 'Save listing'}
+            accessibilityLabel={`${isSaved ? 'Unsave' : 'Save'} listing: ${listing.title?.trim() || listing._id || 'listing'}`}
             accessibilityRole="button"
           >
             <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>

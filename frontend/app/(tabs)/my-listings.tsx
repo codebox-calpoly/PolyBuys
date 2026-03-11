@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -72,6 +72,12 @@ export default function MyListingsScreen() {
     }
     Alert.alert('Error', message);
   }
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   function closeActionSheet() {
     setSelectedListingId(null);
@@ -176,15 +182,8 @@ export default function MyListingsScreen() {
     return (
       <View style={styles.page}>
         <View style={[styles.centeredState, { paddingTop: topSafeSpace }]}>
-          <Text style={styles.emptyTitle}>Sign in required</Text>
-          <Text style={styles.emptyText}>Sign in to view and manage your listings.</Text>
-          <Pressable
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/auth/login?returnTo=%2Fmy-listings' as never)}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryButtonText}>Sign in</Text>
-          </Pressable>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Redirecting to login...</Text>
         </View>
       </View>
     );

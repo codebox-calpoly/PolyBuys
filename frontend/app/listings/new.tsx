@@ -25,11 +25,12 @@ const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
 const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
 
-function showAlert(title: string, message: string) {
+function showAlert(title: string, message: string, onAck?: () => void) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${title}\n\n${message}`);
+    onAck?.();
   } else {
-    Alert.alert(title, message);
+    Alert.alert(title, message, onAck ? [{ text: 'OK', onPress: onAck }] : undefined);
   }
 }
 
@@ -141,8 +142,7 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      showAlert('Success', 'Listing created.');
-      router.replace('/');
+      showAlert('Success', 'Listing created.', () => router.replace('/'));
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
       showAlert(actionError.title, actionError.message);

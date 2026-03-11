@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -81,9 +81,15 @@ export default function SettingsScreen() {
     }
   };
 
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/login?returnTo=%2Fsettings' as never);
+    }
+  }, [isAuthenticated, isLoading, router]);
+
   const handleAuthAction = async () => {
     if (!isAuthenticated) {
-      router.push('/auth/login?returnTo=%2Fsettings' as never);
+      router.replace('/auth/login?returnTo=%2Fsettings' as never);
       return;
     }
 
@@ -97,25 +103,9 @@ export default function SettingsScreen() {
 
   if (!isAuthenticated) {
     return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.centeredState}
-        contentInsetAdjustmentBehavior="automatic"
-      >
-        <Animated.View style={[styles.signInCard, entranceStyle]}>
-          <Text style={styles.signInTitle}>Sign in to view your profile</Text>
-          <Text style={styles.signInBody}>
-            Sign in with your Cal Poly email to see your profile, listings, and stats.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/auth/login?returnTo=%2Fsettings' as never)}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryButtonText}>Sign in</Text>
-          </Pressable>
-        </Animated.View>
-      </ScrollView>
+      <View style={styles.loadingState}>
+        <ScreenState variant="loading" title="Redirecting to login..." />
+      </View>
     );
   }
 

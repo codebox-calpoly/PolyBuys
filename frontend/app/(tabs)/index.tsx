@@ -167,7 +167,7 @@ export default function HomeScreen() {
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
       if (!isAuthenticated) {
-        router.push('/auth/login?returnTo=%2F' as never);
+        router.replace('/auth/login?returnTo=%2F' as never);
         return;
       }
 
@@ -239,11 +239,11 @@ export default function HomeScreen() {
   const handleCreateListing = () => {
     if (!isAuthenticated) {
       if (Platform.OS === 'web') {
-        router.push('/settings');
+        router.replace('/settings');
       } else {
         Alert.alert('Sign In Required', 'Please sign in to create a listing', [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.push('/auth/login') },
+          { text: 'Sign In', onPress: () => router.replace('/auth/login') },
         ]);
       }
       return;
