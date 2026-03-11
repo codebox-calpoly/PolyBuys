@@ -1,6 +1,7 @@
 import { Animated, View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { colors, borderRadius, spacing } from '../theme/tokens';
 
 interface TagInputProps {
   tags: string[];
@@ -102,6 +103,7 @@ export default function TagInput({
         <TextInput
           style={[styles.input, error && styles.inputError]}
           placeholder="Add tags (e.g. desk, cs101, ikea)"
+          placeholderTextColor={colors.muted}
           value={inputText}
           onChangeText={handleInputChange}
           onSubmitEditing={handleAddTag}
@@ -140,61 +142,62 @@ export default function TagInput({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 12,
-    padding: 14,
-    borderRadius: 14,
+    marginVertical: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#dde6e2',
-    backgroundColor: '#f9fbfa',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 10,
-    padding: 12,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     fontSize: 16,
-    marginRight: 8,
-    backgroundColor: '#fff',
+    marginRight: spacing.sm,
+    backgroundColor: colors.white,
+    color: colors.textDark,
   },
   inputError: {
-    borderColor: '#f44336',
+    borderColor: colors.errorText,
   },
   addButton: {
-    backgroundColor: '#1c7f50',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     justifyContent: 'center',
   },
   addButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '600',
   },
   helperContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   helperText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.text,
     flex: 1,
   },
   tagCount: {
     fontSize: 12,
-    color: '#666',
+    color: colors.text,
     fontWeight: '500',
   },
   errorText: {
     fontSize: 12,
-    color: '#f44336',
-    marginBottom: 8,
+    color: colors.errorText,
+    marginBottom: spacing.sm,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -202,21 +205,21 @@ const styles = StyleSheet.create({
   },
   tagChip: {
     flexDirection: 'row',
-    backgroundColor: '#eaf2ff',
+    backgroundColor: colors.location,
     borderWidth: 1,
-    borderColor: '#d6e4ff',
-    paddingHorizontal: 12,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   tagText: {
-    color: '#1976d2',
+    color: colors.primary,
     fontSize: 14,
   },
   removeText: {
-    color: '#1976d2',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: 'bold',
   },

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { colors, borderRadius, spacing } from '../theme/tokens';
 
 interface TagPickerProps {
   visible: boolean;
@@ -69,6 +70,7 @@ export default function TagPicker({
               <TextInput
                 style={styles.input}
                 placeholder="Type a tag and press Enter"
+                placeholderTextColor={colors.muted}
                 value={searchText}
                 onChangeText={setSearchText}
                 onSubmitEditing={handleAddTag}
@@ -119,105 +121,107 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
-    borderColor: '#dbe6e1',
-    padding: 20,
+    borderColor: colors.border,
+    padding: spacing.xl,
     maxHeight: '80%',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
+    color: colors.textDark,
   },
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 10,
-    padding: 12,
-    marginRight: 8,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginRight: spacing.sm,
     fontSize: 16,
-    backgroundColor: '#f9fbfa',
+    backgroundColor: colors.surface,
+    color: colors.textDark,
   },
   addButton: {
-    backgroundColor: '#1c7f50',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     justifyContent: 'center',
   },
   addButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '600',
   },
   selectedContainer: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   selectedTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
-    color: '#244539',
+    marginBottom: spacing.md,
+    color: colors.textDark,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   tagChip: {
     flexDirection: 'row',
-    backgroundColor: '#eaf2ff',
+    backgroundColor: colors.location,
     borderWidth: 1,
-    borderColor: '#d6e4ff',
-    paddingHorizontal: 12,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   tagText: {
-    color: '#1976d2',
+    color: colors.primary,
     fontSize: 14,
   },
   removeText: {
-    color: '#1976d2',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: 'bold',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: spacing.xl,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 14,
-    borderRadius: 8,
-    marginRight: 8,
+    backgroundColor: colors.grayLight,
+    padding: spacing.lg,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.sm,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#666',
+    color: colors.text,
     fontWeight: '600',
   },
   applyButton: {
     flex: 1,
-    backgroundColor: '#154734',
-    padding: 14,
-    borderRadius: 10,
-    marginLeft: 8,
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginLeft: spacing.sm,
     alignItems: 'center',
   },
   applyButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '600',
   },
 });

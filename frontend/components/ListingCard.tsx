@@ -21,6 +21,8 @@ function markAsAnimated(id: string): void {
 
 export type ListingCardBadge = 'sold' | 'unavailable';
 
+export type ListingCardDensity = 'default' | 'home';
+
 interface ListingCardProps {
   listing: {
     _id: string;
@@ -41,6 +43,8 @@ interface ListingCardProps {
   onPress?: (listing: ListingCardProps['listing']) => void;
   /** Optional footer below the price (e.g. status chip + Edit for My Listings) */
   footer?: ReactNode;
+  /** Density variant: "home" for home tab (denser, tighter layout); "default" for other screens */
+  density?: ListingCardDensity;
 }
 
 export default function ListingCard({
@@ -52,6 +56,7 @@ export default function ListingCard({
   badge,
   onPress: onPressProp,
   footer,
+  density = 'default',
 }: ListingCardProps) {
   const badgeToShow = badge ?? (showUnavailableBadge ? 'unavailable' : undefined);
   const router = useRouter();
@@ -99,8 +104,16 @@ export default function ListingCard({
     [opacity, translateY]
   );
 
+  const isHomeDensity = density === 'home';
+
   return (
-    <Animated.View style={[styles.listingCardWrapper, animatedStyle]}>
+    <Animated.View
+      style={[
+        styles.listingCardWrapper,
+        isHomeDensity && styles.listingCardWrapperHome,
+        animatedStyle,
+      ]}
+    >
       <Pressable
         style={(state) => [
           styles.listingCard,
@@ -115,7 +128,7 @@ export default function ListingCard({
         accessibilityLabel={`${listing.title}, $${listing.price}`}
         accessibilityRole="button"
       >
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
           ) : (
@@ -151,10 +164,20 @@ export default function ListingCard({
             </View>
           )}
         </View>
-        <Text style={styles.listingTitle} numberOfLines={1}>
-          {listing.title}
-        </Text>
-        <Text style={styles.listingPrice}>${listing.price}</Text>
+        <View style={[styles.titlePriceRow, isHomeDensity && styles.titlePriceRowHome]}>
+          <Text
+            style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
+            numberOfLines={1}
+          >
+            {listing.title}
+          </Text>
+          <Text
+            style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
+            numberOfLines={1}
+          >
+            ${listing.price}
+          </Text>
+        </View>
       </Pressable>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
@@ -162,12 +185,17 @@ export default function ListingCard({
 }
 
 const CARD_IMAGE_ASPECT = 170 / 145;
+/** Slightly taller than square for a premium, image-forward layout */
+const HOME_IMAGE_ASPECT = 0.9;
 
 const styles = StyleSheet.create({
   listingCardWrapper: {
     marginBottom: spacing.md,
     flex: 1,
     minWidth: 0,
+  },
+  listingCardWrapperHome: {
+    marginBottom: 6,
   },
   listingCard: {
     borderRadius: borderRadius.sm,
@@ -189,25 +217,26 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: CARD_IMAGE_ASPECT,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    marginBottom: spacing.xs,
     position: 'relative',
+  },
+  imageContainerHome: {
+    aspectRatio: HOME_IMAGE_ASPECT,
   },
   saveButton: {
     position: 'absolute',
     top: spacing.xs,
     right: spacing.xs,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveIcon: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
   },
   saveIconActive: {
@@ -245,17 +274,36 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.text,
   },
+  titlePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+  },
+  titlePriceRowHome: {
+    paddingHorizontal: 4,
+    paddingBottom: spacing.sm,
+  },
   listingTitle: {
     ...typography.body,
     color: colors.primary,
-    marginBottom: 2,
-    paddingHorizontal: spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  listingTitleHome: {
+    // Tighter for home density
   },
   listingPrice: {
     ...typography.title2,
     fontSize: 17,
     color: colors.accent,
-    paddingHorizontal: spacing.sm,
+    flexShrink: 0,
+  },
+  listingPriceHome: {
+    // Same as base
   },
   footer: {
     marginTop: spacing.sm,

@@ -13,6 +13,7 @@ import type * as ResendOTP from "../ResendOTP.js";
 import type * as __tests___testUtils from "../__tests__/testUtils.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_authIdentity from "../lib/authIdentity.js";
 import type * as listings from "../listings.js";
 import type * as messages from "../messages.js";
 import type * as moderation from "../moderation.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   "__tests__/testUtils": typeof __tests___testUtils;
   auth: typeof auth;
   http: typeof http;
+  "lib/authIdentity": typeof lib_authIdentity;
   listings: typeof listings;
   messages: typeof messages;
   moderation: typeof moderation;

@@ -10,13 +10,19 @@ This document clarifies the schema changes made to align with Convex Auth's iden
 
 The following fields now use `v.string()` instead of `v.id('users')`:
 
-- **listings** table: `sellerId`
-- **profiles** table: `userId`
-- **reports** table: `reporterId`
-- **conversations** table: `buyerId`, `sellerId`
-- **messages** table: `senderId`, `recipientId`
+- **listings** table: `sellerId` — stable Convex user ID (`getAuthUserId`)
+- **profiles** table: `userId` — stable Convex user ID
+- **reports** table: `reporterId` — stable Convex user ID
+- **conversations** table: `buyerId`, `sellerId` — stable Convex user IDs
+- **messages** table: `senderId`, `recipientId` — stable Convex user IDs
 
-## Migration Status: ✅ NO MIGRATION NEEDED
+**Important:** Do not use `identity.subject` for ownership keys. It can include session suffixes (`userId|sessionId`) that change after sign-out/sign-in. Use `getAuthUserId(ctx)` (or `requireAuthUserId` from `lib/authIdentity`) to obtain the stable user ID.
+
+### Id<'users'> and v.string() Compatibility
+
+`getAuthUserId` / `requireAuthUserId` return `Id<'users'>` (the Convex users table document ID). Convex `Id` types are branded strings — at runtime they are plain strings. Storing `Id<'users'>` in `v.string()` fields and comparing with string values from the DB works correctly; there is no format mismatch.
+
+## Migration Status: ✅ NO MIGRATION NEEDED (with DB wipe)
 
 ### Reason: Backward Compatible Change
 
@@ -24,17 +30,15 @@ Changing from `v.id('users')` to `v.string()` is **backward compatible** because
 
 1. **Internal Storage is Identical**
    - Convex stores both `v.id()` and `v.string()` as strings internally
-   - Existing data remains valid without modification
+   - `Id<'users'>` at runtime equals the document \_id string
 
-2. **This is a NEW Application**
-   - No production data exists yet
-   - All identity subjects from Convex Auth are already strings
-   - Tests confirm the schema works correctly
+2. **This is a NEW Application / Clean Cutover**
+   - DB will be wiped before merging
+   - Legacy aliased IDs (`userId|sessionId`) are no longer supported — conversations/profiles created with old identity format will not be accessible after cutover
 
 3. **Type System Alignment**
-   - Previously: Code used `identity.subject as Id<'users'>` (unsafe cast)
-   - Now: Code uses `identity.subject` directly (type-safe)
-   - No runtime behavior changes
+   - Code uses `requireAuthUserId(ctx)` which returns `Id<'users'>`
+   - Stored in and compared with `v.string()` fields — compatible at runtime
 
 ### Validation
 
@@ -96,11 +100,15 @@ listings: defineTable({
 
 Once stable, rename `sellerIdNew` back to `sellerId`.
 
+## Breaking Change: Alias Compatibility Removed
+
+The previous implementation supported aliased participant IDs (e.g. `userId|sessionId`) for conversations and profiles. The cutover to stable IDs **removes** this compatibility. Any existing data with aliased IDs will not match after the change. **A DB wipe is required** before deploying.
+
 ## Current Status
 
 - ✅ Schema uses `v.string()` for all auth identity fields
-- ✅ All type casts removed from codebase
-- ✅ All 109 tests passing
+- ✅ Stable user IDs from `getAuthUserId` used throughout
+- ✅ Id<'users'> and v.string() compatible at runtime
 - ✅ Typecheck passes
 - ✅ Lint passes
 - ✅ No production data to migrate

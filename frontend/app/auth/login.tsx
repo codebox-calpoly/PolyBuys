@@ -617,6 +617,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: 5,
+    lineHeight: 32,
+    paddingVertical: 14,
   },
   errorContainer: {
     backgroundColor: colors.errorBg,

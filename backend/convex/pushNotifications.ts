@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { PushNotifications } from '@convex-dev/expo-push-notifications';
 import { components } from './_generated/api';
 import { internalMutation, mutation } from './_generated/server';
+import { requireAuthUserId } from './lib/authIdentity';
 
 const pushNotifications = new PushNotifications<string>(components.pushNotifications);
 
@@ -20,10 +21,7 @@ function toMessagePreview(body: string) {
 export const recordPushToken = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('Unauthorized');
-    }
+    const userId = await requireAuthUserId(ctx);
 
     const token = normalizePushToken(args.token);
     if (token.length === 0) {
@@ -31,7 +29,7 @@ export const recordPushToken = mutation({
     }
 
     await pushNotifications.recordToken(ctx, {
-      userId: identity.subject,
+      userId,
       pushToken: token,
     });
 
@@ -42,12 +40,8 @@ export const recordPushToken = mutation({
 export const removePushToken = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('Unauthorized');
-    }
-
-    await pushNotifications.removeToken(ctx, { userId: identity.subject });
+    const userId = await requireAuthUserId(ctx);
+    await pushNotifications.removeToken(ctx, { userId });
     return { ok: true };
   },
 });

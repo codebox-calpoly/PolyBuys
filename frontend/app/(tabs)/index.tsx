@@ -63,6 +63,8 @@ export default function HomeScreen() {
   const processedCursorsRef = useRef(new Set<string>());
   // When we last received the first page (for focus-based staleness check)
   const lastFirstPageAtRef = useRef<number>(0);
+  // True once we've received any first page; gates fullscreen loader to initial load only
+  const hasLoadedOnceRef = useRef(false);
 
   // Initialize selected tags from URL params
   useEffect(() => {
@@ -107,6 +109,7 @@ export default function HomeScreen() {
           setAllListings(listingsResult.page);
           setRefreshing(false);
           lastFirstPageAtRef.current = Date.now();
+          hasLoadedOnceRef.current = true;
         } else {
           setAllListings((prev) => [...prev, ...listingsResult.page]);
         }
@@ -141,6 +144,7 @@ export default function HomeScreen() {
     setAllListings([]);
     setIsDone(false);
     processedCursorsRef.current.clear();
+    hasLoadedOnceRef.current = false;
   }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags]);
 
   // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
@@ -247,7 +251,7 @@ export default function HomeScreen() {
     router.push('/listings/new');
   };
 
-  const contentPadding = width >= 900 ? 24 : 14;
+  const contentPadding = width >= 900 ? 16 : 10;
 
   return (
     <View style={styles.page}>
@@ -300,27 +304,13 @@ export default function HomeScreen() {
           onClose={() => setShowPricePicker(false)}
         />
 
-        {listingsResult === undefined && cursor === null ? (
+        {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
           <View style={styles.centerContainer}>
             <ScreenState
               variant={loadError ? 'error' : 'loading'}
               title={loadError ? "Couldn't load listings" : 'Loading listings...'}
               message={loadError ? 'Check your connection and try again.' : undefined}
               onRetry={loadError ? refreshListings : undefined}
-            />
-          </View>
-        ) : listings.length === 0 ? (
-          <View style={styles.centerContainer}>
-            <ScreenState
-              variant="empty"
-              title={hasActiveFilters ? 'No listings match your filters' : 'No listings yet'}
-              message={
-                hasActiveFilters
-                  ? 'Try a wider price range or fewer tags.'
-                  : 'Be the first to post something for campus.'
-              }
-              actionLabel={hasActiveFilters ? 'Clear Filters' : undefined}
-              onAction={hasActiveFilters ? handleClearAll : undefined}
             />
           </View>
         ) : (
@@ -333,6 +323,7 @@ export default function HomeScreen() {
                 index={index}
                 isSaved={savedState?.[item._id] ?? false}
                 onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
+                density="home"
               />
             )}
             numColumns={2}
@@ -347,6 +338,34 @@ export default function HomeScreen() {
                 colors={[colors.primary]}
                 tintColor={colors.primary}
               />
+            }
+            ListEmptyComponent={
+              listings.length === 0 ? (
+                <View style={styles.stateContainer}>
+                  <ScreenState
+                    variant={loadError ? 'error' : 'empty'}
+                    title={
+                      loadError
+                        ? "Couldn't load listings"
+                        : hasActiveFilters
+                          ? 'No listings match your filters'
+                          : 'No listings yet'
+                    }
+                    message={
+                      loadError
+                        ? 'Check your connection and try again.'
+                        : hasActiveFilters
+                          ? 'Try a wider price range or fewer tags.'
+                          : 'Be the first to post something for campus.'
+                    }
+                    actionLabel={
+                      loadError ? undefined : hasActiveFilters ? 'Clear Filters' : undefined
+                    }
+                    onRetry={loadError ? refreshListings : undefined}
+                    onAction={hasActiveFilters ? handleClearAll : undefined}
+                  />
+                </View>
+              ) : null
             }
             ListFooterComponent={
               isLoadingMore ? (
@@ -414,14 +433,21 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     flexDirection: 'row',
-    gap: 14,
-    marginBottom: 14,
+    gap: 6,
+    marginBottom: 6,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 48,
+    paddingHorizontal: 20,
+  },
+  stateContainer: {
+    flex: 1,
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 20,
   },
   listContainer: {
