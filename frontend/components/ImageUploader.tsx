@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useMutation } from 'convex/react';
@@ -42,6 +42,9 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const generateUploadUrl = useMutation(api.listings.generateListingImageUploadUrl);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const objectUrlByLocalIdRef = useRef<Record<string, string>>({});
   const { mappedUrls } = useResolvedImageUrls(images);
 
@@ -112,9 +115,10 @@ export default function ImageUploader({
   }
 
   async function pickFromLibrary() {
+    setPermissionError(null);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library.');
+      setPermissionError('Please allow access to your photo library in device settings.');
       return null;
     }
 
@@ -136,9 +140,10 @@ export default function ImageUploader({
   }
 
   async function pickFromCamera() {
+    setPermissionError(null);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow camera access.');
+      setPermissionError('Please allow camera access in device settings.');
       return null;
     }
 
@@ -284,8 +289,10 @@ export default function ImageUploader({
   }
 
   async function addImage() {
+    setAddError(null);
+    setPermissionError(null);
     if (images.length + pendingUploads.length >= maxImages) {
-      Alert.alert('Maximum reached', `You can only upload up to ${maxImages} images.`);
+      setAddError(`You can only upload up to ${maxImages} images.`);
       return;
     }
 
@@ -312,25 +319,17 @@ export default function ImageUploader({
       return;
     }
 
-    Alert.alert('Add image', 'Choose image source', [
-      {
-        text: 'Camera',
-        onPress: () => {
-          void (async () => {
-            await handlePickAndUpload(pickFromCamera);
-          })();
-        },
-      },
-      {
-        text: 'Photo Library',
-        onPress: () => {
-          void (async () => {
-            await handlePickAndUpload(pickFromLibrary);
-          })();
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setShowSourcePicker(true);
+  }
+
+  async function chooseCamera() {
+    setShowSourcePicker(false);
+    await handlePickAndUpload(pickFromCamera);
+  }
+
+  async function chooseLibrary() {
+    setShowSourcePicker(false);
+    await handlePickAndUpload(pickFromLibrary);
   }
 
   function retryUpload(localId: string) {
@@ -396,6 +395,39 @@ export default function ImageUploader({
           </View>
         ))}
       </View>
+
+      {permissionError ? (
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>{permissionError}</Text>
+        </View>
+      ) : null}
+      {addError ? (
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>{addError}</Text>
+        </View>
+      ) : null}
+      {showSourcePicker ? (
+        <View style={styles.sourceRow}>
+          <Pressable
+            style={({ pressed }) => [styles.sourceButton, pressed && styles.sourceButtonPressed]}
+            onPress={() => void chooseCamera()}
+          >
+            <Text style={styles.sourceButtonText}>Camera</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.sourceButton, pressed && styles.sourceButtonPressed]}
+            onPress={() => void chooseLibrary()}
+          >
+            <Text style={styles.sourceButtonText}>Photo Library</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.sourceButton, pressed && styles.sourceButtonPressed]}
+            onPress={() => setShowSourcePicker(false)}
+          >
+            <Text style={styles.sourceButtonText}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Pressable
         style={[
@@ -482,6 +514,40 @@ const styles = StyleSheet.create({
   smallButtonText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  inlineError: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#fef2f2',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  inlineErrorText: {
+    fontSize: 13,
+    color: '#b91c1c',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  sourceButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#154734',
+    alignItems: 'center',
+  },
+  sourceButtonPressed: {
+    opacity: 0.9,
+  },
+  sourceButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
   addButton: {

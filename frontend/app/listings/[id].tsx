@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Image,
   Linking,
@@ -57,6 +56,8 @@ export default function ListingDetailScreen() {
   const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
   const [reportOpen, setReportOpen] = useState(false);
   const [isStartingConversation, setIsStartingConversation] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
 
   const navigateToFeedWithTag = (tag: string) => {
@@ -82,6 +83,7 @@ export default function ListingDetailScreen() {
     }
 
     try {
+      setConversationError(null);
       setIsStartingConversation(true);
       const convo = await getOrCreateConversation({ listingId: listing._id });
       router.push({
@@ -89,8 +91,8 @@ export default function ListingDetailScreen() {
         params: { id: String(convo.conversationId) },
       });
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Couldn’t start conversation');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Couldn’t start conversation');
+      setConversationError(message);
     } finally {
       setIsStartingConversation(false);
     }
@@ -100,7 +102,7 @@ export default function ListingDetailScreen() {
     if (!listing) {
       return;
     }
-
+    setShareError(null);
     const shareUrl = `${appOrigin}/l/${listing._id}`;
     try {
       await Share.share({
@@ -109,7 +111,7 @@ export default function ListingDetailScreen() {
         title: listing.title,
       });
     } catch {
-      Alert.alert('Unable to share listing right now.');
+      setShareError('Unable to share right now. Try again.');
     }
   };
 
@@ -204,6 +206,11 @@ export default function ListingDetailScreen() {
             <Text style={styles.shareButtonText}>Share</Text>
           </Pressable>
         </View>
+        {shareError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{shareError}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
@@ -244,27 +251,34 @@ export default function ListingDetailScreen() {
         )}
 
         {!isOwner && (
-          <View style={styles.buttonContainer}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.messageButton,
-                isStartingConversation && styles.buttonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => {
-                void onMessageSellerPress();
-              }}
-              disabled={isStartingConversation}
-            >
-              <Text style={styles.messageButtonText}>Message Seller</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.reportButton, pressed && styles.buttonPressed]}
-              onPress={() => setReportOpen(true)}
-            >
-              <Text style={styles.reportButtonText}>Report listing</Text>
-            </Pressable>
-          </View>
+          <>
+            {conversationError ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{conversationError}</Text>
+              </View>
+            ) : null}
+            <View style={styles.buttonContainer}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.messageButton,
+                  isStartingConversation && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => {
+                  void onMessageSellerPress();
+                }}
+                disabled={isStartingConversation}
+              >
+                <Text style={styles.messageButtonText}>Message Seller</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.reportButton, pressed && styles.buttonPressed]}
+                onPress={() => setReportOpen(true)}
+              >
+                <Text style={styles.reportButtonText}>Report listing</Text>
+              </Pressable>
+            </View>
+          </>
         )}
 
         <ReportModal
@@ -451,6 +465,20 @@ const styles = StyleSheet.create({
     color: '#2f5fbd',
     fontSize: 14,
     fontWeight: '500',
+  },
+  errorBanner: {
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
   },
   buttonContainer: {
     marginTop: 8,

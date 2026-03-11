@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { getConvexErrorDisplay } from '../lib/convexError';
@@ -26,11 +26,15 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const reset = () => {
     setReason(null);
     setNotes('');
     setSubmitting(false);
+    setSubmitError(null);
+    setSubmitSuccess(false);
   };
 
   const handleClose = () => {
@@ -41,6 +45,8 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
   const handleSubmit = async () => {
     if (!reason || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
     try {
       await createReport({
         targetId,
@@ -48,11 +54,11 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
         reason,
         notes: notes.trim() ? notes.trim() : undefined,
       });
-      Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
-      handleClose();
+      setSubmitSuccess(true);
+      setTimeout(handleClose, 1200);
     } catch (err) {
-      const { title, message } = getConvexErrorDisplay(err, 'Could not submit report');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(err, 'Could not submit report');
+      setSubmitError(message);
       setSubmitting(false);
     }
   };
@@ -89,6 +95,17 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
           <Text style={styles.counter}>
             {notes.length}/{MAX_NOTES}
           </Text>
+
+          {submitError ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{submitError}</Text>
+            </View>
+          ) : null}
+          {submitSuccess ? (
+            <View style={styles.successBanner}>
+              <Text style={styles.successText}>Thanks for helping keep PolyBuys safe.</Text>
+            </View>
+          ) : null}
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelButton} onPress={handleClose}>
@@ -163,6 +180,34 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 12,
     marginTop: 4,
+  },
+  errorBanner: {
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
+  },
+  successBanner: {
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#166534',
   },
   actions: {
     marginTop: 14,

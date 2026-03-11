@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -37,11 +36,12 @@ export default function NewListingScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing');
       router.replace('/auth/login');
     }
   }, [isAuthenticated, isLoading, router]);
@@ -50,33 +50,35 @@ export default function NewListingScreen() {
     if (submittingRef.current) {
       return;
     }
+    setSubmitError(null);
+    setSubmitSuccess(false);
 
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
 
     if (!trimmedTitle || trimmedTitle.length < 5) {
-      Alert.alert('Missing fields', 'Title must be at least 5 characters.');
+      setSubmitError('Title must be at least 5 characters.');
       return;
     }
 
     if (!trimmedDescription) {
-      Alert.alert('Missing fields', 'Description is required.');
+      setSubmitError('Description is required.');
       return;
     }
 
     const parsedPrice = Number(price);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Invalid price', 'Please enter a valid non-negative price.');
+      setSubmitError('Please enter a valid non-negative price.');
       return;
     }
 
     if (hasPendingUploads) {
-      Alert.alert('Uploads in progress', 'Please wait for image uploads to finish.');
+      setSubmitError('Please wait for image uploads to finish.');
       return;
     }
 
     if (images.length < 1 || images.length > 8) {
-      Alert.alert('Invalid images', 'Please upload between 1 and 8 images.');
+      setSubmitError('Please upload between 1 and 8 images.');
       return;
     }
 
@@ -92,11 +94,11 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      Alert.alert('Success', 'Listing created.');
-      router.replace('/');
+      setSubmitSuccess(true);
+      setTimeout(() => router.replace('/'), 1200);
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Create failed');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Create failed');
+      setSubmitError(message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -228,6 +230,17 @@ export default function NewListingScreen() {
           <TagInput tags={tags} onChange={setTags} />
         </View>
 
+        {submitError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{submitError}</Text>
+          </View>
+        ) : null}
+        {submitSuccess ? (
+          <View style={styles.successBanner}>
+            <Text style={styles.successText}>Listing created.</Text>
+          </View>
+        ) : null}
+
         <View style={styles.buttonContainer}>
           <Pressable
             style={({ pressed }) => [
@@ -317,6 +330,32 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 18,
+  },
+  errorBanner: {
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
+  },
+  successBanner: {
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#166534',
   },
   label: {
     fontSize: 14,

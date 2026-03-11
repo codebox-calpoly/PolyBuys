@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -43,6 +42,8 @@ export default function EditListingScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const submittingRef = useRef(false);
 
@@ -65,25 +66,26 @@ export default function EditListingScreen() {
     if (submittingRef.current || !listingId) {
       return;
     }
+    setSubmitError(null);
 
     if (!title.trim() || !description.trim()) {
-      Alert.alert('Missing fields', 'Title and description are required.');
+      setSubmitError('Title and description are required.');
       return;
     }
 
     const parsedPrice = Number(price);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Invalid price', 'Please enter a valid non-negative price.');
+      setSubmitError('Please enter a valid non-negative price.');
       return;
     }
 
     if (hasPendingUploads) {
-      Alert.alert('Uploads in progress', 'Please wait for image uploads to finish.');
+      setSubmitError('Please wait for image uploads to finish.');
       return;
     }
 
     if (images.length < 1 || images.length > 8) {
-      Alert.alert('Invalid images', 'Please upload between 1 and 8 images.');
+      setSubmitError('Please upload between 1 and 8 images.');
       return;
     }
 
@@ -101,17 +103,16 @@ export default function EditListingScreen() {
         tags,
       });
       if (!result.ok) {
-        Alert.alert(
-          'Listing needs edits',
+        setSubmitError(
           'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.'
         );
         return;
       }
-      Alert.alert('Success', 'Listing updated.');
-      router.back();
+      setSubmitSuccess(true);
+      setTimeout(() => router.back(), 1200);
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Update failed');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Update failed');
+      setSubmitError(message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -240,6 +241,17 @@ export default function EditListingScreen() {
           <TagInput tags={tags} onChange={setTags} />
         </View>
 
+        {submitError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{submitError}</Text>
+          </View>
+        ) : null}
+        {submitSuccess ? (
+          <View style={styles.successBanner}>
+            <Text style={styles.successText}>Listing updated.</Text>
+          </View>
+        ) : null}
+
         <View style={styles.buttonContainer}>
           <Pressable
             style={({ pressed }) => [
@@ -328,6 +340,32 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 18,
+  },
+  errorBanner: {
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
+  },
+  successBanner: {
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#166534',
   },
   label: {
     fontSize: 14,

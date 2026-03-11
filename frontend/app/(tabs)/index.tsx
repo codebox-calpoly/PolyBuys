@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Platform,
@@ -197,10 +196,7 @@ export default function HomeScreen() {
 
   const handleCreateListing = () => {
     if (!isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/auth/login') },
-      ]);
+      router.push('/auth/login?returnTo=/listings/new');
       return;
     }
     router.push('/listings/new');

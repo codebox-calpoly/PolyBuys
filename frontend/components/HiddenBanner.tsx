@@ -1,11 +1,15 @@
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || 'support@polybuys.com';
 
 export default function HiddenBanner() {
+  const [mailError, setMailError] = useState<string | null>(null);
+
   const onAppealPress = () => {
+    setMailError(null);
     Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {
-      Alert.alert('Unable to open email app', `Please contact support at ${SUPPORT_EMAIL}.`);
+      setMailError(`Unable to open email app. Please contact support at ${SUPPORT_EMAIL}.`);
     });
   };
 
@@ -15,6 +19,7 @@ export default function HiddenBanner() {
       <TouchableOpacity onPress={onAppealPress}>
         <Text style={styles.link}>Contact support to appeal</Text>
       </TouchableOpacity>
+      {mailError ? <Text style={styles.errorText}>{mailError}</Text> : null}
     </View>
   );
 }
@@ -39,5 +44,10 @@ const styles = StyleSheet.create({
     color: '#8a5a00',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#b91c1c',
+    marginTop: 8,
   },
 });

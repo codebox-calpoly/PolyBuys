@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -54,6 +53,7 @@ export default function ConversationDetailScreen() {
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
   const isMarkingReadRef = useRef(false);
@@ -196,13 +196,14 @@ export default function ConversationDetailScreen() {
     }
 
     try {
+      setSendError(null);
       setIsSending(true);
       await sendMessage({ conversationId, body: trimmed });
       setMessageBody('');
       scrollToBottom(true);
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Message failed');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Message failed');
+      setSendError(message);
     } finally {
       setIsSending(false);
     }
@@ -337,6 +338,12 @@ export default function ConversationDetailScreen() {
           </View>
         }
       />
+
+      {sendError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{sendError}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.composerWrap}>
         <TextInput
@@ -509,6 +516,17 @@ const styles = StyleSheet.create({
   emptyStateText: {
     color: '#5f7268',
     fontSize: 15,
+  },
+  errorBanner: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#fef2f2',
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
   },
   composerWrap: {
     borderTopWidth: 1,

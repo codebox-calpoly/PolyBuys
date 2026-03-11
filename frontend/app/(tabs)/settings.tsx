@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -39,6 +38,9 @@ export default function SettingsScreen() {
   const [year, setYear] = useState('2026');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,11 +90,12 @@ export default function SettingsScreen() {
     }
 
     try {
+      setSignOutError(null);
       setIsSigningOut(true);
       await signOut();
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Sign out failed');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Sign out failed');
+      setSignOutError(message);
     } finally {
       setIsSigningOut(false);
     }
@@ -110,17 +113,17 @@ export default function SettingsScreen() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
-      Alert.alert('Missing field', 'Name is required.');
+      setSaveError('Name is required.');
       return;
     }
     if (!trimmedMajor) {
-      Alert.alert('Missing field', 'Major is required.');
+      setSaveError('Major is required.');
       return;
     }
 
     const emailError = getEmailValidationError(normalizedEmail);
     if (emailError) {
-      Alert.alert('Invalid email', emailError);
+      setSaveError(emailError);
       return;
     }
 
@@ -130,14 +133,13 @@ export default function SettingsScreen() {
       parsedYear < BOUNDS.MIN_YEAR ||
       parsedYear > BOUNDS.MAX_YEAR
     ) {
-      Alert.alert(
-        'Invalid year',
-        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
-      );
+      setSaveError(`Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`);
       return;
     }
 
     try {
+      setSaveError(null);
+      setSaveSuccess(false);
       setIsSubmitting(true);
 
       if (!profile) {
@@ -158,10 +160,10 @@ export default function SettingsScreen() {
         year: parsedYear,
       });
 
-      Alert.alert('Profile saved', 'Your profile has been updated.');
+      setSaveSuccess(true);
     } catch (error) {
-      const { title, message } = getConvexErrorDisplay(error, 'Save failed');
-      Alert.alert(title, message);
+      const { message } = getConvexErrorDisplay(error, 'Save failed');
+      setSaveError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -256,6 +258,17 @@ export default function SettingsScreen() {
             keyboardType="number-pad"
           />
 
+          {saveError ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{saveError}</Text>
+            </View>
+          ) : null}
+          {saveSuccess ? (
+            <View style={styles.successBanner}>
+              <Text style={styles.successText}>Profile saved.</Text>
+            </View>
+          ) : null}
+
           <Pressable
             style={({ pressed }) => [
               styles.button,
@@ -281,6 +294,11 @@ export default function SettingsScreen() {
             ? 'You are signed in and can post or edit listings.'
             : 'Sign in with your Cal Poly email to post and manage listings.'}
         </Text>
+        {signOutError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{signOutError}</Text>
+          </View>
+        ) : null}
         <Pressable
           style={({ pressed }) => [
             styles.button,
@@ -390,6 +408,34 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 90,
     textAlignVertical: 'top',
+  },
+  errorBanner: {
+    marginTop: 12,
+    marginBottom: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#b91c1c',
+  },
+  successBanner: {
+    marginTop: 12,
+    marginBottom: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#166534',
   },
   button: {
     marginTop: 6,
