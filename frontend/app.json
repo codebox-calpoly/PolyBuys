@@ -14,7 +14,6 @@
     },
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.polybuys.polybuys",
       "associatedDomains": ["applinks:polybuys.com"],
       "infoPlist": {
