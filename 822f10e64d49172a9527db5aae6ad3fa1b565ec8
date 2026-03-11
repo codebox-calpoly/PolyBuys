@@ -1,0 +1,105 @@
+frontend/app/(tabs)/my-listings.tsx
+  b1195ca20bbc3a19 228,235
+frontend/app/listings/[id].tsx
+  b1195ca20bbc3a19 32,93-94,138,223,314,320
+  485001e88552f544 102-105
+backend/convex/users.ts
+  b1195ca20bbc3a19 2-3,5,8-9,116-330
+frontend/components/TagPicker.tsx
+  c0ce6c5e1246008b 65-68,127
+frontend/components/ReportModal.tsx
+  b1195ca20bbc3a19 3,64-66,116
+backend/convex/blocks.ts
+  b1195ca20bbc3a19 1-113
+backend/convex/__tests__/messages.test.ts
+  b1195ca20bbc3a19 22,186-196,198-239,269,286,394-395,397,407-417,420-421,423,433-443,477-503,607-641,879,881,916-973
+frontend/components/PriceRangePicker.tsx
+  c0ce6c5e1246008b 101-103,168
+frontend/app/conversations/new.tsx
+  b1195ca20bbc3a19 1-200
+backend/convex/messages.ts
+  b1195ca20bbc3a19 6,117-125,181,184-236,238-275,344,616-648,672-677
+  485001e88552f544 182-183,237
+frontend/components/ListingCard.tsx
+  b1195ca20bbc3a19 5,130,165
+frontend/app/(tabs)/settings.tsx
+  485001e88552f544 52-53,104-109,127,145-156,166,170-177,291-293
+  b1195ca20bbc3a19 15-16,63-72,124-126,128-144,157-165,167-169,178-179,244-251,286-290,294-302,327-342,400-410,512-517,528-552,655-665
+frontend/lib/formatPrice.ts
+  b1195ca20bbc3a19 1-7
+frontend/app/conversations/[id].tsx
+  b1195ca20bbc3a19 42-43,80-85,182-211,283-294,377-410,600-617
+frontend/hooks/usePushNotifications.ts
+  b1195ca20bbc3a19 1,26,40-73,83,92-93,104,110,112,118,122,145,157-158
+backend/convex/pushNotifications.ts
+  b1195ca20bbc3a19 5,50-60,75-90,95-96,103
+frontend/app/listings/[id]/edit.tsx
+  b1195ca20bbc3a19 114-115,117,231-250,417-439
+backend/convex/schema.ts
+  b1195ca20bbc3a19 18,23-30
+frontend/app/profile/[userId].tsx
+  b1195ca20bbc3a19 1-10,15,18,34-35,122-130,133-139,224-236
+frontend/app/(tabs)/index.tsx
+  b1195ca20bbc3a19 331-334
+frontend/app/(tabs)/search.tsx
+  b1195ca20bbc3a19 4,57-62,172-177
+frontend/app/auth/login.tsx
+  b1195ca20bbc3a19 22,25,42,54,207-208,231,245,287-337,742-751
+backend/convex/__tests__/testUtils.ts
+  b1195ca20bbc3a19 13,27,135-136,138,159-195
+frontend/components/CategoryPicker.tsx
+  c0ce6c5e1246008b 31-33,69
+frontend/components/MyListingActionsSheet.tsx
+  b1195ca20bbc3a19 81-83,87-88
+  c0ce6c5e1246008b 84-86
+frontend/app/listings/new.tsx
+  b1195ca20bbc3a19 117-118,120,243-259,427-449
+frontend/components/FilterBar.tsx
+  485001e88552f544 7,46,49,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "822f10e64d49172a9527db5aae6ad3fa1b565ec8",
+  "prompts": {
+    "485001e88552f544": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "79ef6fb9-f854-4f6a-bf2b-f91305548e3e",
+        "model": "gpt-5.3-codex-high"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 63,
+      "total_deletions": 63,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    },
+    "b1195ca20bbc3a19": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0b20ec9b-5715-4b7f-ba1a-01e5fcd41aea",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 10869,
+      "total_deletions": 499,
+      "accepted_lines": 8633,
+      "overriden_lines": 2
+    },
+    "c0ce6c5e1246008b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a4c699c0-9281-4470-8abf-fd23eb06480f",
+        "model": "gpt-5.3-codex-high"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 13,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
