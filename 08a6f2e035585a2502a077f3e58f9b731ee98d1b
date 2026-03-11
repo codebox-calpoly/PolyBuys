@@ -1,0 +1,31 @@
+frontend/app/auth/login.tsx
+  c1badb6b5e3a2871 43-45,210-215,302-303,312-320,322,326-335,361
+frontend/app/profile/[userId].tsx
+  c1badb6b5e3a2871 34,61-62,125,137
+backend/convex/blocks.ts
+  c1badb6b5e3a2871 28-44,52,54,86,91,110,114,128,132
+frontend/app/conversations/[id].tsx
+  c1badb6b5e3a2871 89-92,226,228,259-260,399
+frontend/app/(tabs)/settings.tsx
+  c1badb6b5e3a2871 165-166,169-171,174-185,187-199,309-310,317,599-603,606
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "08a6f2e035585a2502a077f3e58f9b731ee98d1b",
+  "prompts": {
+    "c1badb6b5e3a2871": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "22ba28d8-b0cc-4041-979c-ee26ca876628",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 127,
+      "total_deletions": 70,
+      "accepted_lines": 114,
+      "overriden_lines": 0
+    }
+  }
+}
