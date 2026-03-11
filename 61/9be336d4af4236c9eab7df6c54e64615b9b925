@@ -1,0 +1,55 @@
+docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md
+  9759df64e0695ed7 1-49,51,53-95
+backend/convex/auth.config.ts
+  4a5ba44e5cf736ec 2
+backend/.env.example
+  4a5ba44e5cf736ec 1,5-8
+docs/DEPENDENCIES.md
+  4a5ba44e5cf736ec 70-71
+QUICK_START.md
+  4a5ba44e5cf736ec 74-75
+docs/contributing.md
+  9759df64e0695ed7 60,62,64,66-67,75,81-82,246,251-261
+  4a5ba44e5cf736ec 69-70,78
+README.md
+  4a5ba44e5cf736ec 8,29-30
+frontend/app/(tabs)/_layout.tsx
+  4a5ba44e5cf736ec 4,75,125-134,138-140
+frontend/app/(tabs)/my-listings.tsx
+  4a5ba44e5cf736ec 1-2,6,41-42,44-72,121-122,126,128-130,132-135,137,139-140,142,145-147,149-158,160-164,167-169,171-176,178-179,355-370
+frontend/app/(tabs)/settings.tsx
+  4a5ba44e5cf736ec 276,279,289,292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.9",
+  "base_commit_sha": "619be336d4af4236c9eab7df6c54e64615b9b925",
+  "prompts": {
+    "4a5ba44e5cf736ec": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0d69ff29-b81c-43d0-a652-0ef042060ec4",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 353,
+      "total_deletions": 437,
+      "accepted_lines": 128,
+      "overriden_lines": 0
+    },
+    "9759df64e0695ed7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fc7406c7-b548-4537-8c4a-0dd4457263d4",
+        "model": "gpt-5.3-codex-xhigh"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 116,
+      "total_deletions": 11,
+      "accepted_lines": 113,
+      "overriden_lines": 0
+    }
+  }
+}
