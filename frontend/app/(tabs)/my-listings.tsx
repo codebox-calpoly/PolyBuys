@@ -26,6 +26,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import { showAlert } from '../../utils/showAlert';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'sold';
 
@@ -67,14 +68,6 @@ export default function MyListingsScreen() {
   const [processingListingId, setProcessingListingId] = useState<string | null>(null);
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
 
-  function showError(message: string) {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.alert(message);
-      return;
-    }
-    Alert.alert('Error', message);
-  }
-
   useEffect(() => {
     if (!isWeb && !isLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
@@ -94,7 +87,7 @@ export default function MyListingsScreen() {
       setProcessingListingId(id);
       await updateListingStatus({ id: id as Id<'listings'>, status });
     } catch {
-      showError(`Failed to mark listing as ${nextLabel}. Please try again.`);
+      showAlert('Error', `Failed to mark listing as ${nextLabel}. Please try again.`);
     } finally {
       setProcessingListingId(null);
     }
@@ -117,13 +110,15 @@ export default function MyListingsScreen() {
       setProcessingListingId(id);
       await updateListingStatus({ id: id as Id<'listings'>, status: 'sold' });
     } catch {
-      showError('Failed to mark listing as sold. Please try again.');
+      showAlert('Error', 'Failed to mark listing as sold. Please try again.');
     } finally {
       setProcessingListingId(null);
     }
   }
 
   async function handleDelete(id: string, title: string) {
+    if (processingListingId !== null) return;
+
     const confirmed =
       Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`)
@@ -144,7 +139,7 @@ export default function MyListingsScreen() {
       setProcessingListingId(id);
       await deleteListing({ id: id as Id<'listings'> });
     } catch {
-      showError('Failed to delete listing. Please try again.');
+      showAlert('Error', 'Failed to delete listing. Please try again.');
     } finally {
       setProcessingListingId(null);
     }
