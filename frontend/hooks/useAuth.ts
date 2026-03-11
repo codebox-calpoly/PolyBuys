@@ -17,7 +17,8 @@ export interface UseAuthReturn {
  * Note: For OTP sign-in, use useAuthActions().signIn directly in the login screen
  */
 export function useAuth(): UseAuthReturn {
-  const { signOut: authSignOut } = useAuthActions();
+  const authActions = useAuthActions();
+  const authSignOut = authActions?.signOut;
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const removePushToken = useMutation(api.pushNotifications.removePushToken);
 
@@ -26,6 +27,10 @@ export function useAuth(): UseAuthReturn {
   const isLoading = authLoading || (isAuthenticated && user === undefined);
 
   const signOut = async (): Promise<void> => {
+    if (!authSignOut) {
+      console.warn('[useAuth] signOut called before auth provider ready');
+      return;
+    }
     try {
       // Best-effort cleanup while still authenticated to avoid leaving stale tokens.
       try {

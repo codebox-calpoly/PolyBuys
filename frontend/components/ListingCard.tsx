@@ -114,71 +114,70 @@ export default function ListingCard({
         animatedStyle,
       ]}
     >
-      <Pressable
-        style={(state) => [
-          styles.listingCard,
-          isHovered && styles.listingCardHover,
-          state.pressed && styles.listingCardPressed,
-        ]}
-        onPress={() =>
-          onPressProp ? onPressProp(listing) : router.push(`/listings/${listing._id}`)
-        }
-        onHoverIn={() => setIsHovered(true)}
-        onHoverOut={() => setIsHovered(false)}
-        accessibilityLabel={`${listing.title}, $${listing.price}`}
-        accessibilityRole="button"
-      >
-        <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Text style={styles.imagePlaceholderText}>No image</Text>
-            </View>
-          )}
-          {onToggleSave && (
-            <Pressable
-              style={({ pressed }) => [styles.saveButton, pressed && { opacity: 0.8 }]}
-              onPress={(e) => {
-                e.stopPropagation();
-                onToggleSave();
-              }}
-              accessibilityLabel={isSaved ? 'Unsave listing' : 'Save listing'}
-              accessibilityRole="button"
+      <View style={styles.cardContainer}>
+        <Pressable
+          style={(state) => [
+            styles.listingCard,
+            isHovered && styles.listingCardHover,
+            state.pressed && styles.listingCardPressed,
+          ]}
+          onPress={() =>
+            onPressProp ? onPressProp(listing) : router.push(`/listings/${listing._id}`)
+          }
+          onHoverIn={() => setIsHovered(true)}
+          onHoverOut={() => setIsHovered(false)}
+          accessibilityLabel={`${listing.title}, $${listing.price}`}
+          accessibilityRole="button"
+        >
+          <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
+            {imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Text style={styles.imagePlaceholderText}>No image</Text>
+              </View>
+            )}
+            {badgeToShow && (
+              <View
+                style={[
+                  styles.statusBadge,
+                  badgeToShow === 'sold' ? styles.statusBadgeSold : styles.statusBadgeUnavailable,
+                ]}
+              >
+                <Text style={styles.statusBadgeText}>
+                  {badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.titlePriceRow, isHomeDensity && styles.titlePriceRowHome]}>
+            <Text
+              style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
+              numberOfLines={1}
             >
-              <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>
-                {isSaved ? '♥' : '♡'}
-              </Text>
-            </Pressable>
-          )}
-          {badgeToShow && (
-            <View
-              style={[
-                styles.statusBadge,
-                badgeToShow === 'sold' ? styles.statusBadgeSold : styles.statusBadgeUnavailable,
-              ]}
+              {listing.title}
+            </Text>
+            <Text
+              style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
+              numberOfLines={1}
             >
-              <Text style={styles.statusBadgeText}>
-                {badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={[styles.titlePriceRow, isHomeDensity && styles.titlePriceRowHome]}>
-          <Text
-            style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
-            numberOfLines={1}
+              ${listing.price}
+            </Text>
+          </View>
+        </Pressable>
+        {onToggleSave && (
+          <Pressable
+            style={({ pressed }) => [styles.saveButton, pressed && { opacity: 0.8 }]}
+            onPress={onToggleSave}
+            accessibilityLabel={isSaved ? 'Unsave listing' : 'Save listing'}
+            accessibilityRole="button"
           >
-            {listing.title}
-          </Text>
-          <Text
-            style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
-            numberOfLines={1}
-          >
-            ${listing.price}
-          </Text>
-        </View>
-      </Pressable>
+            <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>
+              {isSaved ? '♥' : '♡'}
+            </Text>
+          </Pressable>
+        )}
+      </View>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
   );
@@ -196,6 +195,9 @@ const styles = StyleSheet.create({
   },
   listingCardWrapperHome: {
     marginBottom: 6,
+  },
+  cardContainer: {
+    position: 'relative',
   },
   listingCard: {
     borderRadius: borderRadius.sm,

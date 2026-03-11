@@ -10,6 +10,9 @@ import { useColorScheme } from 'react-native';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
 
 Sentry.init({
   dsn: 'https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976',
@@ -48,7 +51,11 @@ function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <PushNotificationsBootstrap />
         <StatusBar style="auto" />
-        <Stack screenOptions={{ headerBackButtonDisplayMode: 'minimal' }}>
+        <Stack
+          screenOptions={{
+            headerBackButtonDisplayMode: 'minimal',
+          }}
+        >
           <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
           <Stack.Screen
             name="listings/[id]"
@@ -70,7 +77,7 @@ function RootLayout() {
             name="conversations/[id]"
             options={{ title: 'Conversation', headerBackTitle: 'Inbox' }}
           />
-          <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerShown: false }} />
+          <Stack.Screen name="auth/login" options={{ title: 'Sign In', headerBackTitle: 'Back' }} />
           <Stack.Screen
             name="profile/edit"
             options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
