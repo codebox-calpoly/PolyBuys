@@ -1,0 +1,27 @@
+frontend/app/profile/[userId].tsx
+  f70a8e36a62101d3 206
+frontend/app/(tabs)/settings.tsx
+  f70a8e36a62101d3 489
+frontend/app/(tabs)/search.tsx
+  f70a8e36a62101d3 200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "aaa95dfca01f03e26ea76560d6f67f5cdfa374d2",
+  "prompts": {
+    "f70a8e36a62101d3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1dd536c7-67c0-4a7a-9d33-72ebf9428464",
+        "model": "composer-1.5"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
