@@ -1,0 +1,23 @@
+frontend/app/(tabs)/search.tsx
+  4671c47a352ccf4c 160-163,257-258,407-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "d830e6fd073b4047afcf1094fd6888e01b67d3ca",
+  "prompts": {
+    "4671c47a352ccf4c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d1312a3c-cd41-4502-9a66-928935e7c2b6",
+        "model": "gpt-5.4-xhigh"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 6,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
