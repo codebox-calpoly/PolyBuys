@@ -6,7 +6,6 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform, useColorScheme } from 'react-native';
 import { usePushNotifications } from '../hooks/usePushNotifications';
