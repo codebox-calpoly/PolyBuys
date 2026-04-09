@@ -1,0 +1,33 @@
+frontend/app/(tabs)/index.tsx
+  4671c47a352ccf4c 127
+frontend/app/(tabs)/search.tsx
+  4671c47a352ccf4c 406
+backend/convex/listings.ts
+  4671c47a352ccf4c 200-201
+frontend/app.config.ts
+  4671c47a352ccf4c 82
+frontend/app/(tabs)/_layout.tsx
+  4671c47a352ccf4c 15-16,32-33,35-43,58,63
+frontend/app/listings/[id].tsx
+  4671c47a352ccf4c 22,40-52,54-56,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "6f91da805deabb83e167a5d53578a2f5f1cf32a9",
+  "prompts": {
+    "4671c47a352ccf4c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d1312a3c-cd41-4502-9a66-928935e7c2b6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 15,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}
