@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "c448bb86fc686db00c9a3851d9698ce4eaf6eb2d",
+  "prompts": {
+    "4671c47a352ccf4c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d1312a3c-cd41-4502-9a66-928935e7c2b6",
+        "model": "gpt-5.4-xhigh"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
