@@ -5,13 +5,14 @@ import {
   Image,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
+import { Switch } from 'react-native';
+import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -32,14 +33,6 @@ function yearToOrdinal(gradYear: number): string {
 
 type TabId = 'listings' | 'saved';
 
-const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
-
-function getAppOrigin() {
-  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
-  if (!configuredOrigin) return DEFAULT_APP_ORIGIN;
-  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
-}
-
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -48,6 +41,8 @@ export default function SettingsScreen() {
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
+  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
   const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
@@ -57,6 +52,16 @@ export default function SettingsScreen() {
     loadMore: loadMoreSavedListings,
   } = usePaginatedQuery(api.savedListings.getMySavedListings, savedArgs, { initialNumItems: 20 });
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
+  const messageNotificationsEnabled = useQuery(
+    api.users.getMessageNotificationsEnabled,
+    isAuthenticated ? {} : 'skip'
+  );
+  const updateMessageNotificationsEnabled = useMutation(
+    api.users.updateMessageNotificationsEnabled
+  );
+  const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
+  const removePushToken = useMutation(api.pushNotifications.removePushToken);
+  const deleteAccount = useMutation(api.users.deleteAccount);
   const { mappedUrls: avatarUrls } = useResolvedImageUrls(
     profile?.picture ? [profile.picture] : []
   );
@@ -68,25 +73,17 @@ export default function SettingsScreen() {
     myListings?.filter((l): l is Doc<'listings'> => l.status !== 'deleted') ?? [];
   const isWideLayout = width >= 980;
 
-  const handleShareProfile = async () => {
-    if (!profile?.userId) return;
-    const shareUrl = `${getAppOrigin()}/profile/${encodeURIComponent(profile.userId)}`;
-    try {
-      await Share.share({
-        message: `Check out my PolyBuys profile! ${shareUrl}`,
-        url: shareUrl,
-        title: 'My PolyBuys Profile',
-      });
-    } catch {
-      // User cancelled or share failed
-    }
-  };
-
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fsettings' as never);
     }
   }, [isAuthenticated, isLoading, router]);
+
+  useEffect(() => {
+    if (typeof messageNotificationsEnabled === 'boolean') {
+      setMessageNotificationsValue(messageNotificationsEnabled);
+    }
+  }, [messageNotificationsEnabled]);
 
   const handleAuthAction = async () => {
     if (!isAuthenticated) {
@@ -102,6 +99,116 @@ export default function SettingsScreen() {
       Alert.alert('Sign Out Failed', message);
     } finally {
       setIsSigningOut(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'Are you sure? This will permanently delete your account and all your data. You can always sign back up later.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount({});
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Failed to delete account';
+              Alert.alert('Delete Account Failed', message);
+              return;
+            }
+
+            try {
+              await signOut();
+            } catch (error) {
+              const details = error instanceof Error ? `\n\nDetails: ${error.message}` : '';
+              Alert.alert(
+                'Account Deleted',
+                `Your account was deleted, but we could not sign you out automatically. Please sign out manually.${details}`
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMessageNotificationsToggle = async (value: boolean) => {
+    if (isUpdatingMessageNotifications) return;
+
+    const previousValue = messageNotificationsValue;
+    setMessageNotificationsValue(value);
+    setIsUpdatingMessageNotifications(true);
+
+    try {
+      if (value) {
+        let permissionGranted = false;
+        try {
+          permissionGranted = await requestPermissionAndSyncToken(recordPushToken);
+        } catch (error) {
+          setMessageNotificationsValue(previousValue);
+          const message =
+            error instanceof Error ? error.message : 'Unable to enable notifications right now.';
+          Alert.alert('Notification Update Failed', message);
+          return;
+        }
+
+        if (!permissionGranted) {
+          setMessageNotificationsValue(previousValue);
+          Alert.alert(
+            'Notification Update Failed',
+            'Push permission was not granted. Enable notifications in system settings and try again.'
+          );
+          return;
+        }
+
+        await updateMessageNotificationsEnabled({ enabled: true });
+      } else {
+        let removePushTokenSucceeded = false;
+        let removePushTokenError: unknown = null;
+        try {
+          await removePushToken({});
+          removePushTokenSucceeded = true;
+        } catch (error) {
+          removePushTokenError = error;
+        }
+
+        try {
+          await updateMessageNotificationsEnabled({ enabled: false });
+        } catch (error) {
+          const updatePreferenceMessage =
+            error instanceof Error ? error.message : 'Failed to update notification preference';
+
+          if (removePushTokenSucceeded) {
+            Alert.alert(
+              'Notification partially updated',
+              `This device push token was removed, but we could not save your notification preference.\n\nDetails: ${updatePreferenceMessage}`
+            );
+            return;
+          }
+
+          setMessageNotificationsValue(previousValue);
+          const removeTokenMessage =
+            removePushTokenError instanceof Error
+              ? removePushTokenError.message
+              : 'Failed to remove this device push token.';
+
+          Alert.alert(
+            'Notification Update Failed',
+            `We could not disable notifications.\n\nToken removal: ${removeTokenMessage}\nPreference update: ${updatePreferenceMessage}`
+          );
+          return;
+        }
+      }
+    } catch (error) {
+      setMessageNotificationsValue(previousValue);
+      const message =
+        error instanceof Error ? error.message : 'Failed to update notification preference';
+      Alert.alert('Notification Update Failed', message);
+    } finally {
+      setIsUpdatingMessageNotifications(false);
     }
   };
 
@@ -169,10 +276,14 @@ export default function SettingsScreen() {
               {profile.major} • {yearLabel}
             </Text>
             <View style={styles.statsRow}>
-              <Text style={styles.statNumber}>{listingsCount}</Text>
-              <Text style={styles.statLabel}> Listings</Text>
-              <Text style={styles.statNumber}>{itemsSoldCount}</Text>
-              <Text style={styles.statLabel}> Items Sold</Text>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{listingsCount}</Text>
+                <Text style={styles.statLabel}>Listings</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{itemsSoldCount}</Text>
+                <Text style={styles.statLabel}>Items Sold</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -199,13 +310,33 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
-        <Pressable
-          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
-          onPress={handleShareProfile}
-        >
-          <Text style={styles.shareButtonText}>Share Profile</Text>
-        </Pressable>
+        {/*
+          Temporarily hidden.
+          <Pressable
+            style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+            onPress={handleShareProfile}
+          >
+            <Text style={styles.shareButtonText}>Share Profile</Text>
+          </Pressable>
+        */}
       </Animated.View>
+
+      <View style={styles.notificationsSection}>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.notificationRow}>
+          <Text style={styles.notificationLabel}>Message notifications</Text>
+          <Switch
+            value={messageNotificationsValue}
+            onValueChange={(value) => void handleMessageNotificationsToggle(value)}
+            disabled={isUpdatingMessageNotifications || messageNotificationsEnabled === undefined}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.white}
+          />
+        </View>
+        <Text style={styles.notificationHint}>
+          Get notified when someone messages you about a listing.
+        </Text>
+      </View>
 
       <View style={styles.tabs}>
         <Pressable
@@ -231,13 +362,22 @@ export default function SettingsScreen() {
       </View>
 
       {activeTab === 'listings' ? (
-        <View style={[styles.grid, isWideLayout && styles.gridWide]}>
-          {displayListings.map((listing, index) => (
-            <View key={listing._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
-              <ListingCard listing={listing} index={index} />
-            </View>
-          ))}
-        </View>
+        displayListings.length === 0 ? (
+          <View style={styles.emptyTab}>
+            <Text style={styles.emptyTabTitle}>No listings</Text>
+            <Text style={styles.emptyTabBody}>
+              Post your first listing to find them quickly here.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.grid, isWideLayout && styles.gridWide]}>
+            {displayListings.map((listing, index) => (
+              <View key={listing._id} style={isWideLayout ? styles.gridItem : styles.gridItemFull}>
+                <ListingCard listing={listing} index={index} />
+              </View>
+            ))}
+          </View>
+        )
       ) : savedListingsStatus === 'LoadingFirstPage' ? (
         <View style={styles.emptyTab}>
           <ScreenState variant="loading" title="Loading saved listings..." />
@@ -294,6 +434,17 @@ export default function SettingsScreen() {
           <Text style={styles.secondaryButtonText}>
             {isSigningOut ? 'Signing out...' : 'Sign out'}
           </Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.deleteButton,
+            pressed && styles.buttonPressed,
+            isLoading && styles.buttonDisabled,
+          ]}
+          onPress={handleDeleteAccount}
+          disabled={isLoading}
+        >
+          <Text style={styles.deleteButtonText}>Delete account</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -396,7 +547,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginTop: spacing.xs,
-    gap: 2,
+    gap: spacing.lg,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.xs,
   },
   statNumber: {
     ...typography.title2,
@@ -406,6 +562,31 @@ const styles = StyleSheet.create({
   statLabel: {
     ...typography.footnote,
     color: colors.text,
+  },
+  notificationsSection: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notificationLabel: {
+    ...typography.body,
+    color: colors.text,
+  },
+  notificationHint: {
+    ...typography.footnote,
+    color: colors.muted,
   },
   bioRow: {
     flexDirection: 'row',
@@ -419,10 +600,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   editIcon: {
-    padding: spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.sm,
   },
   editIconText: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.muted,
   },
   addBioRow: {
@@ -434,19 +619,6 @@ const styles = StyleSheet.create({
   addBioText: {
     ...typography.subhead,
     color: colors.muted,
-  },
-  shareButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  shareButtonText: {
-    ...typography.body,
-    fontWeight: '600',
-    color: colors.white,
   },
   tabs: {
     flexDirection: 'row',
@@ -509,6 +681,17 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: spacing.lg,
+    gap: spacing.md,
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.md,
+    paddingHorizontal: 0,
+  },
+  deleteButtonText: {
+    ...typography.subhead,
+    color: colors.destructive,
+    fontWeight: '600',
   },
   primaryButton: {
     backgroundColor: colors.primary,

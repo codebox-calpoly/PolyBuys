@@ -29,6 +29,7 @@ import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import { formatPrice } from '../../lib/formatPrice';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 
@@ -60,7 +61,6 @@ export default function ListingDetailScreen() {
     api.listings.getCurrentUserSubject,
     isAuthenticated ? {} : 'skip'
   );
-  const getOrCreateConversation = useMutation(api.messages.getOrCreateConversation);
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
   const [markingSold, setMarkingSold] = useState(false);
@@ -69,7 +69,6 @@ export default function ListingDetailScreen() {
     listingId && isAuthenticated ? { listingId: listingId as Id<'listings'> } : 'skip'
   );
   const [reportOpen, setReportOpen] = useState(false);
-  const [isStartingConversation, setIsStartingConversation] = useState(false);
   const [savedOptimistic, setSavedOptimistic] = useState<boolean | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
@@ -91,10 +90,8 @@ export default function ListingDetailScreen() {
     });
   };
 
-  const onMessageSellerPress = async () => {
-    if (!listing) {
-      return;
-    }
+  const onMessageSellerPress = () => {
+    if (!listing) return;
 
     if (!isAuthenticated) {
       const redirectTo = `/listings/${listing._id}`;
@@ -102,22 +99,10 @@ export default function ListingDetailScreen() {
       return;
     }
 
-    if (isStartingConversation) {
-      return;
-    }
-
-    try {
-      setIsStartingConversation(true);
-      const convo = await getOrCreateConversation({ listingId: listing._id });
-      router.push({
-        pathname: '/conversations/[id]',
-        params: { id: String(convo.conversationId) },
-      });
-    } catch {
-      Alert.alert('Unable to start conversation right now.');
-    } finally {
-      setIsStartingConversation(false);
-    }
+    router.push({
+      pathname: '/conversations/new',
+      params: { listingId: String(listing._id) },
+    });
   };
 
   const onSavePress = async () => {
@@ -150,7 +135,7 @@ export default function ListingDetailScreen() {
     const shareUrl = `${appOrigin}/l/${listing._id}`;
     try {
       await Share.share({
-        message: `${listing.title} - $${listing.price}\n${shareUrl}`,
+        message: `${listing.title} - $${formatPrice(listing.price)}\n${shareUrl}`,
         url: shareUrl,
         title: listing.title,
       });
@@ -235,7 +220,7 @@ export default function ListingDetailScreen() {
         <meta property="og:title" content={`${listing.title} - PolyBuys`} />
         <meta
           property="og:description"
-          content={`$${listing.price} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
+          content={`$${formatPrice(listing.price)} - ${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}`}
         />
         <meta property="og:url" content={`${appOrigin}/listings/${listing._id}`} />
       </Head>
@@ -326,19 +311,14 @@ export default function ListingDetailScreen() {
 
         <View style={styles.headerRow}>
           <Text style={styles.title}>{listing.title}</Text>
-          <Text style={styles.price}>${listing.price}</Text>
+          <Text style={styles.price}>${formatPrice(listing.price)}</Text>
         </View>
 
         {!isOwner && (
           <View style={styles.actionRow}>
             <Pressable
-              style={({ pressed }) => [
-                styles.messageButton,
-                isStartingConversation && styles.buttonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
+              style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
               onPress={() => void onMessageSellerPress()}
-              disabled={isStartingConversation}
             >
               <Text style={styles.messageButtonText}>Message Seller</Text>
             </Pressable>

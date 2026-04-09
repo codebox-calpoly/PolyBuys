@@ -3,6 +3,7 @@ import { v, ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
+import { hasBlockBetween } from './blocks';
 import { requireAuthUserId } from './lib/authIdentity';
 
 export const PAYLOAD_BOUNDS = {
@@ -113,6 +114,15 @@ export const sendMessage = action({
     const senderId = userId;
     const recipientId = isBuyer ? convo.sellerId : convo.buyerId;
 
+    // Block check: neither party can message if either has blocked the other
+    const hasBlock = await ctx.runQuery(internal.blocks.internalHasBlockBetween, {
+      userIdA: senderId,
+      userIdB: recipientId,
+    });
+    if (hasBlock) {
+      throw new ConvexError('You cannot message this user');
+    }
+
     // Screen content via OpenAI Moderation API
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
       text: args.body,
@@ -165,6 +175,101 @@ export const sendMessage = action({
     }
 
     return result;
+  },
+});
+
+/**
+ * Create a conversation (or reuse existing one) and send the first message in one flow.
+ * Used when tapping "Message Seller" from a listing.
+ */
+export const createConversationAndSendFirstMessage = action({
+  args: {
+    listingId: v.id('listings'),
+    body: v.string(),
+    type: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ conversationId: Id<'conversations'> }> => {
+    const trimmedBody = args.body.trim();
+    if (trimmedBody.length === 0) {
+      throw new ConvexError('Message cannot be empty');
+    }
+    if (args.body.length > PAYLOAD_BOUNDS.MESSAGE_MAX) {
+      throw new ConvexError(`Message must be ${PAYLOAD_BOUNDS.MESSAGE_MAX} characters or less`);
+    }
+
+    const type = args.type ?? 'text';
+    const buyerId = await requireAuthUserId(ctx);
+
+    const listing = await ctx.runQuery(internal.listings.internalGetListing, {
+      id: args.listingId,
+    });
+    if (!listing) throw new ConvexError('Listing not found');
+    if (listing.status !== 'active') throw new ConvexError('Listing is not active');
+    if (listing.isHidden) throw new ConvexError('Listing is not available');
+
+    const sellerId = listing.sellerId;
+    if (buyerId === sellerId) {
+      throw new ConvexError("You can't message yourself");
+    }
+
+    const hasBlock = await ctx.runQuery(internal.blocks.internalHasBlockBetween, {
+      userIdA: buyerId,
+      userIdB: sellerId,
+    });
+    if (hasBlock) {
+      throw new ConvexError('You cannot message this user');
+    }
+
+    const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
+      text: args.body,
+      contentType: 'message',
+      userId: buyerId,
+    });
+    if (moderationResult.flagged) {
+      throw new ConvexError('Your message was not sent because it contains inappropriate content.');
+    }
+
+    const { conversationId } = await ctx.runMutation(
+      internal.messages.internalGetOrCreateConversation,
+      { listingId: args.listingId, buyerId, sellerId }
+    );
+
+    const result = await ctx.runMutation(internal.messages.internalSendMessage, {
+      conversationId,
+      listingId: args.listingId,
+      senderId: buyerId,
+      recipientId: sellerId,
+      body: args.body,
+      type,
+    });
+
+    const notificationArgs = {
+      recipientId: sellerId,
+      senderId: buyerId,
+      conversationId,
+      listingId: args.listingId,
+      messageId: result.messageId,
+      body: args.body,
+    };
+
+    try {
+      if (process.env.NODE_ENV === 'test') {
+        await ctx.runMutation(
+          internal.pushNotifications.sendNewMessageNotification,
+          notificationArgs
+        );
+      } else {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.pushNotifications.sendNewMessageNotification,
+          notificationArgs
+        );
+      }
+    } catch (error) {
+      console.error('Failed to enqueue push notification for message', error);
+    }
+
+    return { conversationId };
   },
 });
 
@@ -236,6 +341,7 @@ export const listUserConversations = query({
     )
       .filter((conversation): conversation is Doc<'conversations'> => conversation !== null)
       .filter((conversation) => conversation.buyerId === userId || conversation.sellerId === userId)
+      .filter((conversation) => conversation.lastMessageId !== undefined)
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     // One conversation per listing (stable IDs, no sibling merging needed)
@@ -507,6 +613,39 @@ async function collectMessagesForConversationScope(
   return messageBatches.flat().sort((left, right) => left.createdAt - right.createdAt);
 }
 
+// Internal: create conversation if not exists (used by createConversationAndSendFirstMessage)
+export const internalGetOrCreateConversation = internalMutation({
+  args: {
+    listingId: v.id('listings'),
+    buyerId: v.string(),
+    sellerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('conversations')
+      .withIndex('by_listing_buyer_seller', (q) =>
+        q.eq('listingId', args.listingId).eq('buyerId', args.buyerId).eq('sellerId', args.sellerId)
+      )
+      .first();
+
+    if (existing) return { conversationId: existing._id };
+
+    const now = Date.now();
+    const conversationId = await ctx.db.insert('conversations', {
+      listingId: args.listingId,
+      buyerId: args.buyerId,
+      sellerId: args.sellerId,
+      participantIds: [args.buyerId, args.sellerId],
+      createdAt: now,
+      updatedAt: now,
+      buyerLastReadAt: now,
+      sellerLastReadAt: now,
+    });
+
+    return { conversationId };
+  },
+});
+
 export const getOrCreateConversation = mutation({
   args: {
     listingId: v.id('listings'),
@@ -528,6 +667,12 @@ export const getOrCreateConversation = mutation({
     const sellerId = listing.sellerId;
     if (buyerId === sellerId) {
       throw new ConvexError("You can't message yourself");
+    }
+
+    // Block check: neither party can message if either has blocked the other
+    const blocked = await hasBlockBetween(ctx, buyerId, sellerId);
+    if (blocked) {
+      throw new ConvexError('You cannot message this user');
     }
 
     const existing = await ctx.db

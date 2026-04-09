@@ -12,6 +12,7 @@ import type * as AppReviewOTP from "../AppReviewOTP.js";
 import type * as ResendOTP from "../ResendOTP.js";
 import type * as __tests___testUtils from "../__tests__/testUtils.js";
 import type * as auth from "../auth.js";
+import type * as blocks from "../blocks.js";
 import type * as http from "../http.js";
 import type * as lib_authIdentity from "../lib/authIdentity.js";
 import type * as listings from "../listings.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   ResendOTP: typeof ResendOTP;
   "__tests__/testUtils": typeof __tests___testUtils;
   auth: typeof auth;
+  blocks: typeof blocks;
   http: typeof http;
   "lib/authIdentity": typeof lib_authIdentity;
   listings: typeof listings;

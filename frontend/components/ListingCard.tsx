@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { motion } from '../theme/motion';
+import { formatPrice } from '../lib/formatPrice';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -126,7 +127,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${listing.price}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
+          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
           accessibilityRole="button"
         >
           <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
@@ -161,7 +162,7 @@ export default function ListingCard({
               style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
               numberOfLines={1}
             >
-              ${listing.price}
+              ${formatPrice(listing.price)}
             </Text>
           </View>
         </Pressable>

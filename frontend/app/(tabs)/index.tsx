@@ -328,7 +328,10 @@ export default function HomeScreen() {
             )}
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[
+              styles.listContainer,
+              { paddingBottom: Math.max(insets.bottom + 60, 80) },
+            ]}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
             refreshControl={

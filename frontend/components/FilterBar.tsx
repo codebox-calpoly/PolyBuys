@@ -4,6 +4,7 @@ import TagPicker from './TagPicker';
 import { CATEGORY_LABELS } from '../types/filters';
 import type { Category, Filters } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { formatPrice } from '../lib/formatPrice';
 import { colors, borderRadius } from '../theme/tokens';
 
 // Re-export for backward compatibility
@@ -42,13 +43,13 @@ export function FilterBar({
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
-      return `$${filters.minPrice} - $${filters.maxPrice}`;
+      return `$${formatPrice(filters.minPrice)} - $${formatPrice(filters.maxPrice)}`;
     }
     if (filters.minPrice !== undefined) {
-      return `$${filters.minPrice}+`;
+      return `$${formatPrice(filters.minPrice)}+`;
     }
     if (filters.maxPrice !== undefined) {
-      return `Under $${filters.maxPrice}`;
+      return `Under $${formatPrice(filters.maxPrice)}`;
     }
     return 'Price';
   };
