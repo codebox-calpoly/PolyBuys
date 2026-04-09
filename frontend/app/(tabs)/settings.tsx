@@ -135,7 +135,7 @@ export default function SettingsScreen() {
           </Text>
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/profile/edit')}
+            onPress={() => router.push('/profile/edit' as never)}
           >
             <Text style={styles.primaryButtonText}>Set up profile</Text>
           </Pressable>
@@ -182,7 +182,7 @@ export default function SettingsScreen() {
             <Text style={styles.bioText}>{profile.bio}</Text>
             <Pressable
               style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/profile/edit')}
+              onPress={() => router.push('/profile/edit' as never)}
               accessibilityLabel="Edit profile"
               accessibilityRole="button"
             >
@@ -192,7 +192,7 @@ export default function SettingsScreen() {
         ) : (
           <Pressable
             style={({ pressed }) => [styles.addBioRow, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push('/profile/edit')}
+            onPress={() => router.push('/profile/edit' as never)}
           >
             <Text style={styles.addBioText}>Add a bio...</Text>
             <Text style={styles.editIconText}>✎</Text>
