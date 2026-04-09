@@ -1,0 +1,51 @@
+frontend/components/ListingUnavailable.tsx
+  4671c47a352ccf4c 47
+frontend/app/(tabs)/inbox.tsx
+  4671c47a352ccf4c 7,11,21,104-105,108-112,141,144,164-185,219-245,302-366,377,448
+frontend/components/ListingCard.tsx
+  4671c47a352ccf4c 3,109,134-140,197,215-217,220-222,237-239,244-249,302-304,313-314,323
+frontend/app/listings/[id].tsx
+  4671c47a352ccf4c 85-87,89-96,188-197,269-332,576,613-639
+frontend/app.config.ts
+  4671c47a352ccf4c 1-90
+frontend/components/OpenInAppPrompt.tsx
+  4671c47a352ccf4c 1-145
+frontend/app/(tabs)/index.tsx
+  4671c47a352ccf4c 9,29,35-42,47,50-51,95-97,101-130,184,189-191,196,263,293-328,336-367,369-476,480-482,484-543,574-581,585,597-598,601,614-615,628-630,636-718,720-727,742,744-749,752-757,778,794-802,806-809
+frontend/app/(tabs)/settings.tsx
+  4671c47a352ccf4c 6,23,41,48-50,59,79,82,214-225,519
+frontend/app/_layout.tsx
+  4671c47a352ccf4c 9,80-87
+frontend/app/(tabs)/_layout.tsx
+  4671c47a352ccf4c 1-2,6-14,18-19,21-36,38-40,42-47,49-52,54-61,67-83,94,96-99,107-108,185,190,196-200,204-205,208-210,212-218,220-223
+vercel.json
+  4671c47a352ccf4c 1-15
+frontend/app/(tabs)/my-listings.tsx
+  4671c47a352ccf4c 28,60,63,79,82,183-194
+frontend/app/(tabs)/search.tsx
+  4671c47a352ccf4c 33-34,156,158-159,164-192,197-223,225-233,237,249-250,253-258,263-272,275-281,305,310-313,315-334,344-347,356-357,367-379,385,388-390,392-393,405,410-411,413-416,429-437
+frontend/.env.example
+  4671c47a352ccf4c 1-12
+frontend/app/auth/login.tsx
+  4671c47a352ccf4c 631
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "95fde7f57eecd887f14a4aaa9e3998b500e67953",
+  "prompts": {
+    "4671c47a352ccf4c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d1312a3c-cd41-4502-9a66-928935e7c2b6",
+        "model": "gpt-5.4-xhigh"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 1483,
+      "total_deletions": 500,
+      "accepted_lines": 1287,
+      "overriden_lines": 1
+    }
+  }
+}
