@@ -1,0 +1,25 @@
+docs/contributing.md
+  ee6ef57538c27c6f 292-301
+.github/workflows/sync-dev-to-main.yml
+  ee6ef57538c27c6f 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "405aadb97d0e285c9aa01b3adfd4e9f4af3bc442",
+  "prompts": {
+    "ee6ef57538c27c6f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c53df744-f9de-4b17-94cc-ab76413a12d8",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 111,
+      "total_deletions": 13,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}
