@@ -289,3 +289,13 @@ Tech leads periodically (e.g. every 3 days):
 - Merge `dev` → `main`
 - Deploy from `main`
 - Update Linear issues to reflect what’s been released
+
+### Manual release PR (GitHub Actions)
+
+You can start a **dev → main** release from the Actions tab:
+
+1. Open **Actions** → **Sync dev to main (release)** → **Run workflow**.
+2. If `main` already includes everything on `dev`, the run succeeds with no PR.
+3. Otherwise it opens a release PR, or reports an existing open **dev → main** PR so you do not get duplicates. Merge after CI passes, then deploy from `main`.
+
+The workflow is **manual only** for now. To run on a schedule later, add a `schedule:` trigger under `on:` in `.github/workflows/sync-dev-to-main.yml`.
