@@ -12,7 +12,8 @@ import { colors, typography } from '../../theme/tokens';
 function WebHeaderLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const { q } = useLocalSearchParams<{ q?: string | string[] }>();
+  const searchParams = useLocalSearchParams() as Record<string, string | string[] | undefined>;
+  const q = searchParams.q;
   const currentQuery = useMemo(() => {
     if (Array.isArray(q)) {
       return q[0] ?? '';
@@ -28,6 +29,18 @@ function WebHeaderLayout() {
     styles.webSearchControl,
     searchActive && styles.webSearchControlActive,
   ]);
+  const mergedParams = useMemo(() => {
+    const nextParams: Record<string, string | string[]> = {};
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (key === 'q' || value === undefined) {
+        continue;
+      }
+      nextParams[key] = value;
+    }
+
+    return nextParams;
+  }, [searchParams]);
 
   useEffect(() => {
     setSearchInput(currentQuery);
@@ -40,19 +53,14 @@ function WebHeaderLayout() {
         return;
       }
 
-      if (trimmed.length === 0) {
-        router.replace('/' as never);
-        return;
-      }
-
       router.replace({
         pathname: '/' as never,
-        params: { q: trimmed },
+        params: trimmed.length > 0 ? { ...mergedParams, q: trimmed } : mergedParams,
       });
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [currentQuery, router, searchInput]);
+  }, [currentQuery, mergedParams, router, searchInput]);
 
   return (
     <View style={styles.webRoot}>

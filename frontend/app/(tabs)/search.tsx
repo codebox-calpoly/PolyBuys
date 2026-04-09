@@ -254,7 +254,6 @@ export default function SearchScreen() {
           columnWrapperStyle={searchColumns > 1 ? styles.columnWrapper : undefined}
           contentContainerStyle={[
             styles.listContent,
-            styles.listContentConstrained,
             resultsContentLayoutStyle,
             (isInitialLoading || showEmptyResults) && styles.listContentCentered,
           ]}
@@ -402,11 +401,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
-  },
-  listContentConstrained: {
     width: '100%',
     alignSelf: 'center',
+    gap: spacing.lg,
   },
   listContentCentered: {
     flexGrow: 1,

@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
+import Constants from 'expo-constants';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
@@ -36,13 +37,28 @@ import { Chip } from '../../components/ui';
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
+function normalizeAppOrigin(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
 function getAppOrigin() {
-  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
+  const configuredOrigin =
+    normalizeAppOrigin(Constants.expoConfig?.extra?.appOrigin) ??
+    normalizeAppOrigin(process.env.EXPO_PUBLIC_APP_ORIGIN);
   if (!configuredOrigin) {
     return DEFAULT_APP_ORIGIN;
   }
 
-  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
+  return configuredOrigin;
 }
 
 export default function ListingDetailScreen() {

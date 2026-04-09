@@ -124,6 +124,7 @@ export default function HomeScreen() {
             sortBy: 'newest',
           },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
+          _refreshKey: refreshKey,
         }
       : 'skip'
   );

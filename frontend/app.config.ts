@@ -79,6 +79,7 @@ const config: ExpoConfig = {
   ...baseConfig,
   extra: {
     ...baseConfig.extra,
+    appOrigin: origin,
     router: {
       ...getRouterExtra(baseConfig.extra),
       origin,
