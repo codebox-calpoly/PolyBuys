@@ -15,27 +15,41 @@ describe('Convex schema', () => {
       'title',
       'description',
       'price',
+      'sellerId',
       'sellerEmail',
+      'images',
+      'condition',
       'category',
       'status',
+      'isHidden',
+      'hiddenAt',
+      'hiddenReason',
       'createdAt',
+      'postedOn',
+      'tags',
     ]);
   });
 
-  it('enforces category and status enums', () => {
+  it('enforces category, condition, and status enums', () => {
     const { fieldType: category } = listings.documentType.value.category;
     const categoryLiterals = category.value.map((v: any) => v.value);
     expect(categoryLiterals).toEqual(['textbooks', 'electronics', 'furniture', 'tickets', 'other']);
 
+    const { fieldType: condition } = listings.documentType.value.condition;
+    const conditionLiterals = condition.value.map((v: any) => v.value);
+    expect(conditionLiterals).toEqual(['new', 'used', 'refurbished']);
+
     const { fieldType: status } = listings.documentType.value.status;
     const statusLiterals = status.value.map((v: any) => v.value);
-    expect(statusLiterals).toEqual(['active', 'sold', 'inactive']);
+    expect(statusLiterals).toEqual(['active', 'sold', 'inactive', 'deleted']);
   });
 
   it('exposes indexes and search index for listings', () => {
     const indexNames = listings.indexes.map((i: any) => i.indexDescriptor);
     expect(indexNames).toContain('by_status');
     expect(indexNames).toContain('by_category');
+    expect(indexNames).toContain('by_status_category');
+    expect(indexNames).toContain('by_status_createdAt');
 
     const statusIndex = listings.indexes.find((i: any) => i.indexDescriptor === 'by_status');
     expect(statusIndex.fields).toEqual(['status']);
@@ -44,8 +58,30 @@ describe('Convex schema', () => {
     expect(categoryIndex.fields).toEqual(['category']);
 
     const searchIndex = listings.searchIndexes.find(
-      (i: any) => i.indexDescriptor === 'search_title'
+      (i: any) => i.indexDescriptor === 'search_listings'
     );
     expect(searchIndex.searchField).toBe('title');
+    expect(searchIndex.filterFields).toContain('status');
+    expect(searchIndex.filterFields).toContain('category');
+    expect(searchIndex.filterFields).toContain('condition');
+  });
+
+  it('defines the savedListings table', () => {
+    const savedListings = schemaJson.tables.find(
+      (table: any) => table.tableName === 'savedListings'
+    );
+    expect(savedListings).toBeDefined();
+    const fields = Object.keys(savedListings.documentType.value);
+    expect(fields).toEqual(['userId', 'listingId', 'createdAt']);
+  });
+
+  it('exposes indexes for savedListings', () => {
+    const savedListings = schemaJson.tables.find(
+      (table: any) => table.tableName === 'savedListings'
+    );
+    const indexNames = savedListings.indexes.map((i: any) => i.indexDescriptor);
+    expect(indexNames).toContain('by_user_listing');
+    expect(indexNames).toContain('by_user_createdAt');
+    expect(indexNames).toContain('by_listing');
   });
 });

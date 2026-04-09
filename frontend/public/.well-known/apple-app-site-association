@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "B2469T42RM.com.polybuys.polybuys",
+        "paths": ["/listings/*"]
+      }
+    ]
+  }
+}

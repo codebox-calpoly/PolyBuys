@@ -45,5 +45,11 @@ module.exports = {
         'react-native/no-unused-styles': 'off',
       },
     },
+    {
+      files: ['jest.config.js', 'babel.jest.config.js', 'frontend/babel.config.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
+      },
+    },
   ],
 };

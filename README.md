@@ -5,7 +5,7 @@ A marketplace for verified Cal Poly students to buy and sell their belongings, t
 ## Tech Stack
 
 - **Frontend**: React Native (Expo) - Cross-platform mobile app
-- **Backend**: Convex (self-hosted on Railway) - Serverless backend with real-time sync
+- **Backend**: Convex Cloud - Serverless backend with real-time sync
 - **Language**: TypeScript - Type-safe development
 - **Monorepo**: npm workspaces - Shared types and utilities
 - **Code Quality**: ESLint, Prettier, Husky pre-commit hooks
@@ -26,7 +26,10 @@ PolyBuys/
 
 - Quick start & daily commands: [QUICK_START.md](QUICK_START.md)
 - Contribution process and workflow: [docs/contributing.md](docs/contributing.md)
-- Self-hosted Convex setup: [docs/SELF_HOSTED_CONVEX.md](docs/SELF_HOSTED_CONVEX.md)
+- Local setup without Convex account: [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md)
+- Convex migration runbook: [docs/CONVEX_CLOUD_MIGRATION.md](docs/CONVEX_CLOUD_MIGRATION.md)
+- Legacy self-hosted reference: [docs/SELF_HOSTED_CONVEX.md](docs/SELF_HOSTED_CONVEX.md)
+- Schema migration guide: [docs/SCHEMA_MIGRATION.md](docs/SCHEMA_MIGRATION.md)
 - Backend specifics: [backend/convex/README.md](backend/convex/README.md)
 - Issue/PR templates: [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE) and [.github/pull_request_template.md](.github/pull_request_template.md)
 - Architecture decisions: [docs/adr/](docs/adr/)
@@ -43,7 +46,6 @@ PolyBuys/
 - [Lorinc Heutchy](https://www.linkedin.com/in/lorinc-heutchy) - Developer
 - [Haixin Huang](https://www.linkedin.com/in/haixin-huang-116799200) - Developer
 - [Domenic Federico](www.linkedin.com/in/domenic-federico-0b85b8298) - Developer
-- [Omar Garcia](https://www.linkedin.com/) - Developer
 
 ## Getting Started
 
@@ -70,6 +72,8 @@ npm run dev:backend
 # Start the Expo app (in another terminal)
 npm run dev
 ```
+
+If you do not have Convex Cloud team access, use the local workflow in [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md) before running the commands above.
 
 ### Platform-Specific Development
 
@@ -107,6 +111,17 @@ For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 - **Type checking**: `npm run typecheck`
 - **Run frontend**: `npm run dev:frontend`
 - **Run backend**: `npm run dev:backend`
+
+### Sentry Privacy Defaults
+
+- Client crash reporting uses Sentry with `sendDefaultPii` disabled by default.
+- To explicitly allow default PII fields, set `EXPO_PUBLIC_ENABLE_SENTRY_PII=true` in frontend env config.
+
+### App Review OTP (Optional)
+
+- To enable a fixed Apple App Review login code, configure:
+  - Backend: `AUTH_APP_REVIEW_EMAIL`, `AUTH_APP_REVIEW_CODE` (must be 8 digits)
+  - Frontend: `EXPO_PUBLIC_APP_REVIEW_EMAIL` (same email value)
 
 Pre-commit hooks automatically format and lint your code before each commit.
 

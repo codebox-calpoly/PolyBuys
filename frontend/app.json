@@ -1,23 +1,89 @@
 {
   "expo": {
-    "name": "PolyBuy",
+    "name": "PolyBuys",
     "slug": "polybuy",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "platforms": ["ios", "android", "web"],
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.polybuy.app"
+      "bundleIdentifier": "com.polybuys.polybuys",
+      "associatedDomains": ["applinks:polybuys.com"],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.polybuy.app"
+      "package": "com.polybuys.polybuys",
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/listings"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/profile"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
-    "plugins": ["expo-router"],
-    "scheme": "polybuy",
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://polybuys.com"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "taylor-labs-llc",
+          "project": "polybuys",
+          "dsn": "https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976"
+        }
+      ],
+      "expo-font",
+      "expo-notifications"
+    ],
+    "scheme": "polybuys",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "router": {
+        "origin": "https://polybuys.com"
+      },
+      "eas": {
+        "projectId": "1f42b24b-0dcd-4b44-84d5-f31b6ff08dae"
+      }
+    },
+    "owner": "polybuys"
   }
 }
