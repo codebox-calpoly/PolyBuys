@@ -1,74 +1,89 @@
-import { Link, Slot, usePathname } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, Slot, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, typography } from '../../theme/tokens';
 
-type WebTab = {
-  href: '/' | '/search' | '/my-listings' | '/inbox' | '/settings';
-  label: 'Home' | 'Search' | 'My Listings' | 'Inbox' | 'Profile';
-};
-
-const webTabs: WebTab[] = [
-  { href: '/', label: 'Home' },
-  { href: '/search', label: 'Search' },
-  { href: '/my-listings', label: 'My Listings' },
-  { href: '/inbox', label: 'Inbox' },
-  { href: '/settings', label: 'Profile' },
-];
-
-function isTabActive(pathname: string, href: WebTab['href']) {
-  if (href === '/') {
-    return pathname === '/';
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function WebTabsHeaderLayout({ unreadCount }: { unreadCount: number }) {
+function WebHeaderLayout() {
+  const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useLocalSearchParams() as Record<string, string | string[] | undefined>;
+  const q = searchParams.q;
+  const currentQuery = useMemo(() => {
+    if (Array.isArray(q)) {
+      return q[0] ?? '';
+    }
+    return q ?? '';
+  }, [q]);
+  const [searchInput, setSearchInput] = useState(currentQuery);
+  const searchActive =
+    pathname === '/'
+      ? searchInput.trim().length > 0
+      : pathname === '/search' || pathname.startsWith('/search/');
+  const searchControlStyle = StyleSheet.flatten([
+    styles.webSearchControl,
+    searchActive && styles.webSearchControlActive,
+  ]);
+  const mergedParams = useMemo(() => {
+    const nextParams: Record<string, string | string[]> = {};
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (key === 'q' || value === undefined) {
+        continue;
+      }
+      nextParams[key] = value;
+    }
+
+    return nextParams;
+  }, [searchParams]);
+
+  useEffect(() => {
+    setSearchInput(currentQuery);
+  }, [currentQuery]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      if (trimmed === currentQuery) {
+        return;
+      }
+
+      router.replace({
+        pathname: '/' as never,
+        params: trimmed.length > 0 ? { ...mergedParams, q: trimmed } : mergedParams,
+      });
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [currentQuery, mergedParams, router, searchInput]);
 
   return (
     <View style={styles.webRoot}>
       <View style={styles.webHeaderBorder}>
         <View style={styles.webHeaderContent}>
-          <Text style={styles.brand}>PolyBuys</Text>
-          <View style={styles.webTabsPill}>
-            {webTabs.map((tab) => {
-              const active = isTabActive(pathname, tab.href);
-              const tabButtonStyle = StyleSheet.flatten([
-                styles.webTabButton,
-                active && styles.webTabButtonActive,
-              ]);
-              const tabLabelStyle = StyleSheet.flatten([
-                styles.webTabLabel,
-                active && styles.webTabLabelActive,
-              ]);
-
-              const isInboxTab = tab.href === '/inbox';
-              const showUnreadBadge = isInboxTab && unreadCount > 0;
-              const formattedUnreadCount = unreadCount > 9 ? '9+' : String(unreadCount);
-
-              return (
-                <Link key={tab.href} href={tab.href as never} asChild>
-                  <Pressable style={tabButtonStyle}>
-                    <View style={styles.webTabInner}>
-                      <Text style={tabLabelStyle}>{tab.label}</Text>
-                      {showUnreadBadge ? (
-                        <View style={styles.webUnreadBadge}>
-                          <Text style={styles.webUnreadBadgeText}>{formattedUnreadCount}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                </Link>
-              );
-            })}
+          <Link href="/" asChild>
+            <Pressable accessibilityRole="link" accessibilityLabel="Go to home">
+              <Text style={styles.brand}>PolyBuys</Text>
+            </Pressable>
+          </Link>
+          <View style={searchControlStyle}>
+            <TextInput
+              value={searchInput}
+              onChangeText={setSearchInput}
+              placeholder="Search listings..."
+              placeholderTextColor={colors.muted}
+              style={styles.webSearchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              accessibilityLabel="Search listings"
+            />
           </View>
-          <View style={styles.headerSpacer} />
         </View>
       </View>
       <Slot />
@@ -78,8 +93,12 @@ function WebTabsHeaderLayout({ unreadCount }: { unreadCount: number }) {
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated } = useAuth();
-  const conversations = useQuery(api.messages.listUserConversations, isAuthenticated ? {} : 'skip');
+  const conversations = useQuery(
+    api.messages.listUserConversations,
+    isAuthenticated && !isWeb ? {} : 'skip'
+  );
   const unreadCount =
     conversations?.reduce(
       (count, conversation) =>
@@ -87,8 +106,8 @@ export default function TabsLayout() {
       0
     ) ?? 0;
 
-  if (Platform.OS === 'web') {
-    return <WebTabsHeaderLayout unreadCount={unreadCount} />;
+  if (isWeb) {
+    return <WebHeaderLayout />;
   }
 
   const isDarkMode = colorScheme === 'dark';
@@ -178,67 +197,45 @@ const styles = StyleSheet.create({
   },
   webHeaderContent: {
     width: '100%',
-    maxWidth: 1120,
+    maxWidth: 1240,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
   brand: {
     ...typography.title1,
     color: colors.primary,
   },
-  webTabsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  webSearchControl: {
+    minWidth: 260,
+    maxWidth: 320,
+    width: '100%',
+    minHeight: 44,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  webSearchControlActive: {
     backgroundColor: colors.surface,
-    padding: 4,
-    gap: 4,
+    borderColor: colors.locationDark,
   },
-  webTabButton: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  webTabInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  webTabButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  webTabLabel: {
-    ...typography.footnote,
+  webSearchInput: {
+    ...typography.subhead,
+    width: '100%',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
     fontWeight: '600',
-    color: colors.text,
-  },
-  webTabLabelActive: {
-    color: colors.white,
-  },
-  webUnreadBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 999,
-    paddingHorizontal: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.destructive,
-  },
-  webUnreadBadgeText: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  headerSpacer: {
-    width: 84,
+    color: colors.textDark,
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+    boxShadow: 'none',
   },
   nativeTabLabel: {
     fontSize: 11,

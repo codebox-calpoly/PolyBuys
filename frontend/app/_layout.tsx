@@ -6,8 +6,8 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform, useColorScheme } from 'react-native';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
@@ -81,7 +81,11 @@ function RootLayout() {
             />
             <Stack.Screen
               name="auth/login"
-              options={{ title: 'Sign In', headerBackTitle: 'Back' }}
+              options={{
+                title: 'Sign In',
+                headerBackTitle: 'Back',
+                headerShown: Platform.OS !== 'web',
+              }}
             />
             <Stack.Screen
               name="profile/edit"

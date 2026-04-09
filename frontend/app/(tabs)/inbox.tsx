@@ -4,9 +4,11 @@ import {
   Animated,
   FlatList,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -16,6 +18,7 @@ import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { ScreenState } from '../../components/ScreenState';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationRowItem = {
@@ -98,9 +101,15 @@ function ConversationRow({
 
 export default function InboxScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const conversations = useQuery(api.messages.listUserConversations, isAuthenticated ? {} : 'skip');
+  const conversations = useQuery(
+    api.messages.listUserConversations,
+    isAuthenticated && !isWeb ? {} : 'skip'
+  );
+  const isDesktopWeb = isWeb && width >= 1024;
 
   const formatter = useMemo(
     () =>
@@ -129,10 +138,10 @@ export default function InboxScreen() {
   );
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isWeb && !authLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Finbox' as never);
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, isWeb, router]);
 
   const formatTimestamp = useCallback(
     (timestamp: number) => {
@@ -152,6 +161,28 @@ export default function InboxScreen() {
     },
     [formatter, weekdayFormatter, shortDateFormatter]
   );
+  const unreadConversationCount =
+    conversations?.filter(
+      (conversation) => Boolean(conversation.hasUnread) || (conversation.unreadCount ?? 0) > 0
+    ).length ?? 0;
+  const unreadMessageCount =
+    conversations?.reduce(
+      (sum, conversation) => sum + (conversation.unreadCount ?? (conversation.hasUnread ? 1 : 0)),
+      0
+    ) ?? 0;
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Open your inbox in the mobile app"
+        body="Messaging works best on mobile, where you can reply quickly and stay on top of new conversations."
+        path="/inbox"
+        buttonLabel="Open Inbox in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   if (authLoading) {
     return (
@@ -185,6 +216,33 @@ export default function InboxScreen() {
       style={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
+      ListHeaderComponent={
+        <Animated.View style={[styles.heroCard, entranceStyle]}>
+          <View style={[styles.heroTopRow, isDesktopWeb && styles.heroTopRowDesktop]}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroEyebrow}>Inbox</Text>
+              <Text style={styles.heroTitle}>Keep conversations moving</Text>
+              <Text style={styles.heroBody}>
+                Reply quickly, stay on top of unread messages, and keep listing interest warm.
+              </Text>
+            </View>
+            <View style={[styles.heroStatsRow, isDesktopWeb && styles.heroStatsRowDesktop]}>
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatNumber}>{conversations.length}</Text>
+                <Text style={styles.heroStatLabel}>Conversations</Text>
+              </View>
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatNumber}>{unreadConversationCount}</Text>
+                <Text style={styles.heroStatLabel}>Unread chats</Text>
+              </View>
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatNumber}>{unreadMessageCount}</Text>
+                <Text style={styles.heroStatLabel}>Unread messages</Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+      }
       ListEmptyComponent={
         <Animated.View style={[styles.card, entranceStyle]}>
           <ScreenState
@@ -241,6 +299,72 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.sm,
   },
+  heroCard: {
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
+  },
+  heroTopRow: {
+    gap: spacing.lg,
+  },
+  heroTopRowDesktop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  heroCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  heroEyebrow: {
+    ...typography.footnote,
+    color: colors.primary,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    ...typography.title1,
+    color: colors.textDark,
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  heroBody: {
+    ...typography.subhead,
+    color: colors.text,
+    maxWidth: 560,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  heroStatsRowDesktop: {
+    justifyContent: 'flex-end',
+  },
+  heroStat: {
+    minWidth: 116,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    gap: 2,
+  },
+  heroStatNumber: {
+    ...typography.title2,
+    color: colors.textDark,
+    fontVariant: ['tabular-nums'],
+  },
+  heroStatLabel: {
+    ...typography.footnote,
+    color: colors.text,
+  },
   row: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -250,11 +374,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    shadowColor: colors.textDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.06)',
   },
   thumbnail: {
     width: 56,
@@ -325,6 +445,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
     alignItems: 'center',
+    boxShadow: '0 16px 36px rgba(21, 71, 52, 0.06)',
   },
   separator: {
     height: spacing.sm,

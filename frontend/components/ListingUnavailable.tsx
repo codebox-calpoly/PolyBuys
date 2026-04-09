@@ -44,11 +44,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     padding: 20,
     alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
+    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
     gap: 10,
   },
   title: {

@@ -30,6 +30,8 @@ export default function SearchScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
+  const isDesktopWeb = isWeb && width >= 1024;
   const { isAuthenticated } = useAuth();
   const { recent, loaded, addRecent } = useRecentSearches();
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
@@ -151,56 +153,92 @@ export default function SearchScreen() {
     isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
   const showEmptyResults = isSearching && !isInitialLoading && allListings.length === 0;
   const showRecentSearches = !isSearching && loaded;
-  const contentPadding = width >= 900 ? spacing.xxl : spacing.lg;
+  const contentPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.xxl : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
-  const isWideLayout = width >= 980;
+  const searchColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : width >= 980 ? 2 : 1;
+  const contentMaxWidth = isWeb ? 1240 : 980;
+  const resultsContentLayoutStyle = {
+    paddingHorizontal: contentPadding,
+    maxWidth: contentMaxWidth,
+  } as const;
 
   return (
     <View style={styles.page}>
       <View style={[styles.searchHeader, { paddingTop: topSafeSpace + spacing.md }]}>
-        <View style={styles.searchBarWrap}>
-          <TextInput
-            ref={inputRef}
-            value={searchInput}
-            onChangeText={setSearchInput}
-            placeholder="Search desk, calculator, bike..."
-            placeholderTextColor={colors.muted}
-            style={styles.searchInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onSubmitEditing={() => {
-              if (searchInput.trim().length > 0) {
-                addRecent(searchInput.trim());
-              }
-              Keyboard.dismiss();
-            }}
-          />
+        <View style={[styles.searchHeaderInner, { maxWidth: contentMaxWidth }]}>
+          {isDesktopWeb ? (
+            <View style={styles.searchHeaderCopy}>
+              <Text style={styles.searchEyebrow}>Search</Text>
+              <Text style={styles.searchTitle}>Find exactly what you need</Text>
+              <Text style={styles.searchBody}>
+                Search by title or keywords to narrow the campus marketplace in seconds.
+              </Text>
+            </View>
+          ) : null}
+          <View style={[styles.searchBarWrap, isDesktopWeb && styles.searchBarWrapDesktop]}>
+            <TextInput
+              ref={inputRef}
+              value={searchInput}
+              onChangeText={setSearchInput}
+              placeholder="Search desk, calculator, bike..."
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={() => {
+                if (searchInput.trim().length > 0) {
+                  addRecent(searchInput.trim());
+                }
+                Keyboard.dismiss();
+              }}
+            />
+          </View>
         </View>
       </View>
 
       {showRecentSearches ? (
-        <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
-          <Text style={styles.sectionTitle}>Recent searches</Text>
-          {recent.length === 0 ? (
-            <Text style={styles.emptyRecent}>No recent searches yet.</Text>
-          ) : (
-            <View style={styles.recentList}>
-              {recent.map((term) => (
-                <Pressable
-                  key={term}
-                  style={({ pressed }) => [styles.recentItem, pressed && styles.recentItemPressed]}
-                  onPress={() => handleRecentPress(term)}
-                >
-                  <Text style={styles.recentItemText}>{term}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+        <View
+          style={[
+            styles.content,
+            {
+              paddingHorizontal: contentPadding,
+              maxWidth: contentMaxWidth,
+            },
+          ]}
+        >
+          <View style={styles.recentCard}>
+            <Text style={styles.sectionTitle}>
+              {recent.length > 0 ? 'Recent searches' : 'Start with a quick search'}
+            </Text>
+            <Text style={styles.recentIntro}>
+              {recent.length > 0
+                ? 'Jump back into something you searched for recently.'
+                : 'Search across listings for desks, calculators, bikes, textbooks, and more.'}
+            </Text>
+            {recent.length === 0 ? (
+              <Text style={styles.emptyRecent}>No recent searches yet.</Text>
+            ) : (
+              <View style={styles.recentList}>
+                {recent.map((term) => (
+                  <Pressable
+                    key={term}
+                    style={({ pressed }) => [
+                      styles.recentItem,
+                      pressed && styles.recentItemPressed,
+                    ]}
+                    onPress={() => handleRecentPress(term)}
+                  >
+                    <Text style={styles.recentItemText}>{term}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
       ) : isSearching ? (
         <FlatList
-          key={isWideLayout ? 'wide' : 'narrow'}
+          key={`search-${searchColumns}`}
           data={allListings}
           keyExtractor={(item) => item._id}
           renderItem={({ item, index }) => (
@@ -212,22 +250,34 @@ export default function SearchScreen() {
               onPress={() => handleListingPress(item)}
             />
           )}
-          numColumns={isWideLayout ? 2 : 1}
-          columnWrapperStyle={isWideLayout ? styles.columnWrapper : undefined}
+          numColumns={searchColumns}
+          columnWrapperStyle={searchColumns > 1 ? styles.columnWrapper : undefined}
           contentContainerStyle={[
             styles.listContent,
-            { paddingHorizontal: contentPadding },
+            resultsContentLayoutStyle,
             (isInitialLoading || showEmptyResults) && styles.listContentCentered,
           ]}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          ListHeaderComponent={
+            <View style={styles.resultsHeader}>
+              <Text style={styles.sectionTitle}>Search results</Text>
+              <Text style={styles.resultsTitle}>
+                {isInitialLoading
+                  ? `Searching for "${searchTerm}"...`
+                  : `${allListings.length} result${allListings.length === 1 ? '' : 's'} for "${searchTerm}"`}
+              </Text>
+            </View>
+          }
           ListEmptyComponent={
             <View style={styles.stateContainer}>
-              <ScreenState
-                variant={isInitialLoading ? 'loading' : 'empty'}
-                title={isInitialLoading ? 'Searching...' : 'Nothing matched'}
-                message={isInitialLoading ? undefined : `No listings found for "${searchTerm}".`}
-              />
+              <View style={styles.stateCard}>
+                <ScreenState
+                  variant={isInitialLoading ? 'loading' : 'empty'}
+                  title={isInitialLoading ? 'Searching...' : 'Nothing matched'}
+                  message={isInitialLoading ? undefined : `No listings found for "${searchTerm}".`}
+                />
+              </View>
             </View>
           }
           ListFooterComponent={
@@ -251,10 +301,35 @@ const styles = StyleSheet.create({
   },
   searchHeader: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  searchHeaderInner: {
+    width: '100%',
+    alignSelf: 'center',
+    gap: spacing.md,
+  },
+  searchHeaderCopy: {
+    gap: spacing.xs,
+  },
+  searchEyebrow: {
+    ...typography.footnote,
+    color: colors.primary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  searchTitle: {
+    ...typography.title1,
+    fontSize: 28,
+    lineHeight: 34,
+    color: colors.textDark,
+  },
+  searchBody: {
+    ...typography.subhead,
+    color: colors.text,
   },
   searchBarWrap: {
     backgroundColor: colors.surface,
@@ -265,6 +340,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
   },
+  searchBarWrapDesktop: {
+    minHeight: 56,
+    borderRadius: borderRadius.lg,
+    boxShadow: '0 14px 32px rgba(21, 71, 52, 0.08)',
+  },
   searchInput: {
     ...typography.body,
     paddingVertical: spacing.sm,
@@ -272,6 +352,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingTop: spacing.xl,
+    width: '100%',
+    alignSelf: 'center',
   },
   sectionTitle: {
     ...typography.footnote,
@@ -281,17 +363,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
   },
+  recentCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.sm,
+    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.06)',
+  },
+  recentIntro: {
+    ...typography.subhead,
+    color: colors.text,
+  },
   emptyRecent: {
     ...typography.subhead,
     color: colors.muted,
   },
   recentList: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   recentItem: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
   },
   recentItemPressed: {
     backgroundColor: colors.location,
@@ -303,14 +401,23 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
+    width: '100%',
+    alignSelf: 'center',
+    gap: spacing.lg,
   },
   listContentCentered: {
     flexGrow: 1,
   },
+  resultsHeader: {
+    marginBottom: spacing.md,
+  },
+  resultsTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
   columnWrapper: {
     flexDirection: 'row',
     gap: spacing.lg,
-    marginBottom: spacing.lg,
   },
   stateContainer: {
     flex: 1,
@@ -319,6 +426,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
+  },
+  stateCard: {
+    width: '100%',
+    maxWidth: 560,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    boxShadow: '0 16px 36px rgba(21, 71, 52, 0.06)',
   },
   footerLoader: {
     paddingVertical: spacing.xl,

@@ -628,11 +628,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xxl,
-    shadowColor: colors.textDark,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 3,
+    boxShadow: '0 24px 48px rgba(21, 71, 52, 0.10)',
   },
   centeredContent: {
     marginHorizontal: spacing.lg,

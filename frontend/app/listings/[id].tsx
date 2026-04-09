@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
+import Constants from 'expo-constants';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
@@ -36,13 +37,28 @@ import { Chip } from '../../components/ui';
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
+function normalizeAppOrigin(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
 function getAppOrigin() {
-  const configuredOrigin = process.env.EXPO_PUBLIC_APP_ORIGIN?.trim();
+  const configuredOrigin =
+    normalizeAppOrigin(Constants.expoConfig?.extra?.appOrigin) ??
+    normalizeAppOrigin(process.env.EXPO_PUBLIC_APP_ORIGIN);
   if (!configuredOrigin) {
     return DEFAULT_APP_ORIGIN;
   }
 
-  return configuredOrigin.endsWith('/') ? configuredOrigin.slice(0, -1) : configuredOrigin;
+  return configuredOrigin;
 }
 
 export default function ListingDetailScreen() {
@@ -82,6 +98,18 @@ export default function ListingDetailScreen() {
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
+  const hasMultipleImages = mappedUrls.length > 1;
+  const hasPreviousImage = imageIndex > 0;
+  const hasNextImage = imageIndex < mappedUrls.length - 1;
+
+  useEffect(() => {
+    setImageIndex((currentIndex) => {
+      if (mappedUrls.length === 0) {
+        return 0;
+      }
+      return Math.min(currentIndex, mappedUrls.length - 1);
+    });
+  }, [mappedUrls.length]);
 
   const navigateToFeedWithTag = (tag: string) => {
     router.push({
@@ -173,6 +201,16 @@ export default function ListingDetailScreen() {
     }
   };
 
+  const goToPreviousImage = () => {
+    if (!hasPreviousImage) return;
+    setImageIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+  };
+
+  const goToNextImage = () => {
+    if (!hasNextImage) return;
+    setImageIndex((currentIndex) => Math.min(currentIndex + 1, mappedUrls.length - 1));
+  };
+
   useEffect(() => {
     if (Platform.OS === 'web' && listing && typeof document !== 'undefined') {
       document.title = `${listing.title} - PolyBuys`;
@@ -244,7 +282,70 @@ export default function ListingDetailScreen() {
 
         {listing.images.length > 0 ? (
           <View style={styles.imageSection}>
-            {mappedUrls.length > 1 ? (
+            {hasMultipleImages && Platform.OS === 'web' ? (
+              <>
+                <View style={[styles.heroImageWrap, { width: imageWidth }]}>
+                  {mappedUrls[imageIndex] ? (
+                    <Image
+                      source={{ uri: mappedUrls[imageIndex] }}
+                      style={styles.heroImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.placeholderImage}>
+                      <Text style={styles.placeholderText}>Loading image...</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.carouselArrow,
+                      styles.carouselArrowLeft,
+                      !hasPreviousImage && styles.carouselArrowDisabled,
+                      pressed && hasPreviousImage && styles.buttonPressed,
+                    ]}
+                    onPress={goToPreviousImage}
+                    disabled={!hasPreviousImage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous image"
+                  >
+                    <Text style={styles.carouselArrowText}>‹</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.carouselArrow,
+                      styles.carouselArrowRight,
+                      !hasNextImage && styles.carouselArrowDisabled,
+                      pressed && hasNextImage && styles.buttonPressed,
+                    ]}
+                    onPress={goToNextImage}
+                    disabled={!hasNextImage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next image"
+                  >
+                    <Text style={styles.carouselArrowText}>›</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.imageIndicator}>
+                  <Text style={styles.imageIndicatorText}>
+                    {imageIndex + 1} of {mappedUrls.length}
+                  </Text>
+                  <View style={styles.dotsRow}>
+                    {mappedUrls.map((_, i) => (
+                      <Pressable
+                        key={i}
+                        onPress={() => setImageIndex(i)}
+                        style={[
+                          styles.dot,
+                          i === imageIndex ? styles.dotActive : styles.dotInactive,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`View image ${i + 1}`}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </>
+            ) : hasMultipleImages ? (
               <>
                 <FlatList
                   data={mappedUrls}
@@ -488,6 +589,7 @@ const styles = StyleSheet.create({
   heroImageWrap: {
     height: 280,
     marginRight: 0,
+    position: 'relative',
   },
   heroImage: {
     width: '100%',
@@ -523,6 +625,34 @@ const styles = StyleSheet.create({
   },
   dotInactive: {
     backgroundColor: colors.border,
+  },
+  carouselArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselArrowLeft: {
+    left: spacing.sm,
+  },
+  carouselArrowRight: {
+    right: spacing.sm,
+  },
+  carouselArrowDisabled: {
+    opacity: 0.45,
+  },
+  carouselArrowText: {
+    color: colors.textDark,
+    fontSize: 24,
+    fontWeight: '600',
+    lineHeight: 24,
   },
   placeholderImage: {
     width: '100%',

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
@@ -106,6 +106,7 @@ export default function ListingCard({
   );
 
   const isHomeDensity = density === 'home';
+  const isWeb = Platform.OS === 'web';
 
   return (
     <Animated.View
@@ -130,7 +131,13 @@ export default function ListingCard({
           accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
           accessibilityRole="button"
         >
-          <View style={[styles.imageContainer, isHomeDensity && styles.imageContainerHome]}>
+          <View
+            style={[
+              styles.imageContainer,
+              isHomeDensity && styles.imageContainerHome,
+              isHomeDensity && isWeb && styles.imageContainerHomeWeb,
+            ]}
+          >
             {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
             ) : (
@@ -187,6 +194,7 @@ export default function ListingCard({
 const CARD_IMAGE_ASPECT = 170 / 145;
 /** Slightly taller than square for a premium, image-forward layout */
 const HOME_IMAGE_ASPECT = 0.9;
+const HOME_IMAGE_ASPECT_WEB = 1.22;
 
 const styles = StyleSheet.create({
   listingCardWrapper: {
@@ -204,15 +212,14 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.08)',
   },
   listingCardHover: {
-    borderColor: colors.border,
-    borderWidth: 1,
+    borderColor: colors.locationDark,
+    boxShadow: '0 18px 36px rgba(21, 71, 52, 0.14)',
+    transform: [{ translateY: -2 }],
   },
   listingCardPressed: {
     transform: [{ scale: 0.99 }],
@@ -227,14 +234,19 @@ const styles = StyleSheet.create({
   imageContainerHome: {
     aspectRatio: HOME_IMAGE_ASPECT,
   },
+  imageContainerHomeWeb: {
+    aspectRatio: HOME_IMAGE_ASPECT_WEB,
+  },
   saveButton: {
     position: 'absolute',
     top: spacing.xs,
     right: spacing.xs,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -287,8 +299,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   titlePriceRowHome: {
-    paddingHorizontal: 4,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
   listingTitle: {
     ...typography.body,
@@ -297,7 +310,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   listingTitleHome: {
-    // Tighter for home density
+    ...typography.subhead,
+    fontWeight: '600',
   },
   listingPrice: {
     ...typography.title2,
@@ -306,7 +320,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   listingPriceHome: {
-    // Same as base
+    fontSize: 16,
   },
   footer: {
     marginTop: spacing.sm,

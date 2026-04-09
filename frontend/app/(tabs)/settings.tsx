@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
@@ -37,6 +39,7 @@ const PROFILE_EDIT: Href = '/profile/edit';
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isLoading, signOut } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const signOutInProgressRef = useRef(false);
@@ -45,9 +48,9 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
   const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
-  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
-  const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
-  const savedArgs = isAuthenticated && activeTab === 'saved' ? {} : 'skip';
+  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
+  const myListings = useQuery(api.listings.getMyListings, isAuthenticated && !isWeb ? {} : 'skip');
+  const savedArgs = isAuthenticated && !isWeb && activeTab === 'saved' ? {} : 'skip';
   const {
     results: savedListings,
     status: savedListingsStatus,
@@ -56,7 +59,7 @@ export default function SettingsScreen() {
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const messageNotificationsEnabled = useQuery(
     api.users.getMessageNotificationsEnabled,
-    isAuthenticated ? {} : 'skip'
+    isAuthenticated && !isWeb ? {} : 'skip'
   );
   const updateMessageNotificationsEnabled = useMutation(
     api.users.updateMessageNotificationsEnabled
@@ -76,10 +79,10 @@ export default function SettingsScreen() {
   const isWideLayout = width >= 980;
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isWeb && !isLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fsettings' as never);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, isWeb, router]);
 
   useEffect(() => {
     if (typeof messageNotificationsEnabled === 'boolean') {
@@ -219,6 +222,19 @@ export default function SettingsScreen() {
       setIsUpdatingMessageNotifications(false);
     }
   };
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Open your profile in the mobile app"
+        body="Profile, saved listings, and account settings are currently available in the PolyBuys mobile app."
+        path="/settings"
+        buttonLabel="Open Profile in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -512,11 +528,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.xl,
     gap: spacing.md,
-    shadowColor: colors.textDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
+    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
   },
   profileHeader: {
     flexDirection: 'row',
