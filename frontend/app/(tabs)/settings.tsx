@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -13,7 +13,7 @@ import {
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
 import { Switch } from 'react-native';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -33,13 +33,16 @@ function yearToOrdinal(gradYear: number): string {
 
 type TabId = 'listings' | 'saved';
 
+const PROFILE_EDIT: Href = '/profile/edit';
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { isAuthenticated, isLoading, signOut } = useAuth();
   const entranceStyle = useEntranceAnimation();
+  const signOutInProgressRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
   const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
@@ -90,11 +93,20 @@ export default function SettingsScreen() {
       return;
     }
 
+    if (signOutInProgressRef.current) {
+      return;
+    }
+
     try {
+      signOutInProgressRef.current = true;
+      setIsSigningOut(true);
       await signOut();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign out';
       Alert.alert('Sign Out Failed', message);
+    } finally {
+      signOutInProgressRef.current = false;
+      setIsSigningOut(false);
     }
   };
 
@@ -238,7 +250,7 @@ export default function SettingsScreen() {
           </Text>
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/profile/edit')}
+            onPress={() => router.push(PROFILE_EDIT)}
           >
             <Text style={styles.primaryButtonText}>Set up profile</Text>
           </Pressable>
@@ -289,7 +301,7 @@ export default function SettingsScreen() {
             <Text style={styles.bioText}>{profile.bio}</Text>
             <Pressable
               style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/profile/edit')}
+              onPress={() => router.push(PROFILE_EDIT)}
               accessibilityLabel="Edit profile"
               accessibilityRole="button"
             >
@@ -299,7 +311,7 @@ export default function SettingsScreen() {
         ) : (
           <Pressable
             style={({ pressed }) => [styles.addBioRow, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push('/profile/edit')}
+            onPress={() => router.push(PROFILE_EDIT)}
           >
             <Text style={styles.addBioText}>Add a bio...</Text>
             <Text style={styles.editIconText}>✎</Text>
@@ -422,13 +434,13 @@ export default function SettingsScreen() {
           style={({ pressed }) => [
             styles.secondaryButton,
             pressed && styles.buttonPressed,
-            isLoading && styles.buttonDisabled,
+            (isSigningOut || isLoading) && styles.buttonDisabled,
           ]}
           onPress={handleAuthAction}
-          disabled={isLoading}
+          disabled={isSigningOut || isLoading}
         >
           <Text style={styles.secondaryButtonText}>
-            {isLoading ? 'Signing out...' : 'Sign out'}
+            {isSigningOut ? 'Signing out...' : 'Sign out'}
           </Text>
         </Pressable>
         <Pressable
