@@ -157,6 +157,10 @@ export default function SearchScreen() {
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
   const searchColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : width >= 980 ? 2 : 1;
   const contentMaxWidth = isWeb ? 1240 : 980;
+  const resultsContentLayoutStyle = {
+    paddingHorizontal: contentPadding,
+    maxWidth: contentMaxWidth,
+  } as const;
 
   return (
     <View style={styles.page}>
@@ -250,12 +254,8 @@ export default function SearchScreen() {
           columnWrapperStyle={searchColumns > 1 ? styles.columnWrapper : undefined}
           contentContainerStyle={[
             styles.listContent,
-            {
-              paddingHorizontal: contentPadding,
-              maxWidth: contentMaxWidth,
-              width: '100%',
-              alignSelf: 'center',
-            },
+            styles.listContentConstrained,
+            resultsContentLayoutStyle,
             (isInitialLoading || showEmptyResults) && styles.listContentCentered,
           ]}
           onEndReached={handleLoadMore}
@@ -403,6 +403,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.lg,
+  },
+  listContentConstrained: {
+    width: '100%',
+    alignSelf: 'center',
   },
   listContentCentered: {
     flexGrow: 1,
