@@ -25,6 +25,7 @@ import MyListingActionsSheet, {
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'sold';
 
@@ -56,9 +57,10 @@ export default function MyListingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const myListings = useQuery(api.listings.getMyListings, isAuthenticated ? {} : 'skip');
+  const myListings = useQuery(api.listings.getMyListings, isAuthenticated && !isWeb ? {} : 'skip');
   const deleteListing = useMutation(api.listings.deleteListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -74,10 +76,10 @@ export default function MyListingsScreen() {
   }
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isWeb && !isLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, isWeb, router]);
 
   function closeActionSheet() {
     setSelectedListingId(null);
@@ -177,6 +179,19 @@ export default function MyListingsScreen() {
   const columnCount = width >= 1200 ? 3 : isCompactLayout ? 1 : 2;
   const contentPadding = width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Manage listings in the mobile app"
+        body="Create, edit, and manage your listings from PolyBuys on mobile."
+        path="/my-listings"
+        buttonLabel="Open My Listings in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   if (!isAuthenticated) {
     return (
