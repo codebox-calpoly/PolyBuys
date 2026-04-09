@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useMutation } from 'convex/react';
 import { useRouter } from 'expo-router';
@@ -23,7 +23,7 @@ function getExpoProjectId() {
   return easProjectIdFromExtra ?? easProjectIdFromConfig ?? easProjectIdFromEnv ?? null;
 }
 
-async function registerForPushNotificationsAsync() {
+async function getTokenIfPermissionGranted(): Promise<string | null> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -37,15 +37,8 @@ async function registerForPushNotificationsAsync() {
     return null;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') {
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') {
     return null;
   }
 
@@ -58,40 +51,75 @@ async function registerForPushNotificationsAsync() {
   return token.data;
 }
 
+export async function requestPermissionAndSyncToken(
+  recordPushToken: (args: { token: string }) => Promise<unknown>
+): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#154734',
+    });
+  }
+
+  if (!Device.isDevice) {
+    return false;
+  }
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+
+  if (finalStatus !== 'granted') {
+    return false;
+  }
+
+  const projectId = getExpoProjectId();
+  if (!projectId) {
+    throw new Error('Expo project ID not found for push notifications.');
+  }
+
+  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  await recordPushToken({ token: token.data });
+  return true;
+}
+
 export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: boolean) {
   const router = useRouter();
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
-  const previousIsAuthenticated = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
       return;
     }
-    if (isAuthLoading) {
+    if (isAuthLoading || !isAuthenticated) {
       return;
     }
 
     let isMounted = true;
 
-    const syncPushToken = async () => {
-      if (!isAuthenticated) {
-        previousIsAuthenticated.current = false;
-        return;
-      }
-
+    const syncExistingToken = async () => {
       try {
-        const token = await registerForPushNotificationsAsync();
+        const token = await getTokenIfPermissionGranted();
         if (!isMounted || !token) {
           return;
         }
         await recordPushToken({ token });
-        previousIsAuthenticated.current = true;
       } catch (error) {
-        console.error('Failed to register push notifications', error);
+        console.error('Failed to sync push token', error);
       }
     };
 
-    void syncPushToken();
+    void syncExistingToken();
 
     return () => {
       isMounted = false;
@@ -114,7 +142,7 @@ export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: bo
 
       try {
         router.push({
-          pathname: '/messages/[id]',
+          pathname: '/conversations/[id]',
           params: { id: conversationId },
         });
       } catch (error) {
@@ -126,4 +154,6 @@ export function usePushNotifications(isAuthenticated: boolean, isAuthLoading: bo
       responseListener.remove();
     };
   }, [router]);
+
+  return { recordPushToken };
 }

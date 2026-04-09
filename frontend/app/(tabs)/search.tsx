@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -52,6 +53,12 @@ export default function SearchScreen() {
 
     return () => clearTimeout(timeout);
   }, [searchInput]);
+
+  useFocusEffect(
+    useCallback(() => {
+      inputRef.current?.focus();
+    }, [])
+  );
 
   useEffect(() => {
     filterVersionRef.current += 1;
@@ -162,7 +169,12 @@ export default function SearchScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            onSubmitEditing={() => Keyboard.dismiss()}
+            onSubmitEditing={() => {
+              if (searchInput.trim().length > 0) {
+                addRecent(searchInput.trim());
+              }
+              Keyboard.dismiss();
+            }}
           />
         </View>
       </View>

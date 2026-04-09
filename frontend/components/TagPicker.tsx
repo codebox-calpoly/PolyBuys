@@ -60,7 +60,14 @@ export default function TagPicker({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={handleCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={handleCancel}
+    >
       <Pressable style={styles.overlay} onPress={handleCancel}>
         <Animated.View style={[styles.container, entranceStyle]}>
           <Pressable onPress={(event) => event.stopPropagation()}>
@@ -117,7 +124,7 @@ export default function TagPicker({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   container: {

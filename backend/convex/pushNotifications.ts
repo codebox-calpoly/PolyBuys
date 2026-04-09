@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { PushNotifications } from '@convex-dev/expo-push-notifications';
 import { components } from './_generated/api';
 import { internalMutation, mutation } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { requireAuthUserId } from './lib/authIdentity';
 
 const pushNotifications = new PushNotifications<string>(components.pushNotifications);
@@ -46,6 +47,17 @@ export const removePushToken = mutation({
   },
 });
 
+function displayNameFromProfileAndUser(
+  profile: { name?: string } | null,
+  user: { name?: string } | null
+): string {
+  const userName = user?.name?.trim();
+  if (userName && userName.length > 0) return userName;
+  const profileName = profile?.name?.trim();
+  if (profileName && profileName.length > 0) return profileName;
+  return 'Someone';
+}
+
 export const sendNewMessageNotification = internalMutation({
   args: {
     recipientId: v.string(),
@@ -60,18 +72,35 @@ export const sendNewMessageNotification = internalMutation({
       return { pushId: null };
     }
 
+    const recipientUser = await ctx.db.get(args.recipientId as Id<'users'>);
+    if (recipientUser?.messageNotificationsEnabled === false) {
+      return { pushId: null };
+    }
+
+    const [senderProfile, senderUser] = await Promise.all([
+      ctx.db
+        .query('profiles')
+        .withIndex('by_userId', (q) => q.eq('userId', args.senderId))
+        .first(),
+      ctx.db.get(args.senderId as Id<'users'>),
+    ]);
+
+    const senderName = displayNameFromProfileAndUser(senderProfile, senderUser);
+    const messagePreview = toMessagePreview(args.body);
+
     const pushId = await pushNotifications.sendPushNotification(ctx, {
       userId: args.recipientId,
       allowUnregisteredTokens: true,
       notification: {
-        title: 'New message',
-        body: toMessagePreview(args.body),
+        title: senderName,
+        body: messagePreview,
         data: {
           type: 'new_message',
           conversationId: args.conversationId,
           listingId: args.listingId,
           messageId: args.messageId,
           senderId: args.senderId,
+          senderName,
         },
       },
     });

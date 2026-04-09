@@ -225,12 +225,14 @@ export default function MyListingsScreen() {
             <Text style={styles.sectionTitle}>My Listings</Text>
             <Text style={styles.sectionSubtitle}>{subtitleText}</Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-            onPress={() => router.push('/listings/new')}
-          >
-            <Text style={styles.createChipText}>+ Create listing</Text>
-          </Pressable>
+          {manageableListings.length > 0 && (
+            <Pressable
+              style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
+              onPress={() => router.push('/listings/new')}
+            >
+              <Text style={styles.createChipText}>+ Create listing</Text>
+            </Pressable>
+          )}
         </Animated.View>
 
         {manageableListings.length > 0 && (
