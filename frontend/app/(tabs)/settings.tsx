@@ -449,6 +449,7 @@ export default function SettingsScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.secondaryButton,
+            styles.footerSignOutButton,
             pressed && styles.buttonPressed,
             (isSigningOut || isLoading) && styles.buttonDisabled,
           ]}
@@ -461,7 +462,7 @@ export default function SettingsScreen() {
         </Pressable>
         <Pressable
           style={({ pressed }) => [
-            styles.deleteButton,
+            styles.footerDeleteButton,
             pressed && styles.buttonPressed,
             isLoading && styles.buttonDisabled,
           ]}
@@ -702,11 +703,15 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: spacing.lg,
     gap: spacing.md,
+    alignItems: 'center',
   },
-  deleteButton: {
-    alignSelf: 'flex-start',
+  footerDeleteButton: {
+    alignItems: 'center',
     paddingVertical: spacing.md,
     paddingHorizontal: 0,
+  },
+  footerSignOutButton: {
+    alignSelf: 'center',
   },
   deleteButtonText: {
     ...typography.subhead,
