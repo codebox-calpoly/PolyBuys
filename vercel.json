@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "cd backend && npx convex deploy --prod --cmd-url-env-var-name EXPO_PUBLIC_CONVEX_URL --cmd 'cd ../frontend && npm run build'",
+  "buildCommand": "cd backend && npx convex deploy -y --cmd-url-env-var-name EXPO_PUBLIC_CONVEX_URL --cmd 'cd ../frontend && npm run build'",
   "outputDirectory": "frontend/dist",
   "build": {
     "env": {
