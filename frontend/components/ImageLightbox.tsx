@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Image,
   Modal,
@@ -26,6 +26,7 @@ export default function ImageLightbox({
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const overlayRef = useRef<HTMLDivElement | null>(null);
 
   // Sync index when the lightbox opens with a new initialIndex
   useEffect(() => {
@@ -33,6 +34,14 @@ export default function ImageLightbox({
       setCurrentIndex(initialIndex);
     }
   }, [visible, initialIndex]);
+
+  // Auto-focus the overlay on web so keyboard events are captured immediately
+  useEffect(() => {
+    if (visible && Platform.OS === 'web') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlayRef.current as any)?.focus();
+    }
+  }, [visible]);
 
   if (!visible || images.length === 0) {
     return null;
@@ -59,13 +68,16 @@ export default function ImageLightbox({
 
   const imageUri = images[currentIndex];
 
+  const webProps =
+    Platform.OS === 'web'
+      ? {
+          onKeyDown: handleKeyDown,
+          tabIndex: 0,
+        }
+      : {};
+
   const content = (
-    <View
-      style={styles.overlay}
-      // @ts-expect-error — onKeyDown is web-only
-      onKeyDown={Platform.OS === 'web' ? handleKeyDown : undefined}
-      tabIndex={Platform.OS === 'web' ? 0 : undefined}
-    >
+    <View ref={overlayRef as any} style={styles.overlay} {...(webProps as any)}>
       {/* Backdrop */}
       <Pressable
         style={styles.backdrop}

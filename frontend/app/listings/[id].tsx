@@ -35,8 +35,7 @@ import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
 
-// TODO: Replace with actual App Store / Play Store URLs once published
-const APP_STORE_URL = 'https://polybuys.com/download';
+import { APP_STORE_URL } from '../../constants/app';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -277,7 +276,7 @@ export default function ListingDetailScreen() {
           <Pressable
             style={({ pressed }) => [styles.webBannerButton, pressed && styles.buttonPressed]}
             onPress={() => {
-              // Try deep link first; if app isn't installed the user can use the download link below
+              // Open App Store / download page directly
               void Linking.openURL(APP_STORE_URL);
             }}
           >
@@ -567,7 +566,10 @@ export default function ListingDetailScreen() {
 
       <ImageLightbox
         images={mappedUrls.filter((url): url is string => url !== null)}
-        initialIndex={imageIndex}
+        initialIndex={
+          mappedUrls.slice(0, imageIndex + 1).filter((url): url is string => url !== null).length -
+          1
+        }
         visible={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
       />

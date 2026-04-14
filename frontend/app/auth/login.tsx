@@ -110,11 +110,26 @@ export default function LoginScreen() {
     setStep('profile');
   }, [step, profileData, authLoading, isAuthenticated, postAuthRedirect, router]);
 
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleCheckingRetry = useCallback(() => {
+    // Clear any outstanding retry timer before creating a new one
+    if (retryTimerRef.current !== null) {
+      clearTimeout(retryTimerRef.current);
+    }
     setCheckingTimedOut(false);
     // Re-enter the checking step to retrigger the profile query & timeout
     setStep('email');
-    setTimeout(() => setStep('checking'), 100);
+    retryTimerRef.current = setTimeout(() => setStep('checking'), 100);
+  }, []);
+
+  // Clean up the retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
   }, []);
 
   const handleGetStarted = () => {
