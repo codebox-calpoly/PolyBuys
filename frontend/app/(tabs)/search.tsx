@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -55,12 +55,6 @@ export default function SearchScreen() {
 
     return () => clearTimeout(timeout);
   }, [searchInput]);
-
-  useFocusEffect(
-    useCallback(() => {
-      inputRef.current?.focus();
-    }, [])
-  );
 
   useEffect(() => {
     filterVersionRef.current += 1;
@@ -163,134 +157,138 @@ export default function SearchScreen() {
   } as const;
 
   return (
-    <View style={styles.page}>
-      <View style={[styles.searchHeader, { paddingTop: topSafeSpace + spacing.md }]}>
-        <View style={[styles.searchHeaderInner, { maxWidth: contentMaxWidth }]}>
-          {isDesktopWeb ? (
-            <View style={styles.searchHeaderCopy}>
-              <Text style={styles.searchEyebrow}>Search</Text>
-              <Text style={styles.searchTitle}>Find exactly what you need</Text>
-              <Text style={styles.searchBody}>
-                Search by title or keywords to narrow the campus marketplace in seconds.
-              </Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.page}>
+        <View style={[styles.searchHeader, { paddingTop: topSafeSpace + spacing.md }]}>
+          <View style={[styles.searchHeaderInner, { maxWidth: contentMaxWidth }]}>
+            {isDesktopWeb ? (
+              <View style={styles.searchHeaderCopy}>
+                <Text style={styles.searchEyebrow}>Search</Text>
+                <Text style={styles.searchTitle}>Find exactly what you need</Text>
+                <Text style={styles.searchBody}>
+                  Search by title or keywords to narrow the campus marketplace in seconds.
+                </Text>
+              </View>
+            ) : null}
+            <View style={[styles.searchBarWrap, isDesktopWeb && styles.searchBarWrapDesktop]}>
+              <TextInput
+                ref={inputRef}
+                value={searchInput}
+                onChangeText={setSearchInput}
+                placeholder="Search desk, calculator, bike..."
+                placeholderTextColor={colors.muted}
+                style={styles.searchInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={() => {
+                  if (searchInput.trim().length > 0) {
+                    addRecent(searchInput.trim());
+                  }
+                  Keyboard.dismiss();
+                }}
+              />
             </View>
-          ) : null}
-          <View style={[styles.searchBarWrap, isDesktopWeb && styles.searchBarWrapDesktop]}>
-            <TextInput
-              ref={inputRef}
-              value={searchInput}
-              onChangeText={setSearchInput}
-              placeholder="Search desk, calculator, bike..."
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              onSubmitEditing={() => {
-                if (searchInput.trim().length > 0) {
-                  addRecent(searchInput.trim());
-                }
-                Keyboard.dismiss();
-              }}
-            />
           </View>
         </View>
-      </View>
-
-      {showRecentSearches ? (
-        <View
-          style={[
-            styles.content,
-            {
-              paddingHorizontal: contentPadding,
-              maxWidth: contentMaxWidth,
-            },
-          ]}
-        >
-          <View style={styles.recentCard}>
-            <Text style={styles.sectionTitle}>
-              {recent.length > 0 ? 'Recent searches' : 'Start with a quick search'}
-            </Text>
-            <Text style={styles.recentIntro}>
-              {recent.length > 0
-                ? 'Jump back into something you searched for recently.'
-                : 'Search across listings for desks, calculators, bikes, textbooks, and more.'}
-            </Text>
-            {recent.length === 0 ? (
-              <Text style={styles.emptyRecent}>No recent searches yet.</Text>
-            ) : (
-              <View style={styles.recentList}>
-                {recent.map((term) => (
-                  <Pressable
-                    key={term}
-                    style={({ pressed }) => [
-                      styles.recentItem,
-                      pressed && styles.recentItemPressed,
-                    ]}
-                    onPress={() => handleRecentPress(term)}
-                  >
-                    <Text style={styles.recentItemText}>{term}</Text>
-                  </Pressable>
-                ))}
-              </View>
+        {showRecentSearches ? (
+          <View
+            style={[
+              styles.content,
+              {
+                paddingHorizontal: contentPadding,
+                maxWidth: contentMaxWidth,
+              },
+            ]}
+          >
+            <View style={styles.recentCard}>
+              <Text style={styles.sectionTitle}>
+                {recent.length > 0 ? 'Recent searches' : 'Start with a quick search'}
+              </Text>
+              <Text style={styles.recentIntro}>
+                {recent.length > 0
+                  ? 'Jump back into something you searched for recently.'
+                  : 'Search across listings for desks, calculators, bikes, textbooks, and more.'}
+              </Text>
+              {recent.length === 0 ? (
+                <Text style={styles.emptyRecent}>No recent searches yet.</Text>
+              ) : (
+                <View style={styles.recentList}>
+                  {recent.map((term) => (
+                    <Pressable
+                      key={term}
+                      style={({ pressed }) => [
+                        styles.recentItem,
+                        pressed && styles.recentItemPressed,
+                      ]}
+                      onPress={() => handleRecentPress(term)}
+                    >
+                      <Text style={styles.recentItemText}>{term}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : isSearching ? (
+          <FlatList
+            key={`search-${searchColumns}`}
+            data={allListings}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item, index }) => (
+              <ListingCard
+                listing={item}
+                index={index}
+                isSaved={savedState?.[item._id] ?? false}
+                onToggleSave={() => handleToggleSave(item._id)}
+                onPress={() => handleListingPress(item)}
+              />
             )}
-          </View>
-        </View>
-      ) : isSearching ? (
-        <FlatList
-          key={`search-${searchColumns}`}
-          data={allListings}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item, index }) => (
-            <ListingCard
-              listing={item}
-              index={index}
-              isSaved={savedState?.[item._id] ?? false}
-              onToggleSave={() => handleToggleSave(item._id)}
-              onPress={() => handleListingPress(item)}
-            />
-          )}
-          numColumns={searchColumns}
-          columnWrapperStyle={searchColumns > 1 ? styles.columnWrapper : undefined}
-          contentContainerStyle={[
-            styles.listContent,
-            resultsContentLayoutStyle,
-            (isInitialLoading || showEmptyResults) && styles.listContentCentered,
-          ]}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListHeaderComponent={
-            <View style={styles.resultsHeader}>
-              <Text style={styles.sectionTitle}>Search results</Text>
-              <Text style={styles.resultsTitle}>
-                {isInitialLoading
-                  ? `Searching for "${searchTerm}"...`
-                  : `${allListings.length} result${allListings.length === 1 ? '' : 's'} for "${searchTerm}"`}
-              </Text>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={styles.stateContainer}>
-              <View style={styles.stateCard}>
-                <ScreenState
-                  variant={isInitialLoading ? 'loading' : 'empty'}
-                  title={isInitialLoading ? 'Searching...' : 'Nothing matched'}
-                  message={isInitialLoading ? undefined : `No listings found for "${searchTerm}".`}
-                />
+            numColumns={searchColumns}
+            columnWrapperStyle={searchColumns > 1 ? styles.columnWrapper : undefined}
+            contentContainerStyle={[
+              styles.listContent,
+              resultsContentLayoutStyle,
+              (isInitialLoading || showEmptyResults) && styles.listContentCentered,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListHeaderComponent={
+              <View style={styles.resultsHeader}>
+                <Text style={styles.sectionTitle}>Search results</Text>
+                <Text style={styles.resultsTitle}>
+                  {isInitialLoading
+                    ? `Searching for "${searchTerm}"...`
+                    : `${allListings.length} result${allListings.length === 1 ? '' : 's'} for "${searchTerm}"`}
+                </Text>
               </View>
-            </View>
-          }
-          ListFooterComponent={
-            isLoadingMore ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.footerText}>Loading more...</Text>
+            }
+            ListEmptyComponent={
+              <View style={styles.stateContainer}>
+                <View style={styles.stateCard}>
+                  <ScreenState
+                    variant={isInitialLoading ? 'loading' : 'empty'}
+                    title={isInitialLoading ? 'Searching...' : 'Nothing matched'}
+                    message={
+                      isInitialLoading ? undefined : `No listings found for "${searchTerm}".`
+                    }
+                  />
+                </View>
               </View>
-            ) : null
-          }
-        />
-      ) : null}
-    </View>
+            }
+            ListFooterComponent={
+              isLoadingMore ? (
+                <View style={styles.footerLoader}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.footerText}>Loading more...</Text>
+                </View>
+              ) : null
+            }
+          />
+        ) : null}
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
