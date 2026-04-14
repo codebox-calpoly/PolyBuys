@@ -4,6 +4,9 @@ import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 const APP_SCHEME = 'polybuys';
 
+// TODO: Replace with actual App Store / Play Store URLs once published
+const APP_STORE_URL = 'https://polybuys.com/download';
+
 type OpenInAppPromptProps = {
   title: string;
   body: string;
@@ -61,6 +64,13 @@ export default function OpenInAppPrompt({
             <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={() => void ExpoLinking.openURL(APP_STORE_URL)}
+          accessibilityRole="link"
+          accessibilityLabel="Download from App Store"
+        >
+          <Text style={styles.downloadHint}>Don&apos;t have the app? Download it here.</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -141,5 +151,11 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],
+  },
+  downloadHint: {
+    ...typography.footnote,
+    color: colors.primary,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
 });
