@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import TagPicker from './TagPicker';
 import { CATEGORY_LABELS } from '../types/filters';
 import type { Category, Filters } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { formatPrice } from '../lib/formatPrice';
+import { colors, borderRadius } from '../theme/tokens';
 
 // Re-export for backward compatibility
 export type { Category, Filters };
@@ -41,13 +43,13 @@ export function FilterBar({
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
-      return `$${filters.minPrice} - $${filters.maxPrice}`;
+      return `$${formatPrice(filters.minPrice)} - $${formatPrice(filters.maxPrice)}`;
     }
     if (filters.minPrice !== undefined) {
-      return `$${filters.minPrice}+`;
+      return `$${formatPrice(filters.minPrice)}+`;
     }
     if (filters.maxPrice !== undefined) {
-      return `Under $${filters.maxPrice}`;
+      return `Under $${formatPrice(filters.maxPrice)}`;
     }
     return 'Price';
   };
@@ -57,70 +59,103 @@ export function FilterBar({
   };
 
   return (
-    <Animated.View style={[styles.container, entranceStyle]}>
+    <Animated.View style={[styles.wrapper, entranceStyle]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Category Filter Chip */}
-        <View style={[styles.chip, hasCategory && styles.chipActive]}>
-          <Pressable style={styles.chipMainButton} onPress={onCategoryPress}>
-            <Text style={[styles.chipText, hasCategory && styles.chipTextActive]}>
-              {hasCategory ? CATEGORY_LABELS[filters.category!] : 'Category'}
-            </Text>
-          </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.chip,
+            hasCategory && styles.chipActive,
+            pressed && styles.chipPressed,
+          ]}
+          onPress={onCategoryPress}
+          accessibilityLabel={
+            hasCategory ? `Category: ${CATEGORY_LABELS[filters.category!]}` : 'Filter by category'
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: hasCategory }}
+        >
+          <Text style={[styles.chipText, hasCategory && styles.chipTextActive]}>
+            {hasCategory ? CATEGORY_LABELS[filters.category!] : 'Category'}
+          </Text>
           {hasCategory && (
             <Pressable
-              style={styles.clearButton}
+              style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.8 }]}
               onPress={onClearCategory}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={8}
+              accessibilityLabel="Clear category filter"
+              accessibilityRole="button"
             >
-              <Text style={styles.clearButtonText}>×</Text>
+              <Text style={styles.clearBtnText}>×</Text>
             </Pressable>
           )}
-        </View>
+        </Pressable>
 
-        {/* Price Filter Chip */}
-        <View style={[styles.chip, hasPrice && styles.chipActive]}>
-          <Pressable style={styles.chipMainButton} onPress={onPricePress}>
-            <Text style={[styles.chipText, hasPrice && styles.chipTextActive]}>
-              {getPriceLabel()}
-            </Text>
-          </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.chip,
+            hasPrice && styles.chipActive,
+            pressed && styles.chipPressed,
+          ]}
+          onPress={onPricePress}
+          accessibilityLabel={hasPrice ? `Price: ${getPriceLabel()}` : 'Filter by price'}
+          accessibilityRole="button"
+          accessibilityState={{ selected: hasPrice }}
+        >
+          <Text style={[styles.chipText, hasPrice && styles.chipTextActive]}>
+            {getPriceLabel()}
+          </Text>
           {hasPrice && (
             <Pressable
-              style={styles.clearButton}
+              style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.8 }]}
               onPress={onClearPrice}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={8}
+              accessibilityLabel="Clear price filter"
+              accessibilityRole="button"
             >
-              <Text style={styles.clearButtonText}>×</Text>
+              <Text style={styles.clearBtnText}>×</Text>
             </Pressable>
           )}
-        </View>
+        </Pressable>
 
-        {/* Tags Filter Chip */}
-        <View style={[styles.chip, hasTags && styles.chipActive]}>
-          <Pressable style={styles.chipMainButton} onPress={handleTagFilterPress}>
-            <Text style={[styles.chipText, hasTags && styles.chipTextActive]}>
-              {hasTags ? `Tags (${selectedTags.length})` : 'Tags'}
-            </Text>
-          </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.chip,
+            hasTags && styles.chipActive,
+            pressed && styles.chipPressed,
+          ]}
+          onPress={handleTagFilterPress}
+          accessibilityLabel={hasTags ? `Tags: ${selectedTags.length} selected` : 'Filter by tags'}
+          accessibilityRole="button"
+          accessibilityState={{ selected: hasTags }}
+        >
+          <Text style={[styles.chipText, hasTags && styles.chipTextActive]}>
+            {hasTags ? `Tags (${selectedTags.length})` : 'Tags'}
+          </Text>
           {hasTags && (
             <Pressable
-              style={styles.clearButton}
+              style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.8 }]}
               onPress={onClearTags}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={8}
+              accessibilityLabel="Clear tags filter"
+              accessibilityRole="button"
             >
-              <Text style={styles.clearButtonText}>×</Text>
+              <Text style={styles.clearBtnText}>×</Text>
             </Pressable>
           )}
-        </View>
+        </Pressable>
 
-        {/* Clear All Button */}
         {hasAnyFilter && (
-          <Pressable style={styles.clearAllButton} onPress={onClearAll}>
-            <Text style={styles.clearAllText}>Clear All</Text>
+          <Pressable
+            style={({ pressed }) => [styles.clearAll, pressed && styles.chipPressed]}
+            onPress={onClearAll}
+            accessibilityLabel="Clear all filters"
+            accessibilityRole="button"
+          >
+            <Text style={styles.clearAllText}>Clear</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -136,69 +171,66 @@ export function FilterBar({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e3e9e6',
-    backgroundColor: '#f9fbfa',
-    paddingVertical: 8,
+  wrapper: {
+    marginBottom: 12,
   },
   scrollContent: {
-    paddingHorizontal: 8,
-    gap: 10,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 999,
-    backgroundColor: '#f2f4f3',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#dee6e1',
-    overflow: 'hidden',
-  },
-  chipMainButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    borderColor: colors.border,
+    paddingVertical: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    minHeight: 44,
+    gap: 6,
   },
   chipActive: {
-    backgroundColor: '#154734',
-    borderColor: '#154734',
+    backgroundColor: colors.location,
+    borderColor: colors.locationDark,
+  },
+  chipPressed: {
+    opacity: 0.9,
   },
   chipText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.text,
+    fontWeight: '500',
   },
   chipTextActive: {
-    color: '#fff',
+    color: colors.textDark,
   },
-  clearButton: {
-    marginRight: 8,
+  clearBtn: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: colors.overlayLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  clearButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    lineHeight: 16,
+  clearBtnText: {
+    color: colors.textDark,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 14,
   },
-  clearAllButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: '#edf5f1',
-    borderWidth: 1,
-    borderColor: '#d3e7dc',
+  clearAll: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: borderRadius.full,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   clearAllText: {
     fontSize: 14,
-    color: '#16553f',
+    color: colors.primary,
     fontWeight: '600',
   },
 });

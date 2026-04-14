@@ -3,6 +3,7 @@ import { query, mutation, action, internalMutation, internalQuery } from './_gen
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
+import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -30,15 +31,12 @@ async function verifyOwnership(
   ctx: MutationCtx,
   listingId: Id<'listings'>
 ): Promise<Doc<'listings'>> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new ConvexError('You must be logged in to perform this action');
-  }
+  const userId = await requireAuthUserId(ctx);
   const listing = await ctx.db.get(listingId);
   if (!listing) {
     throw new ConvexError('Listing not found');
   }
-  if (listing.sellerId !== identity.subject) {
+  if (listing.sellerId !== userId) {
     throw new ConvexError('You are not the owner of this listing');
   }
   return listing;
@@ -120,10 +118,7 @@ const conditionValidator = v.union(v.literal('new'), v.literal('used'), v.litera
 export const generateListingImageUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to upload images');
-    }
+    await requireAuthUserId(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -157,8 +152,8 @@ export const getListing = query({
     const listing = await ctx.db.get(args.id);
     if (!listing) return null;
 
-    const identity = await ctx.auth.getUserIdentity();
-    const isOwner = !!identity && identity.subject === listing.sellerId;
+    const userId = await getStableUserId(ctx);
+    const isOwner = !!userId && userId === listing.sellerId;
 
     // Public visibility policy: only active listings are visible to non-owners.
     if (!isOwner && listing.status !== 'active') {
@@ -202,6 +197,8 @@ export const searchAndFilterListings = query({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
     }),
+    /** Optional key bumped by the client to force a refetch when cursor is already null */
+    _refreshKey: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
@@ -430,6 +427,8 @@ export const getListings = query({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
     }),
+    /** Optional key bumped by the client to force a refetch when cursor is already null */
+    _refreshKey: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate pagination bounds to prevent DoS
@@ -521,6 +520,19 @@ export const getListings = query({
   },
 });
 
+// Get public active listings by seller (for profile page)
+export const getListingsBySeller = query({
+  args: { sellerId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('listings')
+      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', args.sellerId))
+      .order('desc')
+      .filter((q) => q.and(q.eq(q.field('status'), 'active'), q.neq(q.field('isHidden'), true)))
+      .take(50);
+  },
+});
+
 // Internal query for fetching a listing (used by actions for ownership checks)
 export const internalGetListing = internalQuery({
   args: { id: v.id('listings') },
@@ -583,14 +595,11 @@ export const createListing = action({
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<string> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to create a listing');
-    }
+    const userId = await requireAuthUserId(ctx);
 
     // Verify user has completed profile setup
     const userProfile = await ctx.runQuery(internal.listings.internalGetProfile, {
-      userId: identity.subject,
+      userId,
     });
     if (!userProfile) {
       throw new ConvexError('You must complete your profile setup before creating a listing');
@@ -612,7 +621,7 @@ export const createListing = action({
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
       text: validatedTitle + ' ' + args.description,
       contentType: 'listing',
-      userId: identity.subject,
+      userId,
     });
 
     if (moderationResult.flagged) {
@@ -630,7 +639,7 @@ export const createListing = action({
       images: args.images,
       condition: args.condition,
       tags: normalizedTags,
-      sellerId: identity.subject,
+      sellerId: userId,
     });
 
     return listingId;
@@ -678,18 +687,14 @@ export const updateListing = action({
     ctx,
     args
   ): Promise<{ ok: true } | { ok: false; reason: 'moderation_blocked' }> => {
-    // Auth check
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to perform this action');
-    }
+    const userId = await requireAuthUserId(ctx);
 
     // Ownership check via internal query (actions can't read DB directly)
     const listing = await ctx.runQuery(internal.listings.internalGetListing, { id: args.id });
     if (!listing) {
       throw new ConvexError('Listing not found');
     }
-    if (listing.sellerId !== identity.subject) {
+    if (listing.sellerId !== userId) {
       throw new ConvexError('You are not the owner of this listing');
     }
     if (listing.status === 'deleted') {
@@ -748,7 +753,7 @@ export const updateListing = action({
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
       text: titleToCheck + ' ' + descToCheck,
       contentType: 'listing',
-      userId: identity.subject,
+      userId,
       contentId: args.id,
     });
 
@@ -781,6 +786,7 @@ export const updateListing = action({
 });
 
 // Update listing status
+// Sold is one-way: once sold, status cannot be changed back to active or inactive
 export const updateListingStatus = mutation({
   args: {
     id: v.id('listings'),
@@ -790,6 +796,9 @@ export const updateListingStatus = mutation({
     const listing = await verifyOwnership(ctx, args.id);
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot change status of a deleted listing');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot change status of a sold listing');
     }
     await ctx.db.patch(args.id, { status: args.status });
   },
@@ -830,16 +839,11 @@ export const searchListings = query({
 export const getMyHiddenListings = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to view your hidden listings');
-    }
+    const userId = await requireAuthUserId(ctx);
 
     return await ctx.db
       .query('listings')
-      .filter((q) =>
-        q.and(q.eq(q.field('sellerId'), identity.subject), q.eq(q.field('isHidden'), true))
-      )
+      .filter((q) => q.and(q.eq(q.field('sellerId'), userId), q.eq(q.field('isHidden'), true)))
       .collect();
   },
 });
@@ -848,14 +852,11 @@ export const getMyHiddenListings = query({
 export const getMyListings = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to view your listings');
-    }
+    const userId = await requireAuthUserId(ctx);
 
     const listings = await ctx.db
       .query('listings')
-      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', identity.subject))
+      .withIndex('by_seller_createdAt', (q) => q.eq('sellerId', userId))
       .order('desc')
       .collect();
 
@@ -863,11 +864,10 @@ export const getMyListings = query({
   },
 });
 
-// Get current user's identity subject
+// Get current user's stable auth ID (for frontend owner checks, message gating)
 export const getCurrentUserSubject = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    return identity?.subject ?? null;
+    return await getStableUserId(ctx);
   },
 });

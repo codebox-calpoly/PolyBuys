@@ -1,0 +1,9 @@
+export const PROFILE_BOUNDS = {
+  NAME_MIN: 1,
+  NAME_MAX: 100,
+  BIO_MAX: 500,
+  MAJOR_MIN: 1,
+  MAJOR_MAX: 100,
+  MIN_YEAR: 1900,
+  MAX_YEAR: 9999,
+} as const;

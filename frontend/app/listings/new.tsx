@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,12 +18,21 @@ import ImageUploader from '@/components/ImageUploader';
 import TagInput from '../../components/TagInput';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
-import { showAlert } from '../../utils/showAlert';
+import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
 const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
+
+function showAlert(title: string, message: string, onAck?: () => void) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    onAck?.();
+  } else {
+    Alert.alert(title, message, onAck ? [{ text: 'OK', onPress: onAck }] : undefined);
+  }
+}
 
 function getListingActionError(error: unknown, fallbackTitle: string) {
   const rawMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -103,9 +114,10 @@ export default function NewListingScreen() {
       return;
     }
 
-    const parsedPrice = Number(price);
+    const trimmed = price.trim();
+    const parsedPrice = trimmed === '' ? NaN : Number(trimmed);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      showAlert('Invalid price', 'Please enter a valid non-negative price.');
+      showAlert('Invalid price', 'Please enter a valid non-negative price in dollars.');
       return;
     }
 
@@ -131,8 +143,7 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      showAlert('Success', 'Listing created.');
-      router.replace('/');
+      showAlert('Success', 'Listing created.', () => router.replace('/'));
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
       showAlert(actionError.title, actionError.message);
@@ -145,7 +156,7 @@ export default function NewListingScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#154734" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -154,7 +165,7 @@ export default function NewListingScreen() {
   if (!isAuthenticated) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#154734" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Redirecting to login...</Text>
       </View>
     );
@@ -169,14 +180,31 @@ export default function NewListingScreen() {
       contentContainerStyle={styles.content}
     >
       <Animated.View style={[styles.formCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Seller Studio</Text>
-        <Text style={styles.title}>Create a listing</Text>
+        <Text style={styles.eyebrow}>Create Listing</Text>
+        <Text style={styles.title}>Add your item</Text>
         <Text style={styles.subtitle}>
           Make it clear, detailed, and easy for students to trust.
         </Text>
 
+        <View style={styles.section}>
+          <Text style={styles.label}>Photos</Text>
+          <Text style={styles.labelHint}>
+            Add 1–8 photos. Listings with clear photos sell faster.
+          </Text>
+          <ImageUploader
+            images={images}
+            onImagesChange={setImages}
+            onPendingChange={setHasPendingUploads}
+          />
+        </View>
+
         {profile === null && (
-          <Pressable style={styles.profileBanner} onPress={() => router.push('/settings')}>
+          <Pressable
+            style={styles.profileBanner}
+            onPress={() => router.push('/settings')}
+            accessibilityLabel="Go to profile setup"
+            accessibilityRole="button"
+          >
             <Text style={styles.profileBannerTitle}>⚠️ Profile setup required</Text>
             <Text style={styles.profileBannerText}>
               Complete your profile before creating a listing. Tap here to go to your Profile.
@@ -185,44 +213,55 @@ export default function NewListingScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.label}>Title *</Text>
+          <Text style={styles.label}>Title</Text>
           <TextInput
             style={styles.input}
             value={title}
             onChangeText={setTitle}
             placeholder="Enter listing title"
-            placeholderTextColor="#9aaa9f"
+            accessibilityLabel="Listing title"
+            placeholderTextColor={colors.muted}
             maxLength={100}
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Description *</Text>
+          <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
             placeholder="Describe your item"
-            placeholderTextColor="#9aaa9f"
+            placeholderTextColor={colors.muted}
             multiline
             numberOfLines={4}
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Price ($) *</Text>
-          <TextInput
-            style={styles.input}
-            value={price}
-            onChangeText={setPrice}
-            placeholder="0.00"
-            placeholderTextColor="#9aaa9f"
-            keyboardType="decimal-pad"
-          />
+          <Text style={styles.label}>Price</Text>
+          <View style={styles.priceInputWrap}>
+            <Text style={styles.pricePrefix}>$</Text>
+            <TextInput
+              style={[styles.input, styles.priceInput]}
+              value={price}
+              onChangeText={(text) => {
+                const filtered = text.replace(/[^0-9.]/g, '');
+                const parts = filtered.split('.');
+                if (parts.length > 2) return;
+                if (parts[1]?.length > 2) return;
+                setPrice(filtered);
+              }}
+              placeholder="15"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <Text style={styles.helperText}>Enter amount in dollars</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Category *</Text>
+          <Text style={styles.label}>Category</Text>
           <View style={styles.optionsContainer}>
             {categories.map((option) => (
               <Pressable
@@ -233,6 +272,9 @@ export default function NewListingScreen() {
                   pressed && styles.optionPressed,
                 ]}
                 onPress={() => setCategory(option)}
+                accessibilityLabel={`Category: ${option}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: category === option }}
               >
                 <Text style={[styles.optionText, category === option && styles.optionTextSelected]}>
                   {option.charAt(0).toUpperCase() + option.slice(1)}
@@ -243,7 +285,7 @@ export default function NewListingScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Condition *</Text>
+          <Text style={styles.label}>Condition</Text>
           <View style={styles.optionsContainer}>
             {conditions.map((option) => (
               <Pressable
@@ -254,6 +296,9 @@ export default function NewListingScreen() {
                   pressed && styles.optionPressed,
                 ]}
                 onPress={() => setCondition(option)}
+                accessibilityLabel={`Condition: ${option}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: condition === option }}
               >
                 <Text
                   style={[styles.optionText, condition === option && styles.optionTextSelected]}
@@ -263,15 +308,6 @@ export default function NewListingScreen() {
               </Pressable>
             ))}
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Images *</Text>
-          <ImageUploader
-            images={images}
-            onImagesChange={setImages}
-            onPendingChange={setHasPendingUploads}
-          />
         </View>
 
         <View style={styles.section}>
@@ -290,6 +326,8 @@ export default function NewListingScreen() {
               void onSubmit();
             }}
             disabled={isSubmitting || hasPendingUploads}
+            accessibilityLabel={isSubmitting ? 'Creating listing' : 'Create listing'}
+            accessibilityRole="button"
           >
             <Text style={styles.submitButtonText}>
               {isSubmitting ? 'Creating...' : 'Create Listing'}
@@ -303,6 +341,8 @@ export default function NewListingScreen() {
             ]}
             onPress={() => router.back()}
             disabled={isCancelDisabled}
+            accessibilityLabel="Cancel"
+            accessibilityRole="button"
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
@@ -315,7 +355,7 @@ export default function NewListingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
   },
   content: {
     width: '100%',
@@ -326,16 +366,11 @@ const styles = StyleSheet.create({
     paddingBottom: 26,
   },
   formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    padding: 16,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
+    borderColor: colors.muted,
+    padding: spacing.lg,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -345,47 +380,72 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 2,
     fontSize: 16,
-    color: '#5e7268',
+    color: colors.text,
   },
   eyebrow: {
-    fontSize: 12,
-    color: '#2a6f52',
-    letterSpacing: 0.4,
-    fontWeight: '600',
+    ...typography.footnoteMed,
+    color: colors.textDark,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...typography.title1,
     marginBottom: 6,
-    color: '#0f2b21',
+    color: colors.textDark,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#5f7268',
+    ...typography.subhead,
+    color: colors.text,
     marginBottom: 16,
   },
   section: {
-    marginBottom: 18,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#27463b',
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    marginBottom: 4,
+  },
+  labelHint: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f9fbfa',
+    borderColor: colors.muted,
+    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    ...typography.body,
+    color: colors.textDark,
+    backgroundColor: colors.white,
   },
   textArea: {
     minHeight: 112,
     textAlignVertical: 'top',
+  },
+  priceInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.muted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.white,
+  },
+  pricePrefix: {
+    ...typography.body,
+    color: colors.text,
+    paddingLeft: spacing.md,
+  },
+  priceInput: {
+    flex: 1,
+    borderWidth: 0,
+    margin: 0,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginTop: spacing.xs,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -395,25 +455,24 @@ const styles = StyleSheet.create({
   option: {
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 999,
+    borderRadius: borderRadius.full,
     borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#f8fbf9',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   optionSelected: {
-    backgroundColor: '#154734',
-    borderColor: '#154734',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionPressed: {
     opacity: 0.85,
   },
   optionText: {
-    fontSize: 14,
-    color: '#4f645b',
-    fontWeight: '500',
+    ...typography.subhead,
+    color: colors.text,
   },
   optionTextSelected: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '600',
   },
   buttonContainer: {
@@ -422,43 +481,44 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   submitButton: {
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
     padding: 15,
-    borderRadius: 12,
+    borderRadius: borderRadius.sm,
     alignItems: 'center',
+    minHeight: 45,
+    justifyContent: 'center',
   },
   submitButtonDisabled: {
-    backgroundColor: '#9eb5ab',
+    backgroundColor: colors.muted,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    ...typography.body,
+    color: colors.white,
     fontWeight: '600',
   },
   cancelButton: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: borderRadius.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d5e0db',
-    backgroundColor: '#f6faf8',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   cancelButtonDisabled: {
     opacity: 0.6,
   },
   cancelButtonText: {
-    color: '#4f645b',
-    fontSize: 16,
-    fontWeight: '500',
+    ...typography.body,
+    color: colors.text,
   },
   buttonPressed: {
     opacity: 0.9,
   },
   profileBanner: {
-    backgroundColor: '#fff8e1',
+    backgroundColor: colors.warningBg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ffe082',
+    borderColor: colors.warningBorder,
     padding: 14,
     marginBottom: 8,
     gap: 4,
@@ -466,11 +526,11 @@ const styles = StyleSheet.create({
   profileBannerTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#6d4c00',
+    color: colors.warningText,
   },
   profileBannerText: {
     fontSize: 14,
-    color: '#8d6e0a',
+    color: colors.warningTextMuted,
     lineHeight: 20,
   },
 });

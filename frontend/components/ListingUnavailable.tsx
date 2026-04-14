@@ -1,6 +1,7 @@
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { colors, typography, borderRadius } from '../theme/tokens';
 
 export default function ListingUnavailable() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function ListingUnavailable() {
         <Pressable
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
           onPress={() => router.replace('/')}
+          accessibilityLabel="Back to browse"
+          accessibilityRole="button"
         >
           <Text style={styles.buttonText}>Back to browse</Text>
         </Pressable>
@@ -30,42 +33,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.placeholderBg,
   },
   card: {
     width: '100%',
     maxWidth: 560,
-    borderRadius: 18,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    backgroundColor: '#fff',
+    borderColor: colors.placeholderBorder,
+    backgroundColor: colors.white,
     padding: 20,
     alignItems: 'center',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
+    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
     gap: 10,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1d3329',
+    ...typography.title1,
+    color: colors.textDark,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#64786f',
+    ...typography.footnote,
+    color: colors.text,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 4,
   },
   button: {
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
     paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     minHeight: 44,
     justifyContent: 'center',
   },
@@ -73,5 +71,9 @@ const styles = StyleSheet.create({
     opacity: 0.94,
     transform: [{ scale: 0.99 }],
   },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  buttonText: {
+    ...typography.subhead,
+    color: colors.white,
+    fontWeight: '600',
+  },
 });

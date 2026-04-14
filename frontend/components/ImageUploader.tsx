@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { colors, borderRadius, typography, spacing } from '../theme/tokens';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useMutation } from 'convex/react';
@@ -31,6 +42,35 @@ type PickedImage = {
   height?: number;
   isObjectUrl?: boolean;
 };
+
+function UploadProgressBar({ progress, compact = false }: { progress: number; compact?: boolean }) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const animatedProgress = useRef(new Animated.Value(clampedProgress)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(animatedProgress, {
+      toValue: clampedProgress,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [animatedProgress, clampedProgress]);
+
+  const width = animatedProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
+  return (
+    <View style={[styles.progressTrack, compact && styles.progressTrackCompact]}>
+      <Animated.View
+        style={[styles.progressFill, compact && styles.progressFillCompact, { width }]}
+      />
+    </View>
+  );
+}
 
 export default function ImageUploader({
   images,
@@ -251,6 +291,10 @@ export default function ImageUploader({
         );
       });
 
+      setPendingUploads((prev) =>
+        prev.map((upload) => (upload.localId === localId ? { ...upload, progress: 1 } : upload))
+      );
+      await new Promise((resolve) => setTimeout(resolve, 180));
       setPendingUploads((prev) => prev.filter((upload) => upload.localId !== localId));
       revokeObjectUrl(localId);
       onImagesChange((prev) => [...prev, storageId]);
@@ -358,79 +402,249 @@ export default function ImageUploader({
     setPendingUploads((prev) => prev.filter((item) => item.localId !== localId));
   }
 
+  const isEmpty = images.length === 0 && pendingUploads.length === 0;
+  const count = images.length + pendingUploads.length;
+  const atMax = count >= maxImages;
+  const activelyUploading = pendingUploads.filter((upload) => upload.status === 'uploading');
+  const uploadCount = activelyUploading.length;
+  const overallUploadProgress =
+    uploadCount > 0
+      ? activelyUploading.reduce((sum, upload) => sum + upload.progress, 0) / uploadCount
+      : 0;
+
   return (
     <View>
-      <View style={styles.grid}>
-        {images.map((imageId, index) => (
-          <View key={imageId} style={styles.card}>
-            {mappedUrls[index] ? (
-              <Image source={{ uri: mappedUrls[index] as string }} style={styles.image} />
-            ) : (
-              <View style={[styles.image, styles.placeholder]}>
-                <Text style={styles.placeholderText}>Loading...</Text>
-              </View>
-            )}
-            <Pressable style={styles.removeButton} onPress={() => removeImage(imageId)}>
-              <Text style={styles.removeButtonText}>Remove</Text>
-            </Pressable>
+      {uploadCount > 0 ? (
+        <View style={styles.uploadStatusCard}>
+          <View style={styles.uploadStatusHeader}>
+            <Text style={styles.uploadStatusTitle}>
+              Uploading {uploadCount} {uploadCount === 1 ? 'photo' : 'photos'}
+            </Text>
+            <Text style={styles.uploadStatusPercent}>
+              {Math.round(overallUploadProgress * 100)}%
+            </Text>
           </View>
-        ))}
-
-        {pendingUploads.map((upload) => (
-          <View key={upload.localId} style={styles.card}>
-            <Image source={{ uri: upload.uri }} style={styles.image} />
-            <View style={styles.pendingOverlay}>
-              {upload.status === 'uploading' ? (
-                <Text style={styles.pendingText}>{Math.round(upload.progress * 100)}%</Text>
+          <UploadProgressBar progress={overallUploadProgress} />
+        </View>
+      ) : null}
+      {isEmpty ? (
+        <Pressable
+          style={({ pressed }) => [styles.heroUpload, pressed && styles.heroUploadPressed]}
+          onPress={() => void addImage()}
+          accessibilityLabel="Add photos"
+          accessibilityRole="button"
+        >
+          <View style={styles.heroIcon}>
+            <Text style={styles.heroIconText}>📷</Text>
+          </View>
+          <Text style={styles.heroTitle}>Add photos</Text>
+          <Text style={styles.heroSubtitle}>
+            Tap to upload from camera or library • 1–{maxImages} photos
+          </Text>
+        </Pressable>
+      ) : (
+        <View style={styles.grid}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.addButton,
+              atMax && styles.addButtonDisabled,
+              pressed && !atMax && styles.addButtonPressed,
+            ]}
+            onPress={() => void addImage()}
+            disabled={atMax}
+            accessibilityLabel={
+              atMax ? 'Maximum photos reached' : `Add photo (${count}/${maxImages})`
+            }
+            accessibilityRole="button"
+          >
+            <Text style={styles.addButtonIcon}>+</Text>
+            <Text style={styles.addButtonText}>
+              {atMax ? `${maxImages}/${maxImages}` : `Add (${count}/${maxImages})`}
+            </Text>
+          </Pressable>
+          {images.map((imageId, index) => (
+            <View key={imageId} style={styles.card}>
+              {mappedUrls[index] ? (
+                <Image source={{ uri: mappedUrls[index] as string }} style={styles.image} />
               ) : (
-                <Text style={styles.errorText}>Failed</Text>
+                <View style={[styles.image, styles.placeholder]}>
+                  <Text style={styles.placeholderText}>Loading...</Text>
+                </View>
               )}
+              <Pressable style={styles.removeButton} onPress={() => removeImage(imageId)}>
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </Pressable>
             </View>
+          ))}
 
-            {upload.status === 'error' ? (
-              <View style={styles.errorActions}>
-                <Pressable style={styles.smallButton} onPress={() => retryUpload(upload.localId)}>
-                  <Text style={styles.smallButtonText}>Retry</Text>
-                </Pressable>
-                <Pressable style={styles.smallButton} onPress={() => removePending(upload.localId)}>
-                  <Text style={styles.smallButtonText}>Remove</Text>
-                </Pressable>
+          {pendingUploads.map((upload) => (
+            <View key={upload.localId} style={styles.card}>
+              <Image source={{ uri: upload.uri }} style={styles.image} />
+              <View style={styles.pendingOverlay}>
+                {upload.status === 'uploading' ? (
+                  <View style={styles.pendingContent}>
+                    <Text style={styles.pendingText}>
+                      Uploading {Math.round(upload.progress * 100)}%
+                    </Text>
+                    <UploadProgressBar progress={upload.progress} compact />
+                  </View>
+                ) : (
+                  <Text style={styles.errorText}>Failed</Text>
+                )}
               </View>
-            ) : null}
-          </View>
-        ))}
-      </View>
 
-      <Pressable
-        style={[
-          styles.addButton,
-          images.length + pendingUploads.length >= maxImages && styles.addButtonDisabled,
-        ]}
-        onPress={() => {
-          void addImage();
-        }}
-        disabled={images.length + pendingUploads.length >= maxImages}
-      >
-        <Text style={styles.addButtonText}>Add Image</Text>
-      </Pressable>
+              {upload.status === 'error' ? (
+                <View style={styles.errorActions}>
+                  <Pressable style={styles.smallButton} onPress={() => retryUpload(upload.localId)}>
+                    <Text style={styles.smallButtonText}>Retry</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.smallButton}
+                    onPress={() => removePending(upload.localId)}
+                  >
+                    <Text style={styles.smallButtonText}>Remove</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  uploadStatusCard: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  uploadStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  uploadStatusTitle: {
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  uploadStatusPercent: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  progressTrackCompact: {
+    height: 6,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+  },
+  progressFillCompact: {
+    backgroundColor: colors.white,
+    opacity: 0.95,
+  },
+  heroUpload: {
+    minHeight: 180,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    backgroundColor: colors.placeholderBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  heroUploadPressed: {
+    backgroundColor: colors.surface,
+    borderColor: colors.primary,
+    opacity: 0.95,
+  },
+  heroIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  heroIconText: {
+    fontSize: 28,
+  },
+  heroTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  heroSubtitle: {
+    ...typography.footnote,
+    color: colors.muted,
+    textAlign: 'center',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  addButton: {
+    width: 140,
+    height: 140,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.muted,
+    backgroundColor: colors.placeholderBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addButtonPressed: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  addButtonDisabled: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    opacity: 0.7,
+  },
+  addButtonIcon: {
+    fontSize: 32,
+    color: colors.primary,
+    fontWeight: '300',
+    lineHeight: 36,
+  },
+  addButtonText: {
+    ...typography.footnote,
+    color: colors.text,
+    fontWeight: '600',
   },
   card: {
-    width: '31%',
+    width: 140,
   },
   image: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: 8,
-    backgroundColor: '#eaeaea',
+    backgroundColor: colors.grayLight,
   },
   placeholder: {
     alignItems: 'center',
@@ -438,17 +652,17 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.gray,
   },
   removeButton: {
     marginTop: 6,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#ef5350',
+    backgroundColor: colors.destructive,
     alignItems: 'center',
   },
   removeButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -463,12 +677,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pendingContent: {
+    width: '78%',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   pendingText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '700',
   },
   errorText: {
-    color: '#ffdede',
+    color: colors.errorText,
     fontWeight: '700',
   },
   errorActions: {
@@ -480,27 +699,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#455a64',
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   smallButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  addButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1976d2',
-    alignItems: 'center',
-  },
-  addButtonDisabled: {
-    backgroundColor: '#9e9e9e',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 14,
     fontWeight: '600',
   },
 });

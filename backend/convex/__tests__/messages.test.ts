@@ -15,9 +15,11 @@ jest.mock('@convex-dev/expo-push-notifications', () => {
 import { api, internal } from '../_generated/api';
 import {
   createConvexTest,
+  createTestProfile,
   createTestUser,
   createTestListing,
   createTestConversation,
+  createTestConversationEmpty,
 } from './testUtils';
 
 function getSendPushNotificationMock(): jest.Mock {
@@ -64,6 +66,23 @@ describe('Messages queries and mutations', () => {
           body: 'Hello',
         });
       }).rejects.toThrow('Forbidden');
+    });
+
+    it('rejects whitespace-only message bodies', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await expect(async () => {
+        await asBuyer.action(api.messages.sendMessage, {
+          conversationId,
+          body: '   \n\t  ',
+        });
+      }).rejects.toThrow('Message cannot be empty');
     });
 
     it('successfully sends message from buyer to seller', async () => {
@@ -164,22 +183,60 @@ describe('Messages queries and mutations', () => {
         body: 'Push me when you get this',
       });
 
-      expect(getSendPushNotificationMock()).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          userId: seller.id,
-          allowUnregisteredTokens: true,
-          notification: expect.objectContaining({
-            title: 'New message',
-            body: 'Push me when you get this',
-            data: expect.objectContaining({
-              conversationId,
-              listingId,
-              senderId: buyer.id,
-            }),
+      const mockCall = getSendPushNotificationMock().mock.calls[0];
+      expect(mockCall[1]).toMatchObject({
+        userId: seller.id,
+        allowUnregisteredTokens: true,
+        notification: expect.objectContaining({
+          body: 'Push me when you get this',
+          data: expect.objectContaining({
+            conversationId,
+            listingId,
+            senderId: buyer.id,
+            senderName: expect.any(String),
           }),
-        })
-      );
+        }),
+      });
+      expect(mockCall[1].notification.title).toBeDefined();
+      expect(typeof mockCall[1].notification.title).toBe('string');
+    });
+  });
+
+  describe('block checks', () => {
+    it('sendMessage throws when sender has blocked recipient', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
+      await expect(async () => {
+        await asBuyer.action(api.messages.sendMessage, {
+          conversationId,
+          body: 'Hello',
+        });
+      }).rejects.toThrow('You cannot message this user');
+    });
+
+    it('sendMessage throws when recipient has blocked sender', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asSeller = t.withIdentity(seller.identity);
+      await asSeller.mutation(api.blocks.blockUser, { blockedId: buyer.id });
+      await expect(async () => {
+        await asSeller.action(api.messages.sendMessage, {
+          conversationId,
+          body: 'Hello',
+        });
+      }).rejects.toThrow('You cannot message this user');
     });
   });
 
@@ -209,7 +266,7 @@ describe('Messages queries and mutations', () => {
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
-      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
       const asBuyer = t.withIdentity(buyer.identity);
 
@@ -226,7 +283,7 @@ describe('Messages queries and mutations', () => {
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
-      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
       // Insert messages directly
       await t.run(async (ctx) => {
@@ -334,10 +391,10 @@ describe('Messages queries and mutations', () => {
       const listingId1 = await createTestListing(t, seller.id, { title: 'Listing 1' });
       const listingId2 = await createTestListing(t, seller.id, { title: 'Listing 2' });
 
-      // Create older conversation
-      await t.run(async (ctx) => {
+      // Create older conversation with message
+      await t.run(async (ctx: any) => {
         const now = Date.now();
-        await ctx.db.insert('conversations', {
+        const convId1 = await ctx.db.insert('conversations', {
           listingId: listingId1,
           buyerId: buyer.id,
           sellerId: seller.id,
@@ -347,12 +404,23 @@ describe('Messages queries and mutations', () => {
           buyerLastReadAt: now,
           sellerLastReadAt: now,
         });
+        const msgId1 = await ctx.db.insert('messages', {
+          conversationId: convId1,
+          listingId: listingId1,
+          senderId: buyer.id,
+          recipientId: seller.id,
+          type: 'text',
+          body: 'Hi',
+          createdAt: now - 2000,
+          readAt: 0,
+        });
+        await ctx.db.patch(convId1, { lastMessageId: msgId1 });
       });
 
-      // Create newer conversation
-      await t.run(async (ctx) => {
+      // Create newer conversation with message
+      await t.run(async (ctx: any) => {
         const now = Date.now();
-        await ctx.db.insert('conversations', {
+        const convId2 = await ctx.db.insert('conversations', {
           listingId: listingId2,
           buyerId: buyer.id,
           sellerId: seller.id,
@@ -362,6 +430,17 @@ describe('Messages queries and mutations', () => {
           buyerLastReadAt: now,
           sellerLastReadAt: now,
         });
+        const msgId2 = await ctx.db.insert('messages', {
+          conversationId: convId2,
+          listingId: listingId2,
+          senderId: buyer.id,
+          recipientId: seller.id,
+          type: 'text',
+          body: 'Hi',
+          createdAt: now - 1000,
+          readAt: 0,
+        });
+        await ctx.db.patch(convId2, { lastMessageId: msgId2 });
       });
 
       const asBuyer = t.withIdentity(buyer.identity);
@@ -369,6 +448,80 @@ describe('Messages queries and mutations', () => {
 
       expect(conversations).toHaveLength(2);
       expect(conversations[0].updatedAt).toBeGreaterThan(conversations[1].updatedAt);
+    });
+
+    it('resolves other user name from profile', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(buyer.id, { name: '' });
+      });
+      await createTestProfile(t, buyer.id, {
+        name: 'Buyer Profile Name',
+        email: 'buyer@calpoly.edu',
+      });
+
+      await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asSeller = t.withIdentity(seller.identity);
+      const conversations = await asSeller.query(api.messages.listUserConversations);
+
+      expect(conversations).toHaveLength(1);
+      expect(conversations[0].otherUser.name).toBe('Buyer Profile Name');
+    });
+
+    it('does not return conversations with no messages', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      await t.run(async (ctx: any) => {
+        const now = Date.now();
+        await ctx.db.insert('conversations', {
+          listingId,
+          buyerId: buyer.id,
+          sellerId: seller.id,
+          participantIds: [buyer.id, seller.id],
+          createdAt: now,
+          updatedAt: now,
+          buyerLastReadAt: now,
+          sellerLastReadAt: now,
+        });
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const conversations = await asBuyer.query(api.messages.listUserConversations);
+
+      expect(conversations).toHaveLength(0);
+    });
+
+    it('returns generic user label when no public name is available', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(buyer.id, { name: '' });
+      });
+      await createTestProfile(t, buyer.id, {
+        name: '',
+        email: 'private-buyer@calpoly.edu',
+      });
+      await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asSeller = t.withIdentity(seller.identity);
+      const conversations = await asSeller.query(api.messages.listUserConversations);
+
+      expect(conversations).toHaveLength(1);
+      expect(conversations[0].otherUser.name).toBe('User');
     });
   });
 
@@ -449,6 +602,41 @@ describe('Messages queries and mutations', () => {
           listingId,
         });
       }).rejects.toThrow('Listing is not active');
+    });
+
+    it('throws error when buyer has blocked seller', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+          listingId,
+        });
+      }).rejects.toThrow('You cannot message this user');
+    });
+
+    it('throws error when seller has blocked buyer', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asSeller = t.withIdentity(seller.identity);
+      await asSeller.mutation(api.blocks.blockUser, { blockedId: buyer.id });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+          listingId,
+        });
+      }).rejects.toThrow('You cannot message this user');
     });
 
     it('throws error when listing is hidden', async () => {
@@ -565,6 +753,34 @@ describe('Messages queries and mutations', () => {
       expect(conversationAfter!.sellerLastReadAt).toBeGreaterThan(oldSellerLastReadAt);
     });
 
+    it('does not update conversation updatedAt when marking messages as read', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const conversationBefore = await t.run(async (ctx) => {
+        return await ctx.db.get(conversationId);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await asBuyer.mutation(api.messages.markMessagesAsRead, {
+        conversationId,
+      });
+
+      const conversationAfter = await t.run(async (ctx) => {
+        return await ctx.db.get(conversationId);
+      });
+
+      expect(conversationAfter!.updatedAt).toBe(conversationBefore!.updatedAt);
+      expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(
+        conversationBefore!.buyerLastReadAt
+      );
+    });
+
     it('marks unread messages as read for buyer', async () => {
       const t = createConvexTest();
 
@@ -660,9 +876,9 @@ describe('Messages queries and mutations', () => {
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
-      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
-      await t.run(async (ctx) => {
+      await t.run(async (ctx: any) => {
         await ctx.db.insert('messages', {
           conversationId,
           listingId,
@@ -694,6 +910,64 @@ describe('Messages queries and mutations', () => {
       expect(messages).toHaveLength(2);
       expect(messages[0].body).toBe('Message 1');
       expect(messages[1].body).toBe('Message 2');
+    });
+  });
+
+  describe('createConversationAndSendFirstMessage', () => {
+    it('creates conversation and sends first message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      const result = await asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
+        listingId,
+        body: 'Is this still available?',
+      });
+
+      expect(result.conversationId).toBeDefined();
+
+      const conversation = await t.run(async (ctx: any) => {
+        return await ctx.db.get(result.conversationId);
+      });
+      expect(conversation).toMatchObject({
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+      });
+      expect(conversation!.lastMessageId).toBeDefined();
+
+      const messages = await t.run(async (ctx: any) => {
+        return await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_createdAt', (q: any) =>
+            q.eq('conversationId', result.conversationId)
+          )
+          .collect();
+      });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].body).toBe('Is this still available?');
+    });
+
+    it('throws when blocked', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
+
+      await expect(async () => {
+        await asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
+          listingId,
+          body: 'Hello',
+        });
+      }).rejects.toThrow('You cannot message this user');
     });
   });
 

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
+import { colors, borderRadius, spacing } from '../theme/tokens';
 
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || 'support@polybuys.com';
 
@@ -12,7 +13,11 @@ export default function HiddenBanner() {
   return (
     <View style={styles.banner}>
       <Text style={styles.title}>This listing has been hidden due to reports.</Text>
-      <TouchableOpacity onPress={onAppealPress}>
+      <TouchableOpacity
+        onPress={onAppealPress}
+        accessibilityLabel="Contact support to appeal"
+        accessibilityRole="button"
+      >
         <Text style={styles.link}>Contact support to appeal</Text>
       </TouchableOpacity>
     </View>
@@ -21,22 +26,22 @@ export default function HiddenBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: '#fff9eb',
-    borderColor: '#f0d37a',
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warningBorder,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   title: {
     fontSize: 14,
-    color: '#6c4f20',
-    marginBottom: 8,
+    color: colors.warningText,
+    marginBottom: spacing.sm,
     fontWeight: '600',
   },
   link: {
     fontSize: 14,
-    color: '#8a5a00',
+    color: colors.warningLink,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },

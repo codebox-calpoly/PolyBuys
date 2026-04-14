@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,15 +14,25 @@ import {
 import { useAction, useQuery } from 'convex/react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
-import { Id } from 'convex/_generated/dataModel';
+import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { borderRadius, colors, spacing, typography } from '../../../theme/tokens';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
+
+function showAlert(title: string, message: string, onAck?: () => void) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    onAck?.();
+  } else {
+    Alert.alert(title, message, onAck ? [{ text: 'OK', onPress: onAck }] : undefined);
+  }
+}
 
 function getListingActionError(error: unknown, fallbackTitle: string) {
   const rawMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -82,24 +93,38 @@ export default function EditListingScreen() {
       return;
     }
 
-    if (!title.trim() || !description.trim()) {
-      Alert.alert('Missing fields', 'Title and description are required.');
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+
+    if (!trimmedTitle) {
+      showAlert('Missing title', 'Title is required.');
       return;
     }
 
-    const parsedPrice = Number(price);
+    if (trimmedTitle.length < 5) {
+      showAlert('Invalid title', 'Title must be at least 5 characters.');
+      return;
+    }
+
+    if (!trimmedDescription) {
+      showAlert('Missing description', 'Description is required.');
+      return;
+    }
+
+    const trimmed = price.trim();
+    const parsedPrice = trimmed === '' ? NaN : Number(trimmed);
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Invalid price', 'Please enter a valid non-negative price.');
+      showAlert('Invalid price', 'Please enter a valid non-negative price in dollars.');
       return;
     }
 
     if (hasPendingUploads) {
-      Alert.alert('Uploads in progress', 'Please wait for image uploads to finish.');
+      showAlert('Uploads in progress', 'Please wait for image uploads to finish.');
       return;
     }
 
     if (images.length < 1 || images.length > 8) {
-      Alert.alert('Invalid images', 'Please upload between 1 and 8 images.');
+      showAlert('Invalid images', 'Please upload between 1 and 8 images.');
       return;
     }
 
@@ -108,8 +133,8 @@ export default function EditListingScreen() {
       setIsSubmitting(true);
       const result = await updateListing({
         id: listingId as Id<'listings'>,
-        title: title.trim(),
-        description: description.trim(),
+        title: trimmedTitle,
+        description: trimmedDescription,
         price: parsedPrice,
         category,
         condition,
@@ -117,17 +142,16 @@ export default function EditListingScreen() {
         tags,
       });
       if (!result.ok) {
-        Alert.alert(
+        showAlert(
           'Listing needs edits',
           'Some listing text was flagged by our safety checks. Try rewording the title or description and submit again.'
         );
         return;
       }
-      Alert.alert('Success', 'Listing updated.');
-      router.back();
+      showAlert('Success', 'Listing updated.', () => router.back());
     } catch (error) {
       const actionError = getListingActionError(error, 'Update failed');
-      Alert.alert(actionError.title, actionError.message);
+      showAlert(actionError.title, actionError.message);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -141,7 +165,7 @@ export default function EditListingScreen() {
   if (listing === undefined) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="small" color="#154734" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading listing...</Text>
       </View>
     );
@@ -160,46 +184,74 @@ export default function EditListingScreen() {
       contentContainerStyle={styles.content}
     >
       <Animated.View style={[styles.formCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Seller Studio</Text>
-        <Text style={styles.title}>Edit listing</Text>
-        <Text style={styles.subtitle}>Update your listing details and keep it fresh.</Text>
+        <Text style={styles.eyebrow}>Edit Listing</Text>
+        <Text style={styles.title}>Update your item</Text>
+        <Text style={styles.subtitle}>Keep your listing accurate so buyers can decide faster.</Text>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Title *</Text>
+          <Text style={styles.label}>Photos</Text>
+          <Text style={styles.labelHint}>
+            Add 1–8 photos. Listings with clear photos sell faster.
+          </Text>
+          <ImageUploader
+            images={images}
+            onImagesChange={setImages}
+            onPendingChange={setHasPendingUploads}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Title</Text>
           <TextInput
             style={styles.input}
             value={title}
             onChangeText={setTitle}
             placeholder="Enter listing title"
+            accessibilityLabel="Listing title"
+            placeholderTextColor={colors.muted}
             maxLength={100}
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Description *</Text>
+          <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
             placeholder="Describe your item"
+            placeholderTextColor={colors.muted}
             multiline
             numberOfLines={4}
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Price ($) *</Text>
-          <TextInput
-            style={styles.input}
-            value={price}
-            onChangeText={setPrice}
-            placeholder="0.00"
-            keyboardType="decimal-pad"
-          />
+          <Text style={styles.label}>Price</Text>
+          <View style={styles.priceInputWrap}>
+            <Text style={styles.pricePrefix}>$</Text>
+            <TextInput
+              style={[styles.input, styles.priceInput]}
+              value={price}
+              onChangeText={(text) => {
+                const filtered = text.replace(/[^0-9.]/g, '');
+                const parts = filtered.split('.');
+                if (parts.length > 2) return;
+                if (parts[1]?.length > 2) return;
+                setPrice(filtered);
+              }}
+              placeholder="15"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <Text style={styles.helperText}>
+            Enter amount in dollars. Decimals optional (e.g. 15 or 15.50)
+          </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Category *</Text>
+          <Text style={styles.label}>Category</Text>
           <View style={styles.optionsContainer}>
             {categories.map((option) => (
               <Pressable
@@ -210,6 +262,9 @@ export default function EditListingScreen() {
                   pressed && styles.optionPressed,
                 ]}
                 onPress={() => setCategory(option)}
+                accessibilityLabel={`Category: ${option}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: category === option }}
               >
                 <Text style={[styles.optionText, category === option && styles.optionTextSelected]}>
                   {option.charAt(0).toUpperCase() + option.slice(1)}
@@ -220,7 +275,7 @@ export default function EditListingScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Condition *</Text>
+          <Text style={styles.label}>Condition</Text>
           <View style={styles.optionsContainer}>
             {conditions.map((option) => (
               <Pressable
@@ -231,6 +286,9 @@ export default function EditListingScreen() {
                   pressed && styles.optionPressed,
                 ]}
                 onPress={() => setCondition(option)}
+                accessibilityLabel={`Condition: ${option}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: condition === option }}
               >
                 <Text
                   style={[styles.optionText, condition === option && styles.optionTextSelected]}
@@ -240,15 +298,6 @@ export default function EditListingScreen() {
               </Pressable>
             ))}
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Images *</Text>
-          <ImageUploader
-            images={images}
-            onImagesChange={setImages}
-            onPendingChange={setHasPendingUploads}
-          />
         </View>
 
         <View style={styles.section}>
@@ -267,6 +316,8 @@ export default function EditListingScreen() {
               void onSubmit();
             }}
             disabled={isSubmitting || hasPendingUploads}
+            accessibilityLabel={isSubmitting ? 'Saving listing' : 'Save listing changes'}
+            accessibilityRole="button"
           >
             <Text style={styles.submitButtonText}>
               {isSubmitting ? 'Saving...' : 'Save Changes'}
@@ -280,6 +331,8 @@ export default function EditListingScreen() {
             ]}
             onPress={() => router.back()}
             disabled={isCancelDisabled}
+            accessibilityLabel="Cancel"
+            accessibilityRole="button"
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
@@ -292,7 +345,7 @@ export default function EditListingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f7f5',
+    backgroundColor: colors.background,
   },
   content: {
     width: '100%',
@@ -303,16 +356,11 @@ const styles = StyleSheet.create({
     paddingBottom: 26,
   },
   formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: '#d8e6df',
-    padding: 16,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 2,
+    borderColor: colors.muted,
+    padding: spacing.lg,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -320,48 +368,74 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   loadingText: {
-    color: '#5e7268',
-    fontSize: 15,
+    marginTop: 2,
+    fontSize: 16,
+    color: colors.text,
   },
   eyebrow: {
-    fontSize: 12,
-    color: '#2a6f52',
-    letterSpacing: 0.4,
-    fontWeight: '600',
+    ...typography.footnoteMed,
+    color: colors.textDark,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...typography.title1,
     marginBottom: 6,
-    color: '#0f2b21',
+    color: colors.textDark,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#5f7268',
+    ...typography.subhead,
+    color: colors.text,
     marginBottom: 16,
   },
   section: {
-    marginBottom: 18,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#27463b',
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    marginBottom: 4,
+  },
+  labelHint: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d4dfd9',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f9fbfa',
+    borderColor: colors.muted,
+    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    ...typography.body,
+    color: colors.textDark,
+    backgroundColor: colors.white,
   },
   textArea: {
     minHeight: 112,
     textAlignVertical: 'top',
+  },
+  priceInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.muted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.white,
+  },
+  pricePrefix: {
+    ...typography.body,
+    color: colors.text,
+    paddingLeft: spacing.md,
+  },
+  priceInput: {
+    flex: 1,
+    borderWidth: 0,
+    margin: 0,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginTop: spacing.xs,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -371,25 +445,24 @@ const styles = StyleSheet.create({
   option: {
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 999,
+    borderRadius: borderRadius.full,
     borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#f8fbf9',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   optionSelected: {
-    backgroundColor: '#154734',
-    borderColor: '#154734',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionPressed: {
     opacity: 0.85,
   },
   optionText: {
-    fontSize: 14,
-    color: '#4f645b',
-    fontWeight: '500',
+    ...typography.subhead,
+    color: colors.text,
   },
   optionTextSelected: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '600',
   },
   buttonContainer: {
@@ -398,34 +471,35 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   submitButton: {
-    backgroundColor: '#154734',
+    backgroundColor: colors.primary,
     padding: 15,
-    borderRadius: 12,
+    borderRadius: borderRadius.sm,
     alignItems: 'center',
+    minHeight: 45,
+    justifyContent: 'center',
   },
   submitButtonDisabled: {
-    backgroundColor: '#9eb5ab',
+    backgroundColor: colors.muted,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    ...typography.body,
+    color: colors.white,
     fontWeight: '600',
   },
   cancelButton: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: borderRadius.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d5e0db',
-    backgroundColor: '#f6faf8',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   cancelButtonDisabled: {
     opacity: 0.6,
   },
   cancelButtonText: {
-    color: '#4f645b',
-    fontSize: 16,
-    fontWeight: '500',
+    ...typography.body,
+    color: colors.text,
   },
   buttonPressed: {
     opacity: 0.9,
