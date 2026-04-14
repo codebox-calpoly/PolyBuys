@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type FlashContextValue = {
@@ -26,6 +26,14 @@ export function FlashProvider({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerTop = insets.top + BANNER_TOP_OFFSET;
 
+  const clearFlash = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setMessage(null);
+  }, []);
+
   const setFlash = useCallback((msg: string) => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -48,12 +56,22 @@ export function FlashProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FlashContext.Provider value={{ setFlash }}>
-      <View style={styles.wrapper}>
+      <View style={styles.wrapper} pointerEvents="box-none">
         {children}
         {message ? (
-          <View style={[styles.banner, { top: bannerTop }]} pointerEvents="none">
+          <Pressable
+            style={({ pressed }) => [
+              styles.banner,
+              { top: bannerTop },
+              pressed && styles.bannerPressed,
+            ]}
+            onPress={clearFlash}
+            accessibilityRole="alert"
+            accessibilityHint="Double tap to dismiss"
+          >
             <Text style={styles.text}>{message}</Text>
-          </View>
+            <Text style={styles.dismissHint}>Tap to dismiss</Text>
+          </Pressable>
         ) : null}
       </View>
     </FlashContext.Provider>
@@ -75,10 +93,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  bannerPressed: {
+    opacity: 0.92,
   },
   text: {
     fontSize: 14,
     color: '#fff',
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  dismissHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 4,
+    fontWeight: '500',
   },
 });

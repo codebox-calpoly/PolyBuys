@@ -25,11 +25,36 @@ git push -u origin feature/POLY-123-description
 
 ## 📱 Testing on Device
 
-1. Install **Expo Go** on your phone
-2. Run `npm run dev`
-3. Scan QR code:
-   - **iOS**: Use Camera app
-   - **Android**: Use Expo Go app
+1. Install **Expo Go** on your phone (or simulator)
+2. From repo root, run `npm run dev`
+3. In the Expo terminal, press **`s`** if it says you are using a **development build** but you only have Expo Go (avoids "No development build installed")
+4. Scan the QR code:
+   - **iOS**: Camera app or Expo Go
+   - **Android**: Expo Go app
+5. If the phone cannot load the bundle (timeouts), try tunnel mode: `cd frontend && npx expo start --tunnel`
+
+### Expo Go vs development build and npm scripts
+
+**Expo Go** runs your JS in the generic Expo Go app—no native compile. **Development build** is a custom native binary (`expo run:ios` / EAS) with your native plugins.
+
+Scripts are in `frontend/package.json` (root `npm run dev` starts the frontend workspace):
+
+| Script                      | What it does                                                         |
+| --------------------------- | -------------------------------------------------------------------- |
+| `npm run dev` / `npm start` | Starts Metro (Expo dev server).                                      |
+| `npm run ios`               | `expo start --ios` — simulator + Metro (**no** full native compile). |
+| `npm run android`           | `expo start --android` — same for Android.                           |
+| `npm run web`               | `expo start --web`                                                   |
+| `npm run run:ios`           | `expo run:ios` — **native** Xcode build (needs CocoaPods, signing).  |
+| `npm run run:android`       | `expo run:android` — **native** Gradle build.                        |
+
+**First-time iOS native build:** Install [CocoaPods](https://cocoapods.org/). After `expo prebuild` or `run:ios` generates `frontend/ios`, run:
+
+```bash
+cd frontend/ios && pod install && cd ../..
+```
+
+Open `frontend/ios/*.xcworkspace` in Xcode and set **Signing & Capabilities** (Team) if you hit code-signing errors.
 
 ## 🛠️ Common Tasks
 
