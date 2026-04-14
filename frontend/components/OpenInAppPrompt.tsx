@@ -2,10 +2,7 @@ import * as ExpoLinking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
-const APP_SCHEME = 'polybuys';
-
-// TODO: Replace with actual App Store / Play Store URLs once published
-const APP_STORE_URL = 'https://polybuys.com/download';
+import { APP_SCHEME, APP_STORE_URL } from '../constants/app';
 
 type OpenInAppPromptProps = {
   title: string;
@@ -65,9 +62,17 @@ export default function OpenInAppPrompt({
           </Pressable>
         ) : null}
         <Pressable
-          onPress={() => void ExpoLinking.openURL(APP_STORE_URL)}
+          onPress={async () => {
+            try {
+              await ExpoLinking.openURL(APP_STORE_URL);
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Unable to open the download link.';
+              Alert.alert('Download failed', message);
+            }
+          }}
           accessibilityRole="link"
-          accessibilityLabel="Download from App Store"
+          accessibilityLabel="Download the PolyBuys app"
         >
           <Text style={styles.downloadHint}>Don&apos;t have the app? Download it here.</Text>
         </Pressable>
