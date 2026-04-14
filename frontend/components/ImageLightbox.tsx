@@ -77,6 +77,7 @@ export default function ImageLightbox({
       : {};
 
   const content = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <View ref={overlayRef as any} style={styles.overlay} {...(webProps as any)}>
       {/* Backdrop */}
       <Pressable
