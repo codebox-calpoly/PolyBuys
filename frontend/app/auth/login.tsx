@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -80,9 +80,19 @@ export default function LoginScreen() {
     }
   }, [authLoading, isAuthenticated, profileForRedirect, step, postAuthRedirect, router]);
 
+  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+
   useEffect(() => {
-    if (step !== 'checking' || profileData === undefined) {
+    if (step !== 'checking') {
+      setCheckingTimedOut(false);
       return;
+    }
+
+    if (profileData === undefined) {
+      // Start a timeout — if the profile query hasn't resolved after 8 s,
+      // surface an error state so the user isn't stuck on an infinite spinner.
+      const timeout = setTimeout(() => setCheckingTimedOut(true), 8000);
+      return () => clearTimeout(timeout);
     }
 
     if (profileData) {
@@ -99,6 +109,13 @@ export default function LoginScreen() {
 
     setStep('profile');
   }, [step, profileData, authLoading, isAuthenticated, postAuthRedirect, router]);
+
+  const handleCheckingRetry = useCallback(() => {
+    setCheckingTimedOut(false);
+    // Re-enter the checking step to retrigger the profile query & timeout
+    setStep('email');
+    setTimeout(() => setStep('checking'), 100);
+  }, []);
 
   const handleGetStarted = () => {
     setStep('email');
@@ -285,8 +302,29 @@ export default function LoginScreen() {
     return (
       <View style={styles.container}>
         <View style={[styles.content, styles.centeredContent]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.stateText}>Setting up your account...</Text>
+          {checkingTimedOut ? (
+            <>
+              <Text style={styles.stateText}>Taking longer than expected…</Text>
+              <Text style={styles.checkingHelpText}>
+                We couldn&apos;t load your profile. Please try again.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.checkingRetryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleCheckingRetry}
+              >
+                <Text style={styles.buttonText}>Retry</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.stateText}>Setting up your account...</Text>
+            </>
+          )}
         </View>
       </View>
     );
@@ -639,6 +677,14 @@ const styles = StyleSheet.create({
   stateText: {
     ...typography.subhead,
     color: colors.text,
+  },
+  checkingHelpText: {
+    ...typography.subhead,
+    color: colors.text,
+    marginTop: 4,
+  },
+  checkingRetryButton: {
+    marginTop: spacing.md,
   },
   eyebrow: {
     ...typography.footnote,
