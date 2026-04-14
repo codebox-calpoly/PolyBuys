@@ -2,7 +2,7 @@ import * as ExpoLinking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
-const APP_SCHEME = 'polybuys';
+import { APP_SCHEME, APP_STORE_URL } from '../constants/app';
 
 type OpenInAppPromptProps = {
   title: string;
@@ -61,6 +61,21 @@ export default function OpenInAppPrompt({
             <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={async () => {
+            try {
+              await ExpoLinking.openURL(APP_STORE_URL);
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Unable to open the download link.';
+              Alert.alert('Download failed', message);
+            }
+          }}
+          accessibilityRole="link"
+          accessibilityLabel="Download the PolyBuys app"
+        >
+          <Text style={styles.downloadHint}>Don&apos;t have the app? Download it here.</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -141,5 +156,11 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],
+  },
+  downloadHint: {
+    ...typography.footnote,
+    color: colors.primary,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
 });
