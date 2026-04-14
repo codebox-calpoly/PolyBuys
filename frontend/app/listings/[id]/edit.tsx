@@ -18,6 +18,7 @@ import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
 import TagInput from '../../../components/TagInput';
+import { useFlash } from '../../../contexts/FlashContext';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
 import { borderRadius, colors, spacing, typography } from '../../../theme/tokens';
 
@@ -52,6 +53,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function EditListingScreen() {
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const listing = useQuery(
@@ -148,7 +150,8 @@ export default function EditListingScreen() {
         );
         return;
       }
-      showAlert('Success', 'Listing updated.', () => router.back());
+      setFlash('Listing updated.');
+      router.back();
     } catch (error) {
       const actionError = getListingActionError(error, 'Update failed');
       showAlert(actionError.title, actionError.message);

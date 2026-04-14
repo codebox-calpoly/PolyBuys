@@ -76,13 +76,29 @@ npm run dev
 
 If you do not have Convex Cloud team access, use the local workflow in [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md) before running the commands above.
 
+### Expo Go vs development build
+
+Most day-to-day work uses **Metro only** (JavaScript bundle). You do **not** need to compile native code unless you are changing native config or debugging something that only reproduces in a custom dev client.
+
+| Goal                                                    | Command (from repo root)                                                                 | Notes                                                                                                                                                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Start Metro + open in **Expo Go**                       | `npm run dev`, then press **`s`** to switch to Expo Go, then **`i`** / **`a`** / scan QR | Fastest for most contributors. Install [Expo Go](https://expo.dev/go) on device/simulator.                                                                                                                   |
+| Start Metro + **iOS Simulator** (no native rebuild)     | `npm run dev`, then **`i`** when using Expo Go mode                                      | If you see “No development build installed”, press **`s`** in the terminal to use Expo Go instead.                                                                                                           |
+| Start Metro + **Android** (no native rebuild)           | `cd frontend && npm run android` (or `npm run dev` then **`a`**)                         | Opens emulator with Expo.                                                                                                                                                                                    |
+| **Full native build** (Xcode / Gradle compiles the app) | `cd frontend && npm run run:ios` or `npm run run:android`                                | Use when you need the real dev client, native modules, or first-time `ios/` setup. Requires Xcode (iOS), Android SDK (Android), and **CocoaPods** for iOS (`cd frontend/ios && pod install` after prebuild). |
+
+**iOS troubleshooting:** If `expo run:ios` fails on CocoaPods, install the [CocoaPods CLI](https://cocoapods.org/), then run `pod install` inside `frontend/ios`. For signing errors, open the `.xcworkspace` in Xcode, set your **Team** under Signing & Capabilities, then build from Xcode or retry `run:ios`.
+
+More detail: [QUICK_START.md](QUICK_START.md#expo-go-vs-development-build-and-npm-scripts).
+
 ### Platform-Specific Development
 
 **Mac Users (with Xcode installed):**
 
 ```bash
 npm run dev
-# Press 'i' for iOS Simulator
+# Prefer Expo Go: press s, then i for iOS Simulator
+# Or press w for web
 ```
 
 **Windows/Linux Users:**
@@ -90,7 +106,7 @@ npm run dev
 ```bash
 # Option 1: Android Emulator (requires Android Studio)
 npm run dev
-# Press 'a' for Android
+# Press 'a' for Android (use Expo Go on the emulator if prompted)
 
 # Option 2: Web Browser (easiest, no setup needed)
 npm run dev
@@ -99,9 +115,9 @@ npm run dev
 
 **Testing on Physical Devices:**
 
-- **Android**: Connect via USB with developer mode enabled, run `npm run android`
-- **iOS**: Requires Mac with Xcode
-- **Note**: Expo Go app requires SDK 52 - if you have SDK 54+ installed, use web or emulator instead
+- **Android**: Install Expo Go, run `npm run dev`, scan the QR code from the terminal (or use tunnel: `cd frontend && npx expo start --tunnel` if the device cannot reach your computer).
+- **iOS**: Install Expo Go from the App Store, same flow; on device, you may need tunnel mode on restrictive networks.
+- **Custom dev client**: If the project is configured for a development build, run `cd frontend && npm run run:ios` once to install the native app, then use that client with Metro.
 
 For detailed setup instructions, see [Contributing Guide](docs/contributing.md).
 

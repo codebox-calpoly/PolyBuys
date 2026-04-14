@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import ImageUploader from '@/components/ImageUploader';
 import TagInput from '../../components/TagInput';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
@@ -60,6 +61,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function NewListingScreen() {
   const router = useRouter();
+  const { setFlash } = useFlash();
   const createListing = useAction(api.listings.createListing);
   const { isAuthenticated, isLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
@@ -143,7 +145,8 @@ export default function NewListingScreen() {
         images,
         tags,
       });
-      showAlert('Success', 'Listing created.', () => router.replace('/'));
+      setFlash('Listing created.');
+      router.replace('/');
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
       showAlert(actionError.title, actionError.message);
