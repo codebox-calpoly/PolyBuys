@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ListRenderItem } from 'react-native';
 import {
+  ActivityIndicator,
   Alert,
+  FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -18,6 +20,12 @@ import OpenInAppPrompt from '../components/OpenInAppPrompt';
 import { ScreenState } from '../components/ScreenState';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
+type BlockedRow = {
+  blockedId: string;
+  name: string;
+  major?: string;
+};
+
 export default function AccountSettingsScreen() {
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
@@ -27,9 +35,14 @@ export default function AccountSettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
   const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
   const messageNotificationsEnabled = useQuery(
     api.users.getMessageNotificationsEnabled,
+    isAuthenticated && !isWeb ? {} : 'skip'
+  );
+  const blockedUsers = useQuery(
+    api.blocks.listMyBlockedUsers,
     isAuthenticated && !isWeb ? {} : 'skip'
   );
   const updateMessageNotificationsEnabled = useMutation(
@@ -38,6 +51,7 @@ export default function AccountSettingsScreen() {
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
   const removePushToken = useMutation(api.pushNotifications.removePushToken);
   const deleteAccount = useMutation(api.users.deleteAccount);
+  const unblockUser = useMutation(api.blocks.unblockUser);
 
   useEffect(() => {
     if (!isWeb && !isLoading && !isAuthenticated) {
@@ -106,6 +120,38 @@ export default function AccountSettingsScreen() {
       ]
     );
   };
+
+  const confirmUnblock = useCallback(
+    (row: BlockedRow) => {
+      Alert.alert(
+        'Unblock',
+        `Allow ${row.name} to message you again?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unblock',
+            onPress: () => {
+              void (async () => {
+                setUnblockingId(row.blockedId);
+                try {
+                  await unblockUser({ blockedId: row.blockedId });
+                } catch (err) {
+                  Alert.alert(
+                    'Could not unblock',
+                    err instanceof Error ? err.message : 'Please try again.'
+                  );
+                } finally {
+                  setUnblockingId(null);
+                }
+              })();
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    },
+    [unblockUser]
+  );
 
   const handleMessageNotificationsToggle = async (value: boolean) => {
     if (isUpdatingMessageNotifications) return;
@@ -184,11 +230,76 @@ export default function AccountSettingsScreen() {
     }
   };
 
+  const blockedListCount = blockedUsers?.length ?? 0;
+
+  const renderBlockedItem: ListRenderItem<BlockedRow> = useCallback(
+    ({ item, index }) => {
+      const busy = unblockingId === item.blockedId;
+      const isFirst = index === 0;
+      const isLast = index === blockedListCount - 1;
+      return (
+        <View
+          style={[
+            styles.blockedRow,
+            isFirst && styles.blockedRowFirst,
+            isLast && styles.blockedRowLast,
+            !isLast && styles.blockedRowWithSeparator,
+          ]}
+        >
+          <View style={styles.blockedRowText}>
+            <Text style={styles.blockedName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.major ? (
+              <Text style={styles.blockedMajor} numberOfLines={1}>
+                {item.major}
+              </Text>
+            ) : null}
+          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.unblockButton,
+              pressed && styles.buttonPressed,
+              busy && styles.buttonDisabled,
+            ]}
+            onPress={() => confirmUnblock(item)}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={`Unblock ${item.name}`}
+          >
+            {busy ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
+              <Text style={styles.unblockButtonText}>Unblock</Text>
+            )}
+          </Pressable>
+        </View>
+      );
+    },
+    [blockedListCount, confirmUnblock, unblockingId]
+  );
+
+  const listEmpty = useCallback(() => {
+    if (blockedUsers === undefined) {
+      return (
+        <View style={[styles.blockedListCard, styles.blockedListEmpty]}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.blockedListEmptyText}>Loading blocked users…</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.blockedListCard, styles.blockedListEmpty]}>
+        <Text style={styles.blockedListEmptyText}>You have not blocked anyone.</Text>
+      </View>
+    );
+  }, [blockedUsers]);
+
   if (isWeb) {
     return (
       <OpenInAppPrompt
         title="Open account settings in the mobile app"
-        body="Notification preferences, sign out, and account deletion are available in the PolyBuys mobile app."
+        body="Notification preferences, blocked users, sign out, and account deletion are available in the PolyBuys mobile app."
         path="/account-settings"
         buttonLabel="Open in app"
         secondaryActionLabel="Back to home"
@@ -206,57 +317,78 @@ export default function AccountSettingsScreen() {
   }
 
   return (
-    <ScrollView
+    <FlatList
       style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <View style={styles.notificationRow}>
-          <Text style={styles.notificationLabel}>Message notifications</Text>
-          <Switch
-            value={messageNotificationsValue}
-            onValueChange={(value) => void handleMessageNotificationsToggle(value)}
-            disabled={isUpdatingMessageNotifications || messageNotificationsEnabled === undefined}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.white}
-          />
-        </View>
-        <Text style={styles.notificationHint}>
-          Get notified when someone messages you about a listing.
-        </Text>
-      </View>
+      contentContainerStyle={styles.listContent}
+      data={(blockedUsers ?? []) as BlockedRow[]}
+      extraData={blockedListCount}
+      keyExtractor={(item) => item.blockedId}
+      renderItem={renderBlockedItem}
+      ListHeaderComponent={
+        <>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notifications</Text>
+            <View style={styles.notificationRow}>
+              <Text style={styles.notificationLabel}>Message notifications</Text>
+              <Switch
+                value={messageNotificationsValue}
+                onValueChange={(value) => void handleMessageNotificationsToggle(value)}
+                disabled={
+                  isUpdatingMessageNotifications || messageNotificationsEnabled === undefined
+                }
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.white}
+              />
+            </View>
+            <Text style={styles.notificationHint}>
+              Get notified when someone messages you about a listing.
+            </Text>
+          </View>
 
-      <View style={styles.footer}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.buttonPressed,
-            (isSigningOut || isLoading) && styles.buttonDisabled,
-          ]}
-          onPress={() => void handleSignOut()}
-          disabled={isSigningOut || isLoading}
-        >
-          <Text style={styles.secondaryButtonText}>
-            {isSigningOut ? 'Signing out...' : 'Sign out'}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.deleteButton,
-            pressed && styles.deleteButtonPressed,
-            isLoading && styles.buttonDisabled,
-          ]}
-          onPress={handleDeleteAccount}
-          disabled={isLoading}
-          accessibilityRole="button"
-          accessibilityLabel="Delete account permanently"
-        >
-          <Text style={styles.deleteButtonText}>Delete account</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+          <View style={[styles.section, styles.blockedIntroSection]}>
+            <Text style={styles.sectionTitle}>Blocked users</Text>
+            <Text style={styles.notificationHint}>
+              People you have blocked cannot message you. Unblock someone to allow conversations
+              with them again.
+            </Text>
+          </View>
+        </>
+      }
+      ListEmptyComponent={listEmpty}
+      ListFooterComponent={
+        <View style={styles.footerRow}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              styles.footerButtonHalf,
+              pressed && styles.buttonPressed,
+              (isSigningOut || isLoading) && styles.buttonDisabled,
+            ]}
+            onPress={() => void handleSignOut()}
+            disabled={isSigningOut || isLoading}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.deleteButton,
+              styles.footerButtonHalf,
+              pressed && styles.deleteButtonPressed,
+              isLoading && styles.buttonDisabled,
+            ]}
+            onPress={handleDeleteAccount}
+            disabled={isLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Delete account permanently"
+          >
+            <Text style={styles.deleteButtonText}>Delete account</Text>
+          </Pressable>
+        </View>
+      }
+      keyboardShouldPersistTaps="handled"
+    />
   );
 }
 
@@ -272,14 +404,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     gap: spacing.sm,
   },
-  content: {
+  listContent: {
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
+    gap: 0,
+    flexGrow: 1,
   },
   section: {
     backgroundColor: colors.surface,
@@ -288,6 +421,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.xl,
     gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  blockedIntroSection: {
+    marginBottom: spacing.sm,
+  },
+  blockedListCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
   },
   sectionTitle: {
     ...typography.heading,
@@ -306,17 +450,87 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.muted,
   },
-  footer: {
-    marginTop: spacing.md,
+  blockedListEmpty: {
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 88,
+  },
+  blockedListEmptyText: {
+    ...typography.subhead,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
-    alignSelf: 'flex-start',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.border,
+  },
+  blockedRowFirst: {
+    borderTopWidth: 1,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+  },
+  blockedRowLast: {
+    borderBottomWidth: 1,
+    borderBottomLeftRadius: borderRadius.xl,
+    borderBottomRightRadius: borderRadius.xl,
+  },
+  blockedRowWithSeparator: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  blockedRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  blockedName: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.textDark,
+  },
+  blockedMajor: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  unblockButton: {
+    minWidth: 96,
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  unblockButtonText: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
     alignItems: 'stretch',
+  },
+  footerButtonHalf: {
+    flex: 1,
+    minWidth: 0,
   },
   deleteButton: {
     borderWidth: 2,
     borderColor: colors.destructive,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
@@ -331,12 +545,13 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.destructive,
     fontWeight: '600',
+    textAlign: 'center',
   },
   secondaryButton: {
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
@@ -346,6 +561,7 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     fontWeight: '600',
     color: colors.primary,
+    textAlign: 'center',
   },
   buttonPressed: {
     opacity: 0.92,

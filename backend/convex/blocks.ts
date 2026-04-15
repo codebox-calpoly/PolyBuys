@@ -3,6 +3,12 @@ import { internalQuery, mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireAuthUserId } from './lib/authIdentity';
 
+type BlockedUserListRow = {
+  blockedId: string;
+  name: string;
+  major?: string;
+};
+
 /**
  * Shared helper: check if there is a block between two users (either direction).
  * Used by internalHasBlockBetween and getOrCreateConversation (mutation) for consistency.
@@ -97,6 +103,47 @@ export const unblockUser = mutation({
     }
 
     return { ok: true };
+  },
+});
+
+/**
+ * Users the current account has blocked (for settings / management UI).
+ * Sorted by display name. Omits hidden profiles but still returns blockedId so they can be unblocked.
+ */
+export const listMyBlockedUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const blockerId = await requireAuthUserId(ctx);
+    const blocks = await ctx.db
+      .query('userBlocks')
+      .withIndex('by_blocker_blocked', (q) => q.eq('blockerId', blockerId))
+      .collect();
+
+    const rows: BlockedUserListRow[] = [];
+
+    for (const block of blocks) {
+      const profile = await ctx.db
+        .query('profiles')
+        .withIndex('by_userId', (q) => q.eq('userId', block.blockedId))
+        .unique();
+
+      if (!profile) {
+        rows.push({ blockedId: block.blockedId, name: 'Unknown user' });
+        continue;
+      }
+      if (profile.isHidden) {
+        rows.push({ blockedId: block.blockedId, name: 'Unavailable user' });
+        continue;
+      }
+      rows.push({
+        blockedId: block.blockedId,
+        name: profile.name,
+        major: profile.major,
+      });
+    }
+
+    rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return rows;
   },
 });
 
