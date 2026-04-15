@@ -39,7 +39,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
@@ -64,10 +64,10 @@ export default function SettingsScreen() {
   const isWideLayout = width >= 980;
 
   useEffect(() => {
-    if (!isWeb && !isLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fsettings' as never);
     }
-  }, [isAuthenticated, isLoading, isWeb, router]);
+  }, [isAuthenticated, isSessionLoading, isWeb, router]);
 
   if (isWeb) {
     return (

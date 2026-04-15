@@ -36,7 +36,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const panelEntrance = useEntranceAnimation();
   const createProfile = useMutation(api.profiles.createProfile);
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
@@ -44,10 +44,7 @@ export default function LoginScreen() {
     api.users.updateMessageNotificationsEnabled
   );
 
-  const profileForRedirect = useQuery(
-    api.profiles.getCurrentProfile,
-    isAuthenticated ? {} : 'skip'
-  );
+  const currentProfile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
   const [step, setStep] = useState<Step>('welcome');
   const [email, setEmail] = useState('');
@@ -58,7 +55,9 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
   const verifiedEmailRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizedReturnTo = Array.isArray(returnTo) ? returnTo[0] : returnTo;
   const postAuthRedirect: Href =
@@ -68,62 +67,64 @@ export default function LoginScreen() {
       ? (normalizedReturnTo as Href)
       : '/';
 
-  const shouldQueryProfile = step === 'checking' || step === 'profile';
-  const profileData = useQuery(api.profiles.getCurrentProfile, shouldQueryProfile ? {} : 'skip');
-
   useEffect(() => {
-    if (authLoading || !isAuthenticated || profileForRedirect === undefined) {
+    if (isSessionLoading || !isAuthenticated || currentProfile === undefined) {
       return;
     }
-    if (profileForRedirect && (step === 'welcome' || step === 'email')) {
+    if (currentProfile && (step === 'welcome' || step === 'email')) {
       router.replace(postAuthRedirect);
     }
-  }, [authLoading, isAuthenticated, profileForRedirect, step, postAuthRedirect, router]);
-
-  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+  }, [isSessionLoading, isAuthenticated, currentProfile, step, postAuthRedirect, router]);
 
   useEffect(() => {
     if (step !== 'checking') {
       setCheckingTimedOut(false);
       return;
     }
+    if (currentProfile !== undefined) {
+      setCheckingTimedOut(false);
+      return;
+    }
+    const timeout = setTimeout(() => setCheckingTimedOut(true), 8000);
+    return () => clearTimeout(timeout);
+  }, [step, currentProfile]);
 
-    if (profileData === undefined) {
-      // Start a timeout — if the profile query hasn't resolved after 8 s,
-      // surface an error state so the user isn't stuck on an infinite spinner.
-      const timeout = setTimeout(() => setCheckingTimedOut(true), 8000);
-      return () => clearTimeout(timeout);
+  useEffect(() => {
+    if (step !== 'checking' || currentProfile === undefined) {
+      return;
     }
 
-    if (profileData) {
+    if (currentProfile) {
       setStep('success');
-      const t = setTimeout(() => {
-        router.replace(postAuthRedirect);
-      }, 1500);
-      return () => clearTimeout(t);
+      return;
     }
 
-    if (authLoading || !isAuthenticated) {
+    if (isSessionLoading || !isAuthenticated) {
       return;
     }
 
     setStep('profile');
-  }, [step, profileData, authLoading, isAuthenticated, postAuthRedirect, router]);
+  }, [step, currentProfile, isSessionLoading, isAuthenticated]);
 
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (step !== 'success') {
+      return;
+    }
+    const t = setTimeout(() => {
+      router.replace(postAuthRedirect);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [step, postAuthRedirect, router]);
 
   const handleCheckingRetry = useCallback(() => {
-    // Clear any outstanding retry timer before creating a new one
     if (retryTimerRef.current !== null) {
       clearTimeout(retryTimerRef.current);
     }
     setCheckingTimedOut(false);
-    // Re-enter the checking step to retrigger the profile query & timeout
     setStep('email');
     retryTimerRef.current = setTimeout(() => setStep('checking'), 100);
   }, []);
 
-  // Clean up the retry timer on unmount
   useEffect(() => {
     return () => {
       if (retryTimerRef.current !== null) {
@@ -347,9 +348,6 @@ export default function LoginScreen() {
 
   const finishAndRedirect = () => {
     setStep('success');
-    setTimeout(() => {
-      router.replace(postAuthRedirect);
-    }, 1500);
   };
 
   const persistMessageNotificationsPreference = async (enabled: boolean) => {

@@ -36,7 +36,7 @@ export default function ConversationDetailScreen() {
     typeof id === 'string' && id.trim().length > 0 ? (id as ConversationId) : null;
 
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
   const blockUser = useMutation(api.blocks.blockUser);
@@ -133,11 +133,11 @@ export default function ConversationDetailScreen() {
   };
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isSessionLoading && !isAuthenticated) {
       const returnTo = conversationId ? `/conversations/${conversationId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as never);
     }
-  }, [authLoading, conversationId, isAuthenticated, router]);
+  }, [isSessionLoading, conversationId, isAuthenticated, router]);
 
   useEffect(() => {
     if (!messages) {
@@ -252,7 +252,7 @@ export default function ConversationDetailScreen() {
   }
 
   if (
-    authLoading ||
+    isSessionLoading ||
     (isAuthenticated &&
       (conversationList === undefined ||
         currentUserSubject === undefined ||

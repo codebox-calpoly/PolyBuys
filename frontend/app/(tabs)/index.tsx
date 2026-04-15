@@ -43,7 +43,7 @@ function chunkItems<T>(items: T[], size: number): T[][] {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const { tags, q } = useLocalSearchParams<{ tags?: string | string[]; q?: string | string[] }>();
   const { width } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation();
@@ -398,7 +398,7 @@ export default function HomeScreen() {
                 pressed && styles.createChipPressed,
               ]}
               onPress={handleCreateListing}
-              disabled={isLoading}
+              disabled={isSessionLoading}
               accessibilityLabel="Create listing"
               accessibilityRole="button"
             >
@@ -500,7 +500,7 @@ export default function HomeScreen() {
                   pressed && styles.createChipPressed,
                 ]}
                 onPress={handleCreateListing}
-                disabled={isLoading}
+                disabled={isSessionLoading}
                 accessibilityLabel="Create listing"
                 accessibilityRole="button"
               >
@@ -534,7 +534,7 @@ export default function HomeScreen() {
             <Pressable
               style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
               onPress={handleCreateListing}
-              disabled={isLoading}
+              disabled={isSessionLoading}
               accessibilityLabel="Create listing"
               accessibilityRole="button"
             >
