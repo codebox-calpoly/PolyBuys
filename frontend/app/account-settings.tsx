@@ -309,14 +309,15 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: spacing.md,
     gap: spacing.md,
+    alignSelf: 'flex-start',
+    alignItems: 'stretch',
   },
   deleteButton: {
-    alignSelf: 'stretch',
     borderWidth: 2,
     borderColor: colors.destructive,
     borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
@@ -339,7 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
-    alignSelf: 'flex-start',
+    alignItems: 'center',
   },
   secondaryButtonText: {
     ...typography.subhead,
