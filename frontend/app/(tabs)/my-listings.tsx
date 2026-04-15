@@ -59,7 +59,7 @@ export default function MyListingsScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated && !isWeb ? {} : 'skip');
   const deleteListing = useMutation(api.listings.deleteListing);
@@ -69,10 +69,10 @@ export default function MyListingsScreen() {
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isWeb && !isLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
     }
-  }, [isAuthenticated, isLoading, isWeb, router]);
+  }, [isAuthenticated, isSessionLoading, isWeb, router]);
 
   function closeActionSheet() {
     setSelectedListingId(null);

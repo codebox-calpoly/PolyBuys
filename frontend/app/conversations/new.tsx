@@ -25,7 +25,7 @@ export default function NewConversationScreen() {
       : null;
 
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
   );
@@ -62,11 +62,11 @@ export default function NewConversationScreen() {
   };
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isSessionLoading && !isAuthenticated) {
       const returnTo = listingId ? `/conversations/new?listingId=${listingId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as Href);
     }
-  }, [authLoading, isAuthenticated, listingId, router]);
+  }, [isSessionLoading, isAuthenticated, listingId, router]);
 
   if (!listingId) {
     return (
@@ -76,7 +76,7 @@ export default function NewConversationScreen() {
     );
   }
 
-  if (authLoading || !isAuthenticated) {
+  if (isSessionLoading || !isAuthenticated) {
     return (
       <View style={styles.centered}>
         <ScreenState variant="loading" title="Redirecting to login..." />

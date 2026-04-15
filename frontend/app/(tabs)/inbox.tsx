@@ -103,7 +103,7 @@ export default function InboxScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const conversations = useQuery(
     api.messages.listUserConversations,
@@ -138,10 +138,10 @@ export default function InboxScreen() {
   );
 
   useEffect(() => {
-    if (!isWeb && !authLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Finbox' as never);
     }
-  }, [authLoading, isAuthenticated, isWeb, router]);
+  }, [isSessionLoading, isAuthenticated, isWeb, router]);
 
   const formatTimestamp = useCallback(
     (timestamp: number) => {
@@ -184,7 +184,7 @@ export default function InboxScreen() {
     );
   }
 
-  if (authLoading) {
+  if (isSessionLoading) {
     return (
       <View style={styles.centeredState}>
         <ActivityIndicator size="small" color={colors.primary} />

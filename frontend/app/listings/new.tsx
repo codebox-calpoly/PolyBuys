@@ -51,7 +51,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 export default function NewListingScreen() {
   const router = useRouter();
   const createListing = useAction(api.listings.createListing);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
@@ -67,11 +67,11 @@ export default function NewListingScreen() {
   const submittingRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isSessionLoading && !isAuthenticated) {
       showAlert('Sign In Required', 'Please sign in to create a listing');
       router.replace('/auth/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isSessionLoading, router]);
 
   async function onSubmit() {
     if (submittingRef.current) {
@@ -143,7 +143,7 @@ export default function NewListingScreen() {
     }
   }
 
-  if (isLoading) {
+  if (isSessionLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color={colors.primary} />
