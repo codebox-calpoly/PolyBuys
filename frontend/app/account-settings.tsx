@@ -245,11 +245,13 @@ export default function AccountSettingsScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.deleteButton,
-            pressed && styles.buttonPressed,
+            pressed && styles.deleteButtonPressed,
             isLoading && styles.buttonDisabled,
           ]}
           onPress={handleDeleteAccount}
           disabled={isLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Delete account permanently"
         >
           <Text style={styles.deleteButtonText}>Delete account</Text>
         </Pressable>
@@ -309,9 +311,20 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   deleteButton: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
+    borderWidth: 2,
+    borderColor: colors.destructive,
+    borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
-    paddingHorizontal: 0,
+    paddingHorizontal: spacing.xl,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(179, 38, 30, 0.06)',
+  },
+  deleteButtonPressed: {
+    opacity: 0.92,
+    backgroundColor: 'rgba(179, 38, 30, 0.12)',
   },
   deleteButtonText: {
     ...typography.subhead,
