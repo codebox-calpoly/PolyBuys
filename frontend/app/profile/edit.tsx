@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +13,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
+import { KeyboardAwareScreen } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const BOUNDS = {
@@ -138,99 +136,104 @@ export default function ProfileEditScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.field}>
-          <Text style={styles.label}>Name *</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Your full name"
-            placeholderTextColor={colors.muted}
-          />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Email *</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@calpoly.edu"
-            placeholderTextColor={colors.muted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Bio</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell others about yourself"
-            placeholderTextColor={colors.muted}
-            multiline
-          />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Major *</Text>
-          <TextInput
-            style={styles.input}
-            value={major}
-            onChangeText={setMajor}
-            placeholder="Computer Science"
-            placeholderTextColor={colors.muted}
-          />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Graduation year *</Text>
-          <TextInput
-            style={styles.input}
-            value={year}
-            onChangeText={setYear}
-            placeholder="2026"
-            placeholderTextColor={colors.muted}
-            keyboardType="number-pad"
-          />
-        </View>
+    <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.field}>
+        <Text style={styles.label}>Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Your full name"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Email *</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@calpoly.edu"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Bio</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={bio}
+          onChangeText={setBio}
+          placeholder="Tell others about yourself"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
+          multiline
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Major *</Text>
+        <TextInput
+          style={styles.input}
+          value={major}
+          onChangeText={setMajor}
+          placeholder="Computer Science"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Graduation year *</Text>
+        <TextInput
+          style={styles.input}
+          value={year}
+          onChangeText={setYear}
+          placeholder="2026"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
+          keyboardType="number-pad"
+        />
+      </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.saveButton,
-            pressed && styles.buttonPressed,
-            isSubmitting && styles.buttonDisabled,
-          ]}
-          onPress={() => void handleSave()}
-          disabled={isSubmitting}
-          accessibilityLabel={isSubmitting ? 'Saving profile' : 'Save profile'}
-          accessibilityRole="button"
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save profile</Text>
-          )}
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Pressable
+        style={({ pressed }) => [
+          styles.saveButton,
+          pressed && styles.buttonPressed,
+          isSubmitting && styles.buttonDisabled,
+        ]}
+        onPress={() => void handleSave()}
+        disabled={isSubmitting}
+        accessibilityLabel={isSubmitting ? 'Saving profile' : 'Save profile'}
+        accessibilityRole="button"
+      >
+        {isSubmitting ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <Text style={styles.saveButtonText}>Save profile</Text>
+        )}
+      </Pressable>
+    </KeyboardAwareScreen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   loading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     padding: spacing.xl,
@@ -246,13 +249,13 @@ const styles = StyleSheet.create({
     color: colors.textDark,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     ...typography.body,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     color: colors.textDark,
   },
   textArea: {

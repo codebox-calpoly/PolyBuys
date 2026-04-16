@@ -367,7 +367,7 @@ export default function LoginScreen() {
     try {
       await requestPermissionAndSyncToken(recordPushToken);
     } catch {
-      // Permission denied - continue anyway
+      void 0;
     }
 
     const messageNotificationsEnabled = true;
@@ -478,6 +478,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="Your name"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -490,6 +492,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="e.g. Computer Science"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={major}
                   onChangeText={setMajor}
                   autoCapitalize="words"
@@ -502,6 +506,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="2026"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={year}
                   onChangeText={setYear}
                   keyboardType="number-pad"
@@ -571,6 +577,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="you@calpoly.edu"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -587,6 +595,8 @@ export default function LoginScreen() {
                   style={[styles.input, styles.codeInput]}
                   placeholder="12345678"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={code}
                   onChangeText={setCode}
                   keyboardType="number-pad"

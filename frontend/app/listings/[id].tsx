@@ -17,7 +17,8 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import AntDesign from '@expo/vector-icons/AntDesign';
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import Constants from 'expo-constants';
@@ -456,12 +457,11 @@ export default function ListingDetailScreen() {
               accessibilityLabel={(savedOptimistic ?? isSaved) ? 'Unsave listing' : 'Save listing'}
               accessibilityRole="button"
             >
-              <Text style={styles.iconButtonText}>
-                {(savedOptimistic ?? isSaved) ? 'Saved' : 'Save'}
-              </Text>
-              {(savedOptimistic ?? isSaved) && (
-                <AntDesign name="check" color="#000000" style={styles.savedCheckIcon} />
-              )}
+              <Ionicons
+                name={(savedOptimistic ?? isSaved) ? 'heart' : 'heart-outline'}
+                size={20}
+                color={(savedOptimistic ?? isSaved) ? colors.category : colors.textDark}
+              />
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
@@ -469,7 +469,7 @@ export default function ListingDetailScreen() {
               accessibilityLabel="Share listing"
               accessibilityRole="button"
             >
-              <Text style={styles.iconButtonText}>Share</Text>
+              <Feather name="share" size={18} color={colors.textDark} />
             </Pressable>
           </View>
         )}
@@ -509,7 +509,7 @@ export default function ListingDetailScreen() {
           </Pressable>
         )}
 
-        {isOwner && !isHidden && (
+        {isOwner && !isHidden && listing.status !== 'sold' && (
           <View style={styles.buttonContainer}>
             {listing.status === 'active' && (
               <Pressable
@@ -578,12 +578,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     gap: 8,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     width: '100%',
@@ -633,8 +633,11 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
     overflow: 'hidden',
   },
   imageSection: {
@@ -648,10 +651,8 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     height: '100%',
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.border,
-    borderWidth: 1.5,
-    borderColor: colors.muted,
   },
   imageIndicator: {
     alignItems: 'center',
@@ -726,95 +727,90 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
   title: {
     ...typography.title1,
+    fontSize: 24,
+    lineHeight: 30,
     flex: 1,
     color: colors.textDark,
   },
   price: {
-    ...typography.title2,
-    fontSize: 19,
+    ...typography.title1,
+    fontSize: 22,
     color: colors.accent,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   messageButton: {
+    flex: 1,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 48,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   messageButtonText: {
-    ...typography.body,
+    ...typography.subhead,
     color: colors.white,
+    fontWeight: '700',
   },
   iconButton: {
-    padding: spacing.sm,
-    minWidth: 44,
-    minHeight: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    borderColor: colors.primary,
-    borderWidth: 1,
-    borderRadius: borderRadius.sm,
-  },
-  iconButtonText: {
-    ...typography.subhead,
-    color: colors.text,
-  },
-  savedCheckIcon: {
-    marginLeft: spacing.xs,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.white,
   },
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.xl,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   descriptionLabel: {
     ...typography.heading,
     color: colors.textDark,
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
   description: {
     ...typography.body,
     color: colors.textDark,
     lineHeight: 24,
-    marginBottom: spacing.xl,
   },
   sellerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   sellerAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.border,
   },
   sellerAvatarPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.location,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   sellerAvatarText: {
     ...typography.subhead,
@@ -834,42 +830,46 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   buttonContainer: {
-    gap: spacing.md,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   markSoldButton: {
     backgroundColor: colors.primary,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
   },
   markSoldButtonText: {
-    ...typography.body,
+    ...typography.subhead,
     color: colors.white,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   editButton: {
-    backgroundColor: colors.primary,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
   },
   editButtonText: {
-    ...typography.body,
-    color: colors.white,
+    ...typography.subhead,
+    color: colors.textDark,
     fontWeight: '600',
   },
   reportLink: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     paddingVertical: spacing.sm,
+    alignSelf: 'flex-start',
   },
   reportLinkText: {
     ...typography.footnote,
-    color: colors.primary,
-    fontWeight: '700',
+    color: colors.destructive,
+    fontWeight: '600',
   },
   buttonPressed: {
     opacity: 0.9,

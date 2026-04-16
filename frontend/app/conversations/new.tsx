@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAction, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
@@ -25,6 +26,7 @@ export default function NewConversationScreen() {
       : null;
 
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
@@ -105,8 +107,8 @@ export default function NewConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 82 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
@@ -122,6 +124,8 @@ export default function NewConversationScreen() {
           onChangeText={setMessageBody}
           placeholder="Type your message..."
           placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
           style={styles.input}
           multiline
           maxLength={2000}
@@ -147,13 +151,13 @@ export default function NewConversationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,
@@ -168,9 +172,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 120,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     ...typography.subhead,

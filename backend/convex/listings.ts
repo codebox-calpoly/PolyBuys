@@ -597,6 +597,14 @@ export const internalUpdateListing = internalMutation({
     }),
   },
   handler: async (ctx, args) => {
+    const listing = await ctx.db.get(args.id);
+    if (!listing) {
+      throw new ConvexError('Listing not found');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot update a sold listing');
+    }
+
     // Build a clean update object (strip undefined fields)
     const patch: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(args.update)) {
@@ -634,6 +642,9 @@ export const updateListing = action({
     }
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot update a deleted listing');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot update a sold listing');
     }
 
     // Validate inputs

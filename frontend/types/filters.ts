@@ -25,3 +25,21 @@ export const CATEGORIES: { value: Category | undefined; label: string }[] = [
   { value: 'tickets', label: CATEGORY_LABELS.tickets },
   { value: 'other', label: CATEGORY_LABELS.other },
 ];
+
+/** Matches Convex `searchAndFilterListings` / `getListings` sort options. */
+export type ListingSortBy = 'newest' | 'oldest' | 'price_asc' | 'price_desc';
+
+export const LISTING_SORT_OPTIONS: { value: ListingSortBy; label: string }[] = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'price_asc', label: 'Price: Low to high' },
+  { value: 'price_desc', label: 'Price: High to low' },
+];
+
+/** Compact label for filter chips (e.g. Sort · …). */
+export const LISTING_SORT_SHORT: Record<ListingSortBy, string> = {
+  newest: 'Newest',
+  oldest: 'Oldest',
+  price_asc: '$ ↑',
+  price_desc: '$ ↓',
+};

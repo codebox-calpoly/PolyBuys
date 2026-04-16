@@ -10,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
@@ -19,6 +20,7 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { ScreenState } from '../../components/ScreenState';
+import { FilterChips, type FilterChipOption } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
 
@@ -32,15 +34,22 @@ function yearToOrdinal(gradYear: number): string {
 
 type TabId = 'listings' | 'saved';
 
+const TAB_OPTIONS: FilterChipOption<TabId>[] = [
+  { value: 'listings', label: 'Listings' },
+  { value: 'saved', label: 'Saved' },
+];
+
 const PROFILE_EDIT = '/profile/edit';
 const ACCOUNT_SETTINGS = '/account-settings';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
+  const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated && !isWeb ? {} : 'skip');
@@ -131,13 +140,16 @@ export default function SettingsScreen() {
 
   const yearLabel = yearToOrdinal(profile.year);
 
+  const profileSubtitle = `${profile.major} • ${yearLabel}`;
+
   return (
     <ScrollView
       style={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
     >
-      <Animated.View style={[styles.profileCard, entranceStyle]}>
+      {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+      <Animated.View style={[styles.profileBlock, entranceStyle]}>
         <View style={styles.profileHeader}>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.avatar} />
@@ -150,9 +162,7 @@ export default function SettingsScreen() {
           )}
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileMeta}>
-              {profile.major} • {yearLabel}
-            </Text>
+            <Text style={styles.profileMeta}>{profileSubtitle}</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{listingsCount}</Text>
@@ -188,52 +198,27 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
-        {/*
-          Temporarily hidden.
+        <View style={styles.profileActions}>
           <Pressable
-            style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
-            onPress={handleShareProfile}
+            style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
+            onPress={() => router.push(PROFILE_EDIT as never)}
+            accessibilityLabel="Edit profile"
+            accessibilityRole="button"
           >
-            <Text style={styles.shareButtonText}>Share Profile</Text>
+            <Text style={styles.secondaryPillText}>Edit profile</Text>
           </Pressable>
-        */}
+          <Pressable
+            style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
+            onPress={() => router.push(ACCOUNT_SETTINGS as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Account settings"
+          >
+            <Text style={styles.secondaryPillText}>Settings</Text>
+          </Pressable>
+        </View>
       </Animated.View>
 
-      <Pressable
-        style={({ pressed }) => [styles.settingsRowCard, pressed && styles.buttonPressed]}
-        onPress={() => router.push(ACCOUNT_SETTINGS as never)}
-        accessibilityRole="button"
-        accessibilityLabel="Open settings"
-      >
-        <View style={styles.settingsRowTextBlock}>
-          <Text style={styles.settingsRowLabel}>Settings</Text>
-          <Text style={styles.settingsRowSubtext}>Notifications, sign out, and account</Text>
-        </View>
-        <Text style={styles.settingsRowChevron}>›</Text>
-      </Pressable>
-
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, activeTab === 'listings' && styles.tabActive]}
-          onPress={() => setActiveTab('listings')}
-          accessibilityLabel="My listings"
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'listings' }}
-        >
-          <Text style={[styles.tabText, activeTab === 'listings' && styles.tabTextActive]}>
-            Listings
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'saved' && styles.tabActive]}
-          onPress={() => setActiveTab('saved')}
-          accessibilityLabel="Saved listings"
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'saved' }}
-        >
-          <Text style={[styles.tabText, activeTab === 'saved' && styles.tabTextActive]}>Saved</Text>
-        </Pressable>
-      </View>
+      <FilterChips options={TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'listings' ? (
         displayListings.length === 0 ? (
@@ -301,13 +286,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     gap: spacing.sm,
   },
   centeredState: {
@@ -317,9 +302,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   signInCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xxl,
     gap: spacing.md,
@@ -344,14 +329,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.lg,
   },
-  profileCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
+  profileBlock: {
     gap: spacing.md,
-    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
   },
   profileHeader: {
     flexDirection: 'row',
@@ -406,21 +385,6 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.text,
   },
-  settingsRowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
-  settingsRowTextBlock: {
-    flex: 1,
-    gap: 2,
-  },
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,10 +396,6 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     fontWeight: '600',
     color: colors.textDark,
-  },
-  settingsRowSubtext: {
-    ...typography.footnote,
-    color: colors.muted,
   },
   settingsRowChevron: {
     fontSize: 22,
@@ -474,30 +434,24 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.muted,
   },
-  tabs: {
+  profileActions: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xs,
+    gap: spacing.sm,
   },
-  tab: {
+  secondaryPill: {
     flex: 1,
-    paddingVertical: spacing.md,
+    minHeight: 40,
+    borderRadius: borderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     alignItems: 'center',
-    borderRadius: borderRadius.sm,
+    justifyContent: 'center',
   },
-  tabActive: {
-    backgroundColor: colors.location,
-  },
-  tabText: {
-    ...typography.subhead,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  tabTextActive: {
+  secondaryPillText: {
+    ...typography.footnoteMed,
     color: colors.textDark,
+    fontWeight: '600',
   },
   grid: {
     flexDirection: 'row',
@@ -515,10 +469,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   emptyTab: {
-    backgroundColor: colors.surface,
-    flexBasis: '48%',
+    backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xxl,
     alignItems: 'center',

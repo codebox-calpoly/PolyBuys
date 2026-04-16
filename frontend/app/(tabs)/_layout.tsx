@@ -3,7 +3,7 @@ import { Link, Slot, useLocalSearchParams, usePathname, useRouter } from 'expo-r
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
@@ -77,6 +77,8 @@ function WebHeaderLayout() {
               onChangeText={setSearchInput}
               placeholder="Search listings..."
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               style={styles.webSearchInput}
               autoCapitalize="none"
               autoCorrect={false}
@@ -92,7 +94,6 @@ function WebHeaderLayout() {
 }
 
 export default function TabsLayout() {
-  const colorScheme = useColorScheme();
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated } = useAuth();
   const conversations = useQuery(
@@ -110,8 +111,9 @@ export default function TabsLayout() {
     return <WebHeaderLayout />;
   }
 
-  const isDarkMode = colorScheme === 'dark';
-  const tabTint = isDarkMode ? colors.white : colors.primary;
+  // Always use brand primary for tab accents. A white tint in system dark mode was propagating to
+  // native controls (e.g. UISearchBar caret) on the Search tab while the UI stays light-themed.
+  const tabTint = colors.primary;
 
   const nativeTabs = (
     <NativeTabs
