@@ -22,7 +22,7 @@
     "@sentry/react-native": "^8.3.0",
     "convex": "^1.32.0",
     "expo": "~55.0.5",
-    "expo-blur": "^55.0.14",
+    "expo-blur": "~55.0.8",
     "expo-constants": "~55.0.7",
     "expo-dev-client": "~55.0.16",
     "expo-device": "~55.0.9",

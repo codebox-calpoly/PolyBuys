@@ -515,6 +515,7 @@ export const listUserConversations = query({
           otherUser: {
             id: group.otherUserId,
             name: displayNameFromProfile(otherProfile, otherUserDoc),
+            picture: otherProfile?.picture,
           },
           listing: listingSummariesById.get(group.primaryConversation.listingId) ?? {
             id: group.primaryConversation.listingId,

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,6 +18,7 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -99,13 +99,11 @@ export default function ConversationDetailScreen() {
     conversation?.listingId ??
     null) as Id<'listings'> | null;
   const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
-  const headerThumbnailSource =
-    conversation?.listing?.thumbnailUrl ??
-    (listing?.images && listing.images.length > 0 ? listing.images[0] : null);
-  const { mappedUrls: headerMappedUrls } = useResolvedImageUrls(
-    headerThumbnailSource ? [headerThumbnailSource] : []
+  const headerOtherUserPicture = conversation?.otherUser?.picture ?? null;
+  const { mappedUrls: headerAvatarMappedUrls } = useResolvedImageUrls(
+    headerOtherUserPicture ? [headerOtherUserPicture] : []
   );
-  const headerThumbnailUrl = headerMappedUrls[0] ?? null;
+  const headerAvatarUrl = headerAvatarMappedUrls[0] ?? null;
   const headerOtherUserName = conversation?.otherUser?.name ?? 'User';
   const headerConversationTitle = conversation?.otherUser?.name ?? 'Conversation';
   const headerListingTitle =
@@ -320,13 +318,7 @@ export default function ConversationDetailScreen() {
       />
 
       <View style={styles.headerCard}>
-        {headerThumbnailUrl ? (
-          <Image source={{ uri: headerThumbnailUrl }} style={styles.headerThumbnail} />
-        ) : (
-          <View style={[styles.headerThumbnail, styles.thumbnailPlaceholder]}>
-            <Text style={styles.thumbnailPlaceholderText}>No image</Text>
-          </View>
-        )}
+        <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
         <View style={styles.headerTextWrap}>
           <Text style={styles.headerName} numberOfLines={1}>
             {headerOtherUserName}
@@ -474,22 +466,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  headerThumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.border,
-  },
-  thumbnailPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbnailPlaceholderText: {
-    ...typography.footnote,
-    fontSize: 10,
-    color: colors.muted,
-    fontWeight: '600',
   },
   headerTextWrap: {
     flex: 1,

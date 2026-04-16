@@ -29,6 +29,7 @@ import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -106,6 +107,10 @@ export default function ListingDetailScreen() {
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
+  const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
+    sellerProfile?.picture ? [sellerProfile.picture] : []
+  );
+  const sellerAvatarUrl = sellerAvatarUrls[0] ?? null;
   const hasMultipleImages = mappedUrls.length > 1;
   const hasPreviousImage = imageIndex > 0;
   const hasNextImage = imageIndex < mappedUrls.length - 1;
@@ -495,11 +500,13 @@ export default function ListingDetailScreen() {
             accessibilityLabel={`View ${sellerProfile.name}'s profile`}
             accessibilityRole="button"
           >
-            <View style={[styles.sellerAvatar, styles.sellerAvatarPlaceholder]}>
-              <Text style={styles.sellerAvatarText}>
-                {sellerProfile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            <ProfileAvatar
+              uri={sellerAvatarUrl}
+              name={sellerProfile.name}
+              size={44}
+              style={styles.sellerAvatar}
+              textStyle={styles.sellerAvatarText}
+            />
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{sellerProfile.name}</Text>
               <Text style={styles.sellerMeta}>
@@ -806,11 +813,6 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: colors.border,
-  },
-  sellerAvatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.location,
   },
   sellerAvatarText: {
     ...typography.subhead,
