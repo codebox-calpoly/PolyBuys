@@ -20,16 +20,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilterBar } from '../../components/FilterBar';
 import { CategoryPicker } from '../../components/CategoryPicker';
 import { PriceRangePicker } from '../../components/PriceRangePicker';
+import { SortPicker } from '../../components/SortPicker';
 import ListingCard from '../../components/ListingCard';
 import { ScreenState } from '../../components/ScreenState';
-import type { Filters, Category } from '../../types/filters';
+import { ScreenHeader } from '../../components/ui';
+import type { Filters, Category, ListingSortBy } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 const PAGE_SIZE = 20;
-/** Only refetch on focus when data is older than this (avoids redundant queries and preserves scroll/pagination) */
 const FOCUS_REFETCH_STALE_MS = 45_000;
 
 function buildWebRows(items: Doc<'listings'>[], size: number) {
@@ -66,12 +67,12 @@ export default function HomeScreen() {
   const isDesktopWeb = isWeb && width >= 1024;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
-  // Filter state
   const [filters, setFilters] = useState<Filters>({});
+  const [sortBy, setSortBy] = useState<ListingSortBy>('newest');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
+  const [showSortPicker, setShowSortPicker] = useState(false);
 
-  // Pagination state
   const [allListings, setAllListings] = useState<Doc<'listings'>[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
@@ -80,31 +81,30 @@ export default function HomeScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadError, setLoadError] = useState(false);
 
-  // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
   const currentFilterVersionRef = useRef(0);
 
-  // Track processed cursors to avoid duplicate appends
   const processedCursorsRef = useRef(new Set<string>());
-  // When we last received the first page (for focus-based staleness check)
   const lastFirstPageAtRef = useRef<number>(0);
-  // True once we've received any first page; gates fullscreen loader to initial load only
   const hasLoadedOnceRef = useRef(false);
 
   const searchQuery = Array.isArray(q) ? (q[0] ?? '').trim() : (q ?? '').trim();
   const hasSearchQuery = isWeb && searchQuery.length > 0;
-  const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}`;
+  const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}|${sortBy}`;
 
   const queryFilterVersion = currentFilterVersionRef.current;
 
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const listingsResultStandard = useQuery(
-    api.listings.getListings,
+    api.listings.searchAndFilterListings,
     !hasSearchQuery
       ? {
-          category: filters.category,
-          minPrice: filters.minPrice,
-          maxPrice: filters.maxPrice,
+          filters: {
+            sortBy,
+            category: filters.category,
+            minPrice: filters.minPrice,
+            maxPrice: filters.maxPrice,
+          },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
           _refreshKey: refreshKey,
         }
@@ -119,7 +119,7 @@ export default function HomeScreen() {
             category: filters.category,
             minPrice: filters.minPrice,
             maxPrice: filters.maxPrice,
-            sortBy: 'newest',
+            sortBy,
           },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
           _refreshKey: refreshKey,
@@ -128,8 +128,6 @@ export default function HomeScreen() {
   );
   const listingsResult = hasSearchQuery ? listingsResultSearch : listingsResultStandard;
 
-  // Reset pagination and refetch first page (used by pull-to-refresh and focus).
-  // Bumping refreshKey forces Convex to re-run when cursor is already null.
   const refreshListings = useCallback(() => {
     setRefreshKey((k) => k + 1);
     setCursor(null);
@@ -155,14 +153,12 @@ export default function HomeScreen() {
     }
   }, [listingsResult, cursor, queryFilterVersion]);
 
-  // Stop refresh spinner if the query never returns (e.g. network failure)
   useEffect(() => {
     if (!refreshing || cursor !== null) return;
     const fallback = setTimeout(() => setRefreshing(false), 15000);
     return () => clearTimeout(fallback);
   }, [refreshing, cursor]);
 
-  // Show error state if loading takes too long (e.g. network failure)
   useEffect(() => {
     if (listingsResult !== undefined || cursor !== null) {
       setLoadError(false);
@@ -183,7 +179,6 @@ export default function HomeScreen() {
     hasLoadedOnceRef.current = false;
   }, [activeFilterKey]);
 
-  // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
   useFocusEffect(
     useCallback(() => {
       if (hasSearchQuery) {
@@ -242,6 +237,7 @@ export default function HomeScreen() {
 
   const handleClearAll = () => {
     setFilters({});
+    setSortBy('newest');
     router.setParams({ q: undefined });
   };
 
@@ -359,6 +355,13 @@ export default function HomeScreen() {
           onClose={() => setShowPricePicker(false)}
         />
 
+        <SortPicker
+          visible={showSortPicker}
+          sortBy={sortBy}
+          onSelect={setSortBy}
+          onClose={() => setShowSortPicker(false)}
+        />
+
         <ScrollView
           style={[styles.webScrollView, { maxWidth: contentMaxWidth }]}
           contentContainerStyle={[
@@ -402,8 +405,10 @@ export default function HomeScreen() {
 
           <FilterBar
             filters={filters}
+            sortBy={sortBy}
             onCategoryPress={() => setShowCategoryPicker(true)}
             onPricePress={() => setShowPricePicker(true)}
+            onSortPress={() => setShowSortPicker(true)}
             onClearCategory={handleClearCategory}
             onClearPrice={handleClearPrice}
             onClearAll={handleClearAll}
@@ -472,33 +477,33 @@ export default function HomeScreen() {
         style={[styles.content, { paddingHorizontal: contentPadding, maxWidth: contentMaxWidth }]}
       >
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <Animated.View style={[styles.searchRow, entranceStyle]}>
-          <Pressable
-            style={styles.searchBarWrap}
-            onPress={() => router.push('/search')}
-            accessibilityLabel="Search items"
-            accessibilityRole="button"
-          >
-            <Text style={styles.searchPlaceholder}>Search items...</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-            onPress={handleCreateListing}
-            disabled={isSessionLoading}
-            accessibilityLabel="Create listing"
-            accessibilityRole="button"
-          >
-            <Text style={styles.createChipText}>+ Create</Text>
-          </Pressable>
+        <Animated.View style={[styles.homeTopBlock, entranceStyle]}>
+          <ScreenHeader
+            title="Browse"
+            subtitle="Fresh listings from campus"
+            action={
+              <Pressable
+                style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
+                onPress={handleCreateListing}
+                disabled={isSessionLoading}
+                accessibilityLabel="Create listing"
+                accessibilityRole="button"
+              >
+                <Text style={styles.createChipText}>+ Create</Text>
+              </Pressable>
+            }
+          />
+          <FilterBar
+            filters={filters}
+            sortBy={sortBy}
+            onCategoryPress={() => setShowCategoryPicker(true)}
+            onPricePress={() => setShowPricePicker(true)}
+            onSortPress={() => setShowSortPicker(true)}
+            onClearCategory={handleClearCategory}
+            onClearPrice={handleClearPrice}
+            onClearAll={handleClearAll}
+          />
         </Animated.View>
-        <FilterBar
-          filters={filters}
-          onCategoryPress={() => setShowCategoryPicker(true)}
-          onPricePress={() => setShowPricePicker(true)}
-          onClearCategory={handleClearCategory}
-          onClearPrice={handleClearPrice}
-          onClearAll={handleClearAll}
-        />
 
         <CategoryPicker
           visible={showCategoryPicker}
@@ -513,6 +518,13 @@ export default function HomeScreen() {
           maxPrice={filters.maxPrice}
           onApply={handlePriceApply}
           onClose={() => setShowPricePicker(false)}
+        />
+
+        <SortPicker
+          visible={showSortPicker}
+          sortBy={sortBy}
+          onSelect={setSortBy}
+          onClose={() => setShowSortPicker(false)}
         />
 
         {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
@@ -641,26 +653,8 @@ const styles = StyleSheet.create({
     minWidth: 172,
     alignItems: 'center',
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  homeTopBlock: {
     gap: spacing.md,
-  },
-  searchBarWrap: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  searchPlaceholder: {
-    ...typography.body,
-    color: colors.textDark,
-    fontWeight: '600',
   },
   createChip: {
     backgroundColor: colors.primary,

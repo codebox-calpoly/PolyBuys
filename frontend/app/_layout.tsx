@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform, useColorScheme } from 'react-native';
 import { FlashProvider } from '../contexts/FlashContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { colors, typography } from '../theme/tokens';
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
 export const unstable_settings = {
@@ -47,17 +48,28 @@ function PushNotificationsBootstrap() {
 
 function RootLayout() {
   const colorScheme = useColorScheme();
+  // Match React Navigation theme to system appearance so iOS 26 native tab bar / liquid glass
+  // does not flash white or flicker when DefaultTheme is forced in dark mode (Expo native tabs docs).
+  const navigationTheme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
     <SafeAreaProvider>
       <ConvexAuthProvider client={convex} storage={storage}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={navigationTheme}>
           <FlashProvider>
             <PushNotificationsBootstrap />
             <StatusBar style="auto" />
             <Stack
               screenOptions={{
                 headerBackButtonDisplayMode: 'minimal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTintColor: colors.textDark,
+                headerTitleStyle: {
+                  ...typography.heading,
+                  color: colors.textDark,
+                },
+                headerShadowVisible: false,
+                contentStyle: { backgroundColor: colors.surface },
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />

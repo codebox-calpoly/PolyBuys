@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
 import { buildDescriptionPreview } from '../lib/listingDescriptionPreview';
@@ -8,8 +9,7 @@ import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
-/** IDs of listings that have already played entrance animation (avoids re-animation on list recycle).
- * Uses LRU eviction to prevent unbounded growth during long sessions. */
+/** LRU-capped ids that already ran the entrance animation. */
 const MAX_ANIMATED_CACHE = 200;
 const animatedListingIds = new Map<string, void>();
 
@@ -34,6 +34,8 @@ function formatConditionLabel(condition: 'new' | 'used' | 'refurbished'): string
 
 export type ListingCardBadge = 'sold' | 'unavailable';
 
+export type ListingCardStatusBadge = 'active' | 'inactive' | 'sold' | 'hidden';
+
 export type ListingCardDensity = 'default' | 'home';
 export type ListingCardShellStyle = 'default' | 'flat';
 
@@ -49,18 +51,28 @@ interface ListingCardProps {
   index?: number;
   isSaved?: boolean;
   onToggleSave?: () => void;
-  /** @deprecated Use badge instead. When true and badge is unset, shows "Unavailable". */
+  /** @deprecated Prefer `badge`. */
   showUnavailableBadge?: boolean;
-  /** Explicit badge: "Sold" or "Unavailable" with distinct styling */
   badge?: ListingCardBadge;
-  /** When provided, called instead of default navigation (e.g. for search to add recent) */
+  statusBadge?: ListingCardStatusBadge;
+  onManagePress?: () => void;
   onPress?: (listing: ListingCardProps['listing']) => void;
-  /** Optional footer below the price (e.g. status chip + Edit for My Listings) */
   footer?: ReactNode;
-  /** Density variant: "home" for home tab (denser, tighter layout); "default" for other screens */
   density?: ListingCardDensity;
-  /** Visual shell style: "flat" removes card surface/shadow for Home feed alignment */
   shellStyle?: ListingCardShellStyle;
+}
+
+function formatStatusBadgeLabel(status: ListingCardStatusBadge): string {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'inactive':
+      return 'Inactive';
+    case 'sold':
+      return 'Sold';
+    case 'hidden':
+      return 'Hidden';
+  }
 }
 
 export default function ListingCard({
@@ -70,6 +82,8 @@ export default function ListingCard({
   onToggleSave,
   showUnavailableBadge = false,
   badge,
+  statusBadge,
+  onManagePress,
   onPress: onPressProp,
   footer,
   density = 'default',
@@ -204,6 +218,13 @@ export default function ListingCard({
                 </Text>
               </View>
             )}
+            {statusBadge && !badgeToShow && (
+              <View style={[styles.statusPill, getStatusPillStyle(statusBadge)]}>
+                <Text style={[styles.statusPillText, getStatusPillTextStyle(statusBadge)]}>
+                  {formatStatusBadgeLabel(statusBadge)}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={[styles.cardDetails, isHomeDensity && styles.cardDetailsHome]}>
             <Text
@@ -219,29 +240,31 @@ export default function ListingCard({
             >
               {conditionLabel}
             </Text>
-            {descriptionPreview.kind === 'bullets' ? (
-              <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
-                {descriptionPreview.items.map((line, i) => (
-                  <Text
-                    key={`${listing._id}-desc-${i}`}
-                    style={[styles.descBulletLine, isHomeDensity && styles.descBulletLineHome]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {'\u2022 '}
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            ) : descriptionPreview.kind === 'plain' ? (
-              <Text
-                style={[styles.descPlain, isHomeDensity && styles.descPlainHome]}
-                numberOfLines={2}
-                ellipsizeMode="tail"
-              >
-                {descriptionPreview.text}
-              </Text>
-            ) : null}
+            <View style={[styles.descSlot, isHomeDensity && styles.descSlotHome]}>
+              {descriptionPreview.kind === 'bullets' ? (
+                <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
+                  {descriptionPreview.items.map((line, i) => (
+                    <Text
+                      key={`${listing._id}-desc-${i}`}
+                      style={[styles.descBulletLine, isHomeDensity && styles.descBulletLineHome]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {'\u2022 '}
+                      {line}
+                    </Text>
+                  ))}
+                </View>
+              ) : descriptionPreview.kind === 'plain' ? (
+                <Text
+                  style={[styles.descPlain, isHomeDensity && styles.descPlainHome]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {descriptionPreview.text}
+                </Text>
+              ) : null}
+            </View>
             <Text
               style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
               numberOfLines={1}
@@ -262,10 +285,53 @@ export default function ListingCard({
             </Text>
           </Pressable>
         )}
+        {onManagePress && (
+          <Pressable
+            style={({ pressed }) => [styles.manageButton, pressed && styles.manageButtonPressed]}
+            onPress={onManagePress}
+            accessibilityLabel={`Manage listing: ${listing.title?.trim() || listing._id || 'listing'}`}
+            accessibilityRole="button"
+            hitSlop={8}
+          >
+            <BlurView
+              intensity={40}
+              tint="systemThinMaterialLight"
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.manageDots}>
+              <View style={styles.manageDot} />
+              <View style={styles.manageDot} />
+              <View style={styles.manageDot} />
+            </View>
+          </Pressable>
+        )}
       </View>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
   );
+}
+
+function getStatusPillStyle(status: ListingCardStatusBadge) {
+  switch (status) {
+    case 'active':
+      return { backgroundColor: colors.location };
+    case 'hidden':
+      return { backgroundColor: colors.category };
+    case 'sold':
+    case 'inactive':
+      return { backgroundColor: 'rgba(0,0,0,0.6)' };
+  }
+}
+
+function getStatusPillTextStyle(status: ListingCardStatusBadge) {
+  switch (status) {
+    case 'active':
+      return { color: colors.primary };
+    case 'hidden':
+    case 'sold':
+    case 'inactive':
+      return { color: colors.white };
+  }
 }
 
 const LISTING_IMAGE_HEIGHT = 220;
@@ -330,6 +396,55 @@ const styles = StyleSheet.create({
   },
   saveIconActive: {
     color: colors.category,
+  },
+  manageButton: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  manageButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
+  },
+  manageDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  manageDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.textDark,
+  },
+  statusPill: {
+    position: 'absolute',
+    top: spacing.xs,
+    left: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+  },
+  statusPillText: {
+    ...typography.footnote,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   statusBadge: {
     position: 'absolute',
@@ -397,6 +512,14 @@ const styles = StyleSheet.create({
   },
   listingConditionHome: {
     fontSize: 12,
+    marginTop: 0,
+  },
+  descSlot: {
+    minHeight: 32,
+    marginTop: 2,
+  },
+  descSlotHome: {
+    minHeight: 30,
     marginTop: 0,
   },
   descBlock: {

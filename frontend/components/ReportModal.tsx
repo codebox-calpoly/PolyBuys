@@ -110,6 +110,8 @@ export function ReportModal({
             value={notes}
             onChangeText={setNotes}
             placeholder="Add details that help moderators review this report"
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
           />
           <Text style={styles.counter}>
             {notes.length}/{MAX_NOTES}

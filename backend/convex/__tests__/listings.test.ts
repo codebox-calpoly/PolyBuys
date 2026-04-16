@@ -4,7 +4,7 @@
 
 import { convexTest } from 'convex-test';
 import schema from '../schema';
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
 import * as usersModule from '../users';
@@ -265,6 +265,46 @@ describe('Listings mutations', () => {
         title: 'New title after delete',
       });
     }).rejects.toThrowError('Cannot update a deleted listing');
+  });
+
+  it('updateListing cannot update a sold listing', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.updateListingStatus, {
+      id: listingId,
+      status: 'sold',
+    });
+
+    await expect(async () => {
+      await asOwner.action(api.listings.updateListing, {
+        id: listingId,
+        title: 'Post-sale retitle',
+      });
+    }).rejects.toThrowError('Cannot update a sold listing');
+  });
+
+  it('internalUpdateListing cannot patch a listing after it becomes sold', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.updateListingStatus, {
+      id: listingId,
+      status: 'sold',
+    });
+
+    await expect(async () => {
+      await t.mutation(internal.listings.internalUpdateListing, {
+        id: listingId,
+        update: {
+          title: 'Stale write after sold',
+        },
+      });
+    }).rejects.toThrowError('Cannot update a sold listing');
   });
 
   it('updateListingStatus cannot change status of a deleted listing', async () => {
