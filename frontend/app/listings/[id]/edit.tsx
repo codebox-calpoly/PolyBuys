@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -178,167 +179,177 @@ export default function EditListingScreen() {
   const isCancelDisabled = isSubmitting || hasPendingUploads;
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
-      <Animated.View style={[styles.formCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Edit Listing</Text>
-        <Text style={styles.title}>Update your item</Text>
-        <Text style={styles.subtitle}>Keep your listing accurate so buyers can decide faster.</Text>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Photos</Text>
-          <Text style={styles.labelHint}>
-            Add 1–8 photos. Listings with clear photos sell faster.
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Animated.View style={[styles.formCard, entranceStyle]}>
+          <Text style={styles.eyebrow}>Edit Listing</Text>
+          <Text style={styles.title}>Update your item</Text>
+          <Text style={styles.subtitle}>
+            Keep your listing accurate so buyers can decide faster.
           </Text>
-          <ImageUploader
-            images={images}
-            onImagesChange={setImages}
-            onPendingChange={setHasPendingUploads}
-          />
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Title</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Enter listing title"
-            accessibilityLabel="Listing title"
-            placeholderTextColor={colors.muted}
-            maxLength={100}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Describe your item"
-            placeholderTextColor={colors.muted}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Price</Text>
-          <View style={styles.priceInputWrap}>
-            <Text style={styles.pricePrefix}>$</Text>
-            <TextInput
-              style={[styles.input, styles.priceInput]}
-              value={price}
-              onChangeText={(text) => {
-                const filtered = text.replace(/[^0-9.]/g, '');
-                const parts = filtered.split('.');
-                if (parts.length > 2) return;
-                if (parts[1]?.length > 2) return;
-                setPrice(filtered);
-              }}
-              placeholder="15"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
+          <View style={styles.section}>
+            <Text style={styles.label}>Photos</Text>
+            <Text style={styles.labelHint}>
+              Add 1–8 photos. Listings with clear photos sell faster.
+            </Text>
+            <ImageUploader
+              images={images}
+              onImagesChange={setImages}
+              onPendingChange={setHasPendingUploads}
             />
           </View>
-          <Text style={styles.helperText}>
-            Enter amount in dollars. Decimals optional (e.g. 15 or 15.50)
-          </Text>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.optionsContainer}>
-            {categories.map((option) => (
-              <Pressable
-                key={option}
-                style={({ pressed }) => [
-                  styles.option,
-                  category === option && styles.optionSelected,
-                  pressed && styles.optionPressed,
-                ]}
-                onPress={() => setCategory(option)}
-                accessibilityLabel={`Category: ${option}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: category === option }}
-              >
-                <Text style={[styles.optionText, category === option && styles.optionTextSelected]}>
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={styles.section}>
+            <Text style={styles.label}>Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Enter listing title"
+              accessibilityLabel="Listing title"
+              placeholderTextColor={colors.muted}
+              maxLength={100}
+            />
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Condition</Text>
-          <View style={styles.optionsContainer}>
-            {conditions.map((option) => (
-              <Pressable
-                key={option}
-                style={({ pressed }) => [
-                  styles.option,
-                  condition === option && styles.optionSelected,
-                  pressed && styles.optionPressed,
-                ]}
-                onPress={() => setCondition(option)}
-                accessibilityLabel={`Condition: ${option}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: condition === option }}
-              >
-                <Text
-                  style={[styles.optionText, condition === option && styles.optionTextSelected]}
-                >
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={styles.section}>
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe your item"
+              placeholderTextColor={colors.muted}
+              multiline
+              numberOfLines={4}
+            />
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Tags</Text>
-          <TagInput tags={tags} onChange={setTags} />
-        </View>
-
-        <View style={styles.buttonContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.submitButton,
-              (isSubmitting || hasPendingUploads) && styles.submitButtonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => {
-              void onSubmit();
-            }}
-            disabled={isSubmitting || hasPendingUploads}
-            accessibilityLabel={isSubmitting ? 'Saving listing' : 'Save listing changes'}
-            accessibilityRole="button"
-          >
-            <Text style={styles.submitButtonText}>
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
+          <View style={styles.section}>
+            <Text style={styles.label}>Price</Text>
+            <View style={styles.priceInputWrap}>
+              <Text style={styles.pricePrefix}>$</Text>
+              <TextInput
+                style={[styles.input, styles.priceInput]}
+                value={price}
+                onChangeText={(text) => {
+                  const filtered = text.replace(/[^0-9.]/g, '');
+                  const parts = filtered.split('.');
+                  if (parts.length > 2) return;
+                  if (parts[1]?.length > 2) return;
+                  setPrice(filtered);
+                }}
+                placeholder="15"
+                placeholderTextColor={colors.muted}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <Text style={styles.helperText}>
+              Enter amount in dollars. Decimals optional (e.g. 15 or 15.50)
             </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.cancelButton,
-              isCancelDisabled && styles.cancelButtonDisabled,
-              pressed && !isCancelDisabled && styles.buttonPressed,
-            ]}
-            onPress={() => router.back()}
-            disabled={isCancelDisabled}
-            accessibilityLabel="Cancel"
-            accessibilityRole="button"
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </Pressable>
-        </View>
-      </Animated.View>
-    </ScrollView>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.optionsContainer}>
+              {categories.map((option) => (
+                <Pressable
+                  key={option}
+                  style={({ pressed }) => [
+                    styles.option,
+                    category === option && styles.optionSelected,
+                    pressed && styles.optionPressed,
+                  ]}
+                  onPress={() => setCategory(option)}
+                  accessibilityLabel={`Category: ${option}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: category === option }}
+                >
+                  <Text
+                    style={[styles.optionText, category === option && styles.optionTextSelected]}
+                  >
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Condition</Text>
+            <View style={styles.optionsContainer}>
+              {conditions.map((option) => (
+                <Pressable
+                  key={option}
+                  style={({ pressed }) => [
+                    styles.option,
+                    condition === option && styles.optionSelected,
+                    pressed && styles.optionPressed,
+                  ]}
+                  onPress={() => setCondition(option)}
+                  accessibilityLabel={`Condition: ${option}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: condition === option }}
+                >
+                  <Text
+                    style={[styles.optionText, condition === option && styles.optionTextSelected]}
+                  >
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Tags</Text>
+            <TagInput tags={tags} onChange={setTags} />
+          </View>
+
+          <View style={styles.buttonContainer}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.submitButton,
+                (isSubmitting || hasPendingUploads) && styles.submitButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => {
+                void onSubmit();
+              }}
+              disabled={isSubmitting || hasPendingUploads}
+              accessibilityLabel={isSubmitting ? 'Saving listing' : 'Save listing changes'}
+              accessibilityRole="button"
+            >
+              <Text style={styles.submitButtonText}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.cancelButton,
+                isCancelDisabled && styles.cancelButtonDisabled,
+                pressed && !isCancelDisabled && styles.buttonPressed,
+              ]}
+              onPress={() => router.back()}
+              disabled={isCancelDisabled}
+              accessibilityLabel="Cancel"
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
