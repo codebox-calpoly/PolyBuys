@@ -25,6 +25,34 @@ describe('buildDescriptionPreview', () => {
     }
   });
 
+  it('splits numbered lists without space after the dot and without sentence periods', () => {
+    const r = buildDescriptionPreview('1.Pickup near library\n2.Cash or Venmo only');
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items[0]).toContain('Pickup');
+      expect(r.items[1]).toContain('Venmo');
+    }
+  });
+
+  it('splits inline numbered items on one line', () => {
+    const r = buildDescriptionPreview('1. Pickup Tuesday 2. Cash only 3. Price firm');
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(3);
+      expect(r.items[0]).toMatch(/Pickup/);
+      expect(r.items[1]).toMatch(/Cash/);
+      expect(r.items[2]).toMatch(/firm/);
+    }
+  });
+
+  it('does not treat version numbers like 2.0 as list markers', () => {
+    const r = buildDescriptionPreview('Runs v2.0 firmware; like new; box included');
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items.join(' ')).not.toMatch(/^2\.0$/);
+    }
+  });
+
   it('drops unmarked prose after the last bullet line', () => {
     const r = buildDescriptionPreview(
       '- Pickup near campus\n- Cash or Venmo\nI can also deliver for an extra fee if you need that.'
