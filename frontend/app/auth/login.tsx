@@ -71,9 +71,16 @@ export default function LoginScreen() {
     if (isSessionLoading || !isAuthenticated || currentProfile === undefined) {
       return;
     }
-    if (currentProfile && (step === 'welcome' || step === 'email')) {
-      router.replace(postAuthRedirect);
+    if (step !== 'welcome' && step !== 'email') {
+      return;
     }
+
+    if (currentProfile) {
+      router.replace(postAuthRedirect);
+      return;
+    }
+
+    setStep('profile');
   }, [isSessionLoading, isAuthenticated, currentProfile, step, postAuthRedirect, router]);
 
   useEffect(() => {
