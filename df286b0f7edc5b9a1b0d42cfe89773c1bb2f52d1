@@ -1,0 +1,30 @@
+.github/workflows/ios-release-main.yml
+  26f5375a4a903ebe 33-37
+.github/workflows/ios-release-dev.yml
+  26f5375a4a903ebe 20-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "df286b0f7edc5b9a1b0d42cfe89773c1bb2f52d1",
+  "prompts": {
+    "26f5375a4a903ebe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc0b14e2-440f-4306-9ae0-5f379e351574",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_d6f0aa68cda9fc": {
+      "author": "Evan Taylor"
+    }
+  }
+}
