@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
+import { buildDescriptionPreview } from '../lib/listingDescriptionPreview';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -20,6 +21,17 @@ function markAsAnimated(id: string): void {
   animatedListingIds.set(id, undefined);
 }
 
+function formatConditionLabel(condition: 'new' | 'used' | 'refurbished'): string {
+  switch (condition) {
+    case 'new':
+      return 'New';
+    case 'used':
+      return 'Used';
+    case 'refurbished':
+      return 'Refurbished';
+  }
+}
+
 export type ListingCardBadge = 'sold' | 'unavailable';
 
 export type ListingCardDensity = 'default' | 'home';
@@ -32,6 +44,7 @@ interface ListingCardProps {
     price: number;
     description: string;
     images?: string[];
+    condition: 'new' | 'used' | 'refurbished';
   };
   index?: number;
   isSaved?: boolean;
@@ -111,6 +124,35 @@ export default function ListingCard({
   const isHomeDensity = density === 'home';
   const isFlatShell = shellStyle === 'flat';
   const isWeb = Platform.OS === 'web';
+  const conditionLabel = formatConditionLabel(listing.condition);
+  const titleLines = isHomeDensity ? 2 : 3;
+  const descriptionPreview = useMemo(
+    () => buildDescriptionPreview(listing.description),
+    [listing.description]
+  );
+
+  const accessibilityDescriptionHint = useMemo(() => {
+    const raw =
+      descriptionPreview.kind === 'plain'
+        ? descriptionPreview.text
+        : descriptionPreview.kind === 'bullets'
+          ? descriptionPreview.items.join('. ')
+          : '';
+    if (raw.length <= 160) {
+      return raw;
+    }
+    return `${raw.slice(0, 157)}…`;
+  }, [descriptionPreview]);
+
+  const accessibilityLabel = useMemo(() => {
+    const parts = [
+      `${listing.title}, $${formatPrice(listing.price)}`,
+      conditionLabel,
+      accessibilityDescriptionHint,
+      badgeToShow === 'sold' ? 'Sold' : badgeToShow === 'unavailable' ? 'Unavailable' : null,
+    ].filter(Boolean) as string[];
+    return parts.join(', ');
+  }, [listing.title, listing.price, conditionLabel, accessibilityDescriptionHint, badgeToShow]);
 
   return (
     <Animated.View
@@ -133,7 +175,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
+          accessibilityLabel={accessibilityLabel}
           accessibilityRole="button"
         >
           <View
@@ -163,13 +205,43 @@ export default function ListingCard({
               </View>
             )}
           </View>
-          <View style={[styles.titlePriceRow, isHomeDensity && styles.titlePriceRowHome]}>
+          <View style={[styles.cardDetails, isHomeDensity && styles.cardDetailsHome]}>
             <Text
               style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
-              numberOfLines={1}
+              numberOfLines={titleLines}
+              ellipsizeMode="tail"
             >
               {listing.title}
             </Text>
+            <Text
+              style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
+              numberOfLines={1}
+            >
+              {conditionLabel}
+            </Text>
+            {descriptionPreview.kind === 'bullets' ? (
+              <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
+                {descriptionPreview.items.map((line, i) => (
+                  <Text
+                    key={`${listing._id}-desc-${i}`}
+                    style={[styles.descBulletLine, isHomeDensity && styles.descBulletLineHome]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {'\u2022 '}
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ) : descriptionPreview.kind === 'plain' ? (
+              <Text
+                style={[styles.descPlain, isHomeDensity && styles.descPlainHome]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {descriptionPreview.text}
+              </Text>
+            ) : null}
             <Text
               style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
               numberOfLines={1}
@@ -205,16 +277,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   listingCardWrapperHome: {
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   cardContainer: {
     position: 'relative',
   },
   listingCard: {
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.08)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    boxShadow: '0 8px 20px rgba(21, 71, 52, 0.07)',
   },
   listingCardFlat: {
     backgroundColor: 'transparent',
@@ -291,44 +365,85 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.text,
   },
-  titlePriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: 0,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-  },
-  titlePriceRowHome: {
-    paddingHorizontal: 0,
+  cardDetails: {
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  cardDetailsHome: {
+    paddingHorizontal: spacing.smPlus,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: 2,
   },
   listingTitle: {
-    ...typography.body,
-    fontSize: 14,
-    color: colors.primary,
-    flex: 1,
-    minWidth: 0,
+    ...typography.subhead,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
+    color: colors.textDark,
   },
   listingTitleHome: {
-    ...typography.subhead,
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
+  },
+  listingCondition: {
+    ...typography.footnote,
+    color: colors.gray,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  listingConditionHome: {
+    fontSize: 12,
+    marginTop: 0,
+  },
+  descBlock: {
+    marginTop: 2,
+    gap: 2,
+    overflow: 'hidden',
+  },
+  descBlockHome: {
+    marginTop: 0,
+    gap: 1,
+  },
+  descBulletLine: {
+    ...typography.footnote,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+  },
+  descBulletLineHome: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  descPlain: {
+    ...typography.footnote,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+    marginTop: 2,
+  },
+  descPlainHome: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 0,
   },
   listingPrice: {
     ...typography.title2,
-    fontSize: 13,
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.accent,
-    flexShrink: 0,
+    marginTop: spacing.xs,
   },
   listingPriceHome: {
-    fontSize: 12,
+    fontSize: 17,
+    marginTop: spacing.xs,
   },
   footer: {
     marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
   },
 });
