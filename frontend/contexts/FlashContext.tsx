@@ -107,7 +107,7 @@ export function FlashProvider({ children }: { children: React.ReactNode }) {
             accessibilityElementsHidden={false}
           >
             <Pressable
-              style={({ pressed }) => [styles.banner, pressed && styles.bannerPressed]}
+              style={styles.banner}
               onPress={clearFlash}
               accessibilityRole="alert"
               accessibilityLiveRegion="polite"
@@ -115,6 +115,7 @@ export function FlashProvider({ children }: { children: React.ReactNode }) {
               accessibilityHint="Double tap to dismiss"
               accessibilityLabel={message}
               pointerEvents="auto"
+              android_ripple={{ color: 'rgba(255,255,255,0.14)', borderless: false }}
             >
               <Text style={styles.text}>{message}</Text>
               <View style={styles.dismissRow}>
@@ -133,12 +134,12 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
   },
+  // No elevation here — Android would composite oddly with a translucent child Pressable.
   bannerSlot: {
     position: 'absolute',
     left: 16,
     right: 16,
     zIndex: 9999,
-    elevation: 8,
     alignItems: 'stretch',
   },
   banner: {
@@ -154,13 +155,23 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     alignSelf: 'center',
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-  },
-  bannerPressed: {
-    opacity: 0.94,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.14,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 6,
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.14,
+        shadowRadius: 10,
+      },
+    }),
   },
   text: {
     fontSize: 14,
