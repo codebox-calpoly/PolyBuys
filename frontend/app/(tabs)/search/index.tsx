@@ -12,7 +12,6 @@ import {
   TextInput,
   TouchableWithoutFeedback,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -26,6 +25,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { CATEGORY_LABELS, type Category } from '../../../types/filters';
 import { colors, typography, spacing, borderRadius } from '../../../theme/tokens';
+import { searchFieldChrome } from '../../../theme/nativeChrome';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -35,8 +35,7 @@ const BROWSE_CATEGORIES: Category[] = ['textbooks', 'electronics', 'furniture', 
 
 export default function SearchScreen() {
   const { width } = useWindowDimensions();
-  const colorScheme = useColorScheme();
-  const isSystemDark = colorScheme === 'dark';
+  const searchChrome = useMemo(() => searchFieldChrome(), []);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
@@ -167,7 +166,6 @@ export default function SearchScreen() {
   const isSearching = hasActiveQuery;
   const isInitialLoading =
     isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
-  const showEmptyResults = isSearching && !isInitialLoading && allListings.length === 0;
   const showBrowseLanding = !hasActiveQuery;
   const contentPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.xxl : spacing.lg;
   const topSafeSpace =
@@ -203,11 +201,11 @@ export default function SearchScreen() {
         obscureBackground: false,
         autoCapitalize: 'none' as const,
         autoCorrect: false,
-        // With NativeTabs using a light-themed app while the phone is in dark mode, the bar can
-        // inherit a white global tint; these keep caret and typed text readable (react-native-screens).
+        keyboardAppearance: searchChrome.keyboardAppearance,
+        barTintColor: searchChrome.barTintColor,
         tintColor: colors.primary,
-        textColor: colors.textDark,
-        hintTextColor: colors.muted,
+        textColor: searchChrome.textColor,
+        hintTextColor: searchChrome.hintTextColor,
         onChangeText: (event: { nativeEvent: { text: string } }) => {
           setSearchInput(event.nativeEvent.text);
         },
@@ -216,7 +214,7 @@ export default function SearchScreen() {
         },
       },
     }),
-    [clearSearchAndBrowse]
+    [clearSearchAndBrowse, searchChrome]
   );
 
   const browseLanding = showBrowseLanding ? (
@@ -269,7 +267,7 @@ export default function SearchScreen() {
       contentContainerStyle={[
         styles.listContent,
         resultsContentLayoutStyle,
-        (isInitialLoading || showEmptyResults) && styles.listContentCentered,
+        isInitialLoading && styles.listContentCentered,
       ]}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
@@ -296,7 +294,12 @@ export default function SearchScreen() {
         </View>
       }
       ListEmptyComponent={
-        <View style={styles.stateContainer}>
+        <View
+          style={[
+            styles.stateContainer,
+            isInitialLoading ? styles.stateContainerCentered : styles.stateContainerInline,
+          ]}
+        >
           <View style={styles.stateCard}>
             <ScreenState
               variant={isInitialLoading ? 'loading' : 'empty'}
@@ -353,16 +356,25 @@ export default function SearchScreen() {
                   : 'Find what you need across PolyBuys.'}
               </Text>
             </View>
-            <View style={[styles.searchBarWrap, isDesktopWeb && styles.searchBarWrapDesktop]}>
+            <View
+              style={[
+                styles.searchBarWrap,
+                isDesktopWeb && styles.searchBarWrapDesktop,
+                {
+                  backgroundColor: searchChrome.searchBarWrapBackground,
+                  borderColor: searchChrome.searchBarWrapBorder,
+                },
+              ]}
+            >
               <BlurView
                 intensity={60}
-                tint={isSystemDark ? 'systemThinMaterialDark' : 'systemThinMaterialLight'}
+                tint={searchChrome.blurTint}
                 style={StyleSheet.absoluteFill}
               />
               <Feather
                 name="search"
                 size={18}
-                color={colors.textDark}
+                color={searchChrome.iconColor}
                 style={styles.searchBarIcon}
               />
               <TextInput
@@ -370,11 +382,11 @@ export default function SearchScreen() {
                 value={searchInput}
                 onChangeText={setSearchInput}
                 placeholder="Search desk, calculator, bike..."
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={searchChrome.hintTextColor}
                 selectionColor={colors.primary}
                 cursorColor={colors.primary}
-                keyboardAppearance={isSystemDark ? 'dark' : 'light'}
-                style={styles.searchInput}
+                keyboardAppearance={searchChrome.keyboardAppearance}
+                style={[styles.searchInput, { color: searchChrome.textColor }]}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
@@ -386,7 +398,10 @@ export default function SearchScreen() {
               {searchInput.length > 0 ? (
                 <Pressable
                   onPress={() => setSearchInput('')}
-                  style={styles.searchClearButton}
+                  style={[
+                    styles.searchClearButton,
+                    { backgroundColor: searchChrome.clearButtonBackground },
+                  ]}
                   hitSlop={8}
                   accessibilityLabel="Clear search"
                   accessibilityRole="button"
@@ -449,9 +464,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 50,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.45)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.6)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
@@ -469,7 +482,6 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.body,
     paddingVertical: spacing.sm,
-    color: colors.textDark,
   },
   searchClearButton: {
     width: 22,
@@ -478,7 +490,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.xs,
-    backgroundColor: 'rgba(0,0,0,0.15)',
   },
   searchClearButtonText: {
     ...typography.footnote,
@@ -564,12 +575,18 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   stateContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: spacing.xl,
+  },
+  stateContainerCentered: {
     flex: 1,
     minHeight: 200,
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
+  },
+  stateContainerInline: {
+    justifyContent: 'flex-start',
+    paddingTop: spacing.sm,
   },
   stateCard: {
     width: '100%',

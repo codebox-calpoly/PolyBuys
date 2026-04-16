@@ -24,6 +24,7 @@ import { ScreenState } from '../../components/ScreenState';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { ScreenHeader } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
+import { nativeChrome } from '../../theme/nativeChrome';
 
 type ConversationRowItem = {
   _id: string;
@@ -240,11 +241,7 @@ export default function InboxScreen() {
         <View style={styles.headerBlock}>
           <ScreenHeader title="Inbox" subtitle={subtitle} />
           <View style={styles.searchBarWrap}>
-            <BlurView
-              intensity={60}
-              tint="systemThinMaterialLight"
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={60} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
             <Feather name="search" size={18} color={colors.textDark} style={styles.searchBarIcon} />
             <TextInput
               value={searchText}

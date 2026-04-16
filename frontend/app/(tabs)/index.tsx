@@ -278,8 +278,8 @@ export default function HomeScreen() {
     : width >= 900
       ? spacing.xxl
       : isCompactLayout
-        ? spacing.md
-        : spacing.lg;
+        ? spacing.xs
+        : spacing.sm;
   const contentMaxWidth = isWeb ? 1240 : 1120;
   const homeColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : 2;
   const listEmptyComponent =
@@ -553,7 +553,11 @@ export default function HomeScreen() {
               />
             )}
             numColumns={homeColumns}
-            columnWrapperStyle={homeColumns > 1 ? styles.columnWrapper : undefined}
+            columnWrapperStyle={
+              homeColumns > 1
+                ? [styles.columnWrapper, isCompactLayout && styles.columnWrapperCompact]
+                : undefined
+            }
             contentContainerStyle={[
               styles.listContainer,
               isDesktopWeb && styles.listContainerDesktop,
@@ -676,6 +680,9 @@ const styles = StyleSheet.create({
   columnWrapper: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  columnWrapperCompact: {
+    gap: spacing.xs,
   },
   centerContainer: {
     flex: 1,
