@@ -34,6 +34,58 @@ function formatConditionLabel(condition?: 'new' | 'used' | 'refurbished'): strin
   }
 }
 
+const DESC_BULLET_MAX = 2;
+/** Per bullet — keeps cards scannable; ellipsis added in UI via numberOfLines. */
+const DESC_BULLET_MAX_CHARS = 78;
+const DESC_LINE_LEADING_LIST = /^\s*[-•*]\s+/;
+
+function normalizeDescriptionWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+type DescriptionPreview =
+  | { kind: 'none' }
+  | { kind: 'plain'; text: string }
+  | { kind: 'bullets'; items: string[] };
+
+/** Short preview for the card: bullets when the seller used line breaks / list markers; else 2-line snippet. */
+function buildDescriptionPreview(raw: string): DescriptionPreview {
+  const trimmed = raw?.trim() ?? '';
+  if (!trimmed) {
+    return { kind: 'none' };
+  }
+
+  const lines = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const looksLikeList =
+    lines.length >= 2 &&
+    lines.length <= 8 &&
+    lines.every((line) => line.length <= 220) &&
+    (lines.some((line) => DESC_LINE_LEADING_LIST.test(line)) ||
+      lines.every((line) => line.length <= 140));
+
+  if (looksLikeList) {
+    const items = lines.slice(0, DESC_BULLET_MAX).map((line) => {
+      const stripped = line.replace(DESC_LINE_LEADING_LIST, '').trim();
+      const oneLine = normalizeDescriptionWhitespace(stripped);
+      if (oneLine.length <= DESC_BULLET_MAX_CHARS) {
+        return oneLine;
+      }
+      return `${oneLine.slice(0, DESC_BULLET_MAX_CHARS - 1)}…`;
+    });
+    return { kind: 'bullets', items };
+  }
+
+  const plain = normalizeDescriptionWhitespace(trimmed);
+  if (!plain) {
+    return { kind: 'none' };
+  }
+  return { kind: 'plain', text: plain };
+}
+
 export type ListingCardBadge = 'sold' | 'unavailable';
 
 export type ListingCardDensity = 'default' | 'home';
@@ -128,6 +180,23 @@ export default function ListingCard({
   const isWeb = Platform.OS === 'web';
   const conditionLabel = formatConditionLabel(listing.condition);
   const titleLines = isHomeDensity ? 2 : 3;
+  const descriptionPreview = useMemo(
+    () => buildDescriptionPreview(listing.description),
+    [listing.description]
+  );
+
+  const accessibilityDescriptionHint = useMemo(() => {
+    const raw =
+      descriptionPreview.kind === 'plain'
+        ? descriptionPreview.text
+        : descriptionPreview.kind === 'bullets'
+          ? descriptionPreview.items.join('. ')
+          : '';
+    if (raw.length <= 160) {
+      return raw;
+    }
+    return `${raw.slice(0, 157)}…`;
+  }, [descriptionPreview]);
 
   return (
     <Animated.View
@@ -150,7 +219,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${conditionLabel ? `, ${conditionLabel}` : ''}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
+          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${conditionLabel ? `, ${conditionLabel}` : ''}${accessibilityDescriptionHint ? `, ${accessibilityDescriptionHint}` : ''}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
           accessibilityRole="button"
         >
           <View
@@ -194,6 +263,29 @@ export default function ListingCard({
                 numberOfLines={1}
               >
                 {conditionLabel}
+              </Text>
+            ) : null}
+            {descriptionPreview.kind === 'bullets' ? (
+              <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
+                {descriptionPreview.items.map((line, i) => (
+                  <Text
+                    key={`${listing._id}-desc-${i}`}
+                    style={[styles.descBulletLine, isHomeDensity && styles.descBulletLineHome]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {'\u2022 '}
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ) : descriptionPreview.kind === 'plain' ? (
+              <Text
+                style={[styles.descPlain, isHomeDensity && styles.descPlainHome]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {descriptionPreview.text}
               </Text>
             ) : null}
             <Text
@@ -351,6 +443,36 @@ const styles = StyleSheet.create({
   },
   listingConditionHome: {
     fontSize: 12,
+    marginTop: 0,
+  },
+  descBlock: {
+    marginTop: 2,
+    gap: 2,
+  },
+  descBlockHome: {
+    marginTop: 0,
+    gap: 1,
+  },
+  descBulletLine: {
+    ...typography.footnote,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+  },
+  descBulletLineHome: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  descPlain: {
+    ...typography.footnote,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+    marginTop: 2,
+  },
+  descPlainHome: {
+    fontSize: 11,
+    lineHeight: 15,
     marginTop: 0,
   },
   listingPrice: {
