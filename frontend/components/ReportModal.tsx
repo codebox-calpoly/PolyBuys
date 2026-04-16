@@ -11,6 +11,8 @@ type ReportModalProps = {
   onClose: () => void;
   targetId: string;
   targetType: 'listing' | 'profile';
+  /** When set, success uses this instead of a blocking alert (e.g. in-app flash banner). */
+  onReportSuccess?: () => void;
 };
 
 const REASONS: { value: ReportReason; label: string; desc: string }[] = [
@@ -21,7 +23,13 @@ const REASONS: { value: ReportReason; label: string; desc: string }[] = [
 
 const MAX_NOTES = 500;
 
-export function ReportModal({ isVisible, onClose, targetId, targetType }: ReportModalProps) {
+export function ReportModal({
+  isVisible,
+  onClose,
+  targetId,
+  targetType,
+  onReportSuccess,
+}: ReportModalProps) {
   const createReport = useMutation(api.reports.createReport);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
@@ -48,7 +56,11 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
         reason,
         notes: notes.trim() ? notes.trim() : undefined,
       });
-      Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
+      if (onReportSuccess) {
+        onReportSuccess();
+      } else {
+        Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
+      }
       handleClose();
     } catch (err) {
       const msg = String((err as Error)?.message ?? 'Unable to submit report right now.');
