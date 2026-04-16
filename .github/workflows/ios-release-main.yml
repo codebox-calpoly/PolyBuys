@@ -3,6 +3,18 @@ name: iOS TestFlight (main)
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'backend/**'
+      - 'convex/**'
+      - 'docs/**'
+      - '**.md'
+      - 'scripts/**'
+      - 'vercel.json'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/ios-release-dev.yml'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.coderabbit.yaml'
+      - 'LICENSE'
 
 concurrency:
   group: ios-release-main
