@@ -25,6 +25,18 @@ describe('buildDescriptionPreview', () => {
     }
   });
 
+  it('drops unmarked prose after the last bullet line', () => {
+    const r = buildDescriptionPreview(
+      '- Pickup near campus\n- Cash or Venmo\nI can also deliver for an extra fee if you need that.'
+    );
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(2);
+      expect(r.items[1]).toContain('Venmo');
+      expect(r.items.join(' ')).not.toContain('deliver');
+    }
+  });
+
   it('uses semicolon-separated clauses', () => {
     const r = buildDescriptionPreview(
       'Like new MacBook; includes charger and box; pickup Poly Canyon weekdays'

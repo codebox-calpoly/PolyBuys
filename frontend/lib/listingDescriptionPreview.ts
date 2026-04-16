@@ -35,6 +35,16 @@ function tryLineBasedBullets(trimmed: string): string[] | null {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
+  const markedLines = lines.filter((line) => DESC_LINE_LEADING_MARKERS.test(line));
+
+  // Two or more real list lines: only those — omit trailing prose after the last bullet.
+  if (markedLines.length >= 2) {
+    return markedLines.slice(0, DESC_PREVIEW_BULLET_MAX).map((line) => {
+      const stripped = stripLeadingMarker(line);
+      return capOneLine(normalizeDescriptionWhitespace(stripped));
+    });
+  }
+
   const looksLikeList =
     lines.length >= 2 &&
     lines.length <= 10 &&
