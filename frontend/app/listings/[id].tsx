@@ -33,6 +33,9 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
+import ImageLightbox from '../../components/ImageLightbox';
+
+import { APP_STORE_URL } from '../../constants/app';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -87,6 +90,7 @@ export default function ListingDetailScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [savedOptimistic, setSavedOptimistic] = useState<boolean | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
   const { width: screenWidth } = useWindowDimensions();
   const contentMaxWidth = 980;
@@ -265,14 +269,18 @@ export default function ListingDetailScreen() {
 
       {Platform.OS === 'web' && (
         <View style={styles.webBannerContainer}>
-          <Text style={styles.webBannerText}>Experience PolyBuys on mobile!</Text>
+          <View style={styles.webBannerTextWrap}>
+            <Text style={styles.webBannerText}>Experience PolyBuys on mobile!</Text>
+            <Text style={styles.webBannerSubtext}>Download the app for the full experience.</Text>
+          </View>
           <Pressable
             style={({ pressed }) => [styles.webBannerButton, pressed && styles.buttonPressed]}
             onPress={() => {
-              void Linking.openURL(`polybuys://listings/${listing._id}`);
+              // Open App Store / download page directly
+              void Linking.openURL(APP_STORE_URL);
             }}
           >
-            <Text style={styles.webBannerButtonText}>Open in App</Text>
+            <Text style={styles.webBannerButtonText}>Download App</Text>
           </Pressable>
         </View>
       )}
@@ -286,11 +294,16 @@ export default function ListingDetailScreen() {
               <>
                 <View style={[styles.heroImageWrap, { width: imageWidth }]}>
                   {mappedUrls[imageIndex] ? (
-                    <Image
-                      source={{ uri: mappedUrls[imageIndex] }}
-                      style={styles.heroImage}
-                      resizeMode="cover"
-                    />
+                    <Pressable
+                      onPress={() => setLightboxOpen(true)}
+                      accessibilityLabel="View full image"
+                    >
+                      <Image
+                        source={{ uri: mappedUrls[imageIndex] }}
+                        style={styles.heroImage}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
                   ) : (
                     <View style={styles.placeholderImage}>
                       <Text style={styles.placeholderText}>Loading image...</Text>
@@ -359,10 +372,22 @@ export default function ListingDetailScreen() {
                     );
                     setImageIndex(idx);
                   }}
-                  renderItem={({ item }) => (
+                  renderItem={({ item, index: itemIndex }) => (
                     <View style={[styles.heroImageWrap, { width: imageWidth }]}>
                       {item ? (
-                        <Image source={{ uri: item }} style={styles.heroImage} resizeMode="cover" />
+                        <Pressable
+                          onPress={() => {
+                            setImageIndex(itemIndex);
+                            setLightboxOpen(true);
+                          }}
+                          accessibilityLabel="View full image"
+                        >
+                          <Image
+                            source={{ uri: item }}
+                            style={styles.heroImage}
+                            resizeMode="cover"
+                          />
+                        </Pressable>
                       ) : (
                         <View style={styles.placeholderImage}>
                           <Text style={styles.placeholderText}>Loading image...</Text>
@@ -390,11 +415,16 @@ export default function ListingDetailScreen() {
               </>
             ) : mappedUrls[0] ? (
               <View style={[styles.heroImageWrap, { width: imageWidth }]}>
-                <Image
-                  source={{ uri: mappedUrls[0] }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
+                <Pressable
+                  onPress={() => setLightboxOpen(true)}
+                  accessibilityLabel="View full image"
+                >
+                  <Image
+                    source={{ uri: mappedUrls[0] }}
+                    style={styles.heroImage}
+                    resizeMode="cover"
+                  />
+                </Pressable>
               </View>
             ) : (
               <View style={[styles.heroImageWrap, { width: imageWidth }]}>
@@ -464,15 +494,24 @@ export default function ListingDetailScreen() {
         <Text style={styles.description}>{listing.description}</Text>
 
         {sellerProfile && (
-          <View style={styles.sellerBlock}>
-            <View style={styles.sellerAvatar} />
+          <Pressable
+            style={styles.sellerBlock}
+            onPress={() => router.push(`/profile/${encodeURIComponent(listing.sellerId)}`)}
+            accessibilityLabel={`View ${sellerProfile.name}'s profile`}
+            accessibilityRole="button"
+          >
+            <View style={[styles.sellerAvatar, styles.sellerAvatarPlaceholder]}>
+              <Text style={styles.sellerAvatarText}>
+                {sellerProfile.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{sellerProfile.name}</Text>
               <Text style={styles.sellerMeta}>
                 {sellerProfile.major} · Year {sellerProfile.year}
               </Text>
             </View>
-          </View>
+          </Pressable>
         )}
 
         {isOwner && !isHidden && (
@@ -524,6 +563,16 @@ export default function ListingDetailScreen() {
           targetType="listing"
         />
       </Animated.View>
+
+      <ImageLightbox
+        images={mappedUrls.filter((url): url is string => url !== null)}
+        initialIndex={
+          mappedUrls.slice(0, imageIndex + 1).filter((url): url is string => url !== null).length -
+          1
+        }
+        visible={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -559,6 +608,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+  },
+  webBannerTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  webBannerSubtext: {
+    color: colors.infoText,
+    fontSize: 12,
+    fontWeight: '400',
   },
   webBannerText: {
     color: colors.infoText,
@@ -747,6 +805,18 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     backgroundColor: colors.border,
+  },
+  sellerAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.location,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sellerAvatarText: {
+    ...typography.subhead,
+    fontWeight: '700',
+    color: colors.primary,
   },
   sellerInfo: {
     flex: 1,
