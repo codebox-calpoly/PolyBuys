@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-native';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { ConvexReactClient } from 'convex/react';
 import { useConvexAuth } from 'convex/react';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
@@ -7,10 +7,23 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 import { FlashProvider } from '../contexts/FlashContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { colors, typography } from '../theme/tokens';
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.surface,
+    card: colors.surface,
+    text: colors.textDark,
+    border: colors.border,
+    notification: colors.category,
+  },
+};
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
 export const unstable_settings = {
@@ -47,18 +60,13 @@ function PushNotificationsBootstrap() {
 }
 
 function RootLayout() {
-  const colorScheme = useColorScheme();
-  // Match React Navigation theme to system appearance so iOS 26 native tab bar / liquid glass
-  // does not flash white or flicker when DefaultTheme is forced in dark mode (Expo native tabs docs).
-  const navigationTheme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
-
   return (
     <SafeAreaProvider>
       <ConvexAuthProvider client={convex} storage={storage}>
         <ThemeProvider value={navigationTheme}>
           <FlashProvider>
             <PushNotificationsBootstrap />
-            <StatusBar style="auto" />
+            <StatusBar style="dark" />
             <Stack
               screenOptions={{
                 headerBackButtonDisplayMode: 'minimal',

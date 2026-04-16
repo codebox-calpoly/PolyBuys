@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
+import { nativeChrome } from '../../theme/nativeChrome';
 
 function WebHeaderLayout() {
   const router = useRouter();
@@ -111,23 +112,41 @@ export default function TabsLayout() {
     return <WebHeaderLayout />;
   }
 
-  // Always use brand primary for tab accents. A white tint in system dark mode was propagating to
-  // native controls (e.g. UISearchBar caret) on the Search tab while the UI stays light-themed.
-  const tabTint = colors.primary;
+  const tabTint = nativeChrome.tabIconSelectedColor;
 
   const nativeTabs = (
     <NativeTabs
       minimizeBehavior="onScrollDown"
       tintColor={tabTint}
-      labelStyle={styles.nativeTabLabel}
+      iconColor={{
+        default: nativeChrome.tabIconDefaultColor,
+        selected: nativeChrome.tabIconSelectedColor,
+      }}
+      labelStyle={{
+        default: styles.nativeTabLabelDefault,
+        selected: styles.nativeTabLabelSelected,
+      }}
+      backgroundColor={nativeChrome.tabBarBackgroundColor}
+      blurEffect={nativeChrome.tabBarBlurEffect}
+      shadowColor={nativeChrome.tabBarShadowColor}
+      disableTransparentOnScrollEdge
     >
-      <NativeTabs.Trigger name="index" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="index"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role="search" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="search"
+        role="search"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
@@ -136,7 +155,11 @@ export default function TabsLayout() {
           md="search"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="my-listings" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="my-listings"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
@@ -145,7 +168,11 @@ export default function TabsLayout() {
           md="view_list"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="inbox" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="inbox"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
@@ -159,7 +186,11 @@ export default function TabsLayout() {
           </NativeTabs.Trigger.Badge>
         ) : null}
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="settings"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
@@ -245,8 +276,17 @@ const styles = StyleSheet.create({
     outlineColor: 'transparent',
     boxShadow: 'none',
   },
-  nativeTabLabel: {
+  nativeTabLabelDefault: {
     fontSize: 11,
     fontWeight: '600',
+    color: nativeChrome.tabLabelDefaultColor,
+  },
+  nativeTabLabelSelected: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: nativeChrome.tabLabelSelectedColor,
+  },
+  nativeTabContent: {
+    backgroundColor: colors.surface,
   },
 });
