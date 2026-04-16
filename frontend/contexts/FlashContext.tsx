@@ -22,12 +22,12 @@ const FLASH_DURATION_REDUCED_MS = 900;
 /** Space above bottom home indicator / tab bar so the banner does not cover primary nav. */
 function bottomOffsetForPlatform(): number {
   if (Platform.OS === 'web') {
-    return 16;
+    return 28;
   }
   if (Platform.OS === 'ios') {
-    return 52;
+    return 64;
   }
-  return 56;
+  return 68;
 }
 
 export function useFlash() {
@@ -142,22 +142,25 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   banner: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#166534',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    // Solid green read with a hint of transparency so content behind peeks through slightly
+    backgroundColor: 'rgba(22, 101, 52, 0.88)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    maxWidth: 560,
+    maxWidth: 520,
     alignSelf: 'center',
     width: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
   },
   bannerPressed: {
-    opacity: 0.92,
+    opacity: 0.94,
   },
   text: {
     fontSize: 14,
