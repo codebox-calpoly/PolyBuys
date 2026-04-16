@@ -291,7 +291,18 @@ export default function HomeScreen() {
     router.push('/listings/new');
   };
 
-  const contentPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
+  const isCompactLayout = width < 760;
+  const contentPadding = isWeb
+    ? isDesktopWeb
+      ? spacing.xl
+      : width >= 900
+        ? spacing.lg
+        : 10
+    : width >= 900
+      ? spacing.xxl
+      : isCompactLayout
+        ? spacing.md
+        : spacing.lg;
   const contentMaxWidth = isWeb ? 1240 : 1120;
   const homeColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : 2;
   const listEmptyComponent =
@@ -446,6 +457,7 @@ export default function HomeScreen() {
                           isSaved={savedState?.[item._id] ?? false}
                           onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
                           density="home"
+                          shellStyle="flat"
                         />
                       </View>
                     ))}
@@ -477,7 +489,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, styles.pageMobile]}>
       <View
         style={[styles.content, { paddingHorizontal: contentPadding, maxWidth: contentMaxWidth }]}
       >
@@ -542,7 +554,6 @@ export default function HomeScreen() {
             </Pressable>
           </Animated.View>
         )}
-
         <FilterBar
           filters={filters}
           selectedTags={selectedTags}
@@ -592,7 +603,7 @@ export default function HomeScreen() {
                 index={index}
                 isSaved={savedState?.[item._id] ?? false}
                 onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
-                density="home"
+                shellStyle="flat"
               />
             )}
             numColumns={homeColumns}
@@ -626,6 +637,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  pageMobile: {
+    backgroundColor: colors.surface,
+  },
   pageWeb: {
     minHeight: '100%',
   },
@@ -635,7 +649,7 @@ const styles = StyleSheet.create({
     maxWidth: 1120,
     alignSelf: 'center',
     paddingTop: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   webScrollView: {
     width: '100%',
@@ -689,40 +703,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
-  webHeroCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    gap: spacing.lg,
-    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
-  },
-  webHeroTopRow: {
-    gap: spacing.lg,
-  },
-  webHeroCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  webHeroEyebrow: {
-    ...typography.footnote,
-    color: colors.primary,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  webHeroTitle: {
-    ...typography.title1,
-    fontSize: 30,
-    lineHeight: 36,
-    color: colors.textDark,
-  },
-  webHeroBody: {
-    ...typography.subhead,
-    color: colors.text,
-    maxWidth: 620,
-  },
   webCreateChip: {
     minWidth: 172,
     alignItems: 'center',
@@ -730,81 +710,71 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   searchBarWrap: {
     flex: 1,
     backgroundColor: colors.white,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     minHeight: 48,
     justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  webSearchBarWrap: {
-    minHeight: 78,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.lg,
   },
   searchPlaceholder: {
     ...typography.body,
     color: colors.textDark,
     fontWeight: '600',
   },
-  webSearchHint: {
-    ...typography.footnote,
-    color: colors.text,
-  },
   createChip: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
     minHeight: 44,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   createChipPressed: {
     opacity: 0.9,
   },
   createChipText: {
+    ...typography.subhead,
     color: colors.white,
-    fontSize: 15,
     fontWeight: '600',
   },
   columnWrapper: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    gap: spacing.sm,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 48,
-    paddingHorizontal: 20,
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
   },
   stateContainer: {
     flex: 1,
-    minHeight: 200,
+    minHeight: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   stateCard: {
     width: '100%',
     maxWidth: 560,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.xl,
-    boxShadow: '0 16px 36px rgba(21, 71, 52, 0.06)',
+    padding: spacing.lg,
   },
   listContainer: {
+    paddingTop: spacing.xs,
     paddingBottom: 26,
-    gap: spacing.lg,
   },
   listContainerDesktop: {
     paddingTop: spacing.xs,
