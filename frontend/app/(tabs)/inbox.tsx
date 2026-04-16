@@ -3,11 +3,13 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -242,90 +244,104 @@ export default function InboxScreen() {
   const isSearching = searchText.trim().length > 0;
 
   return (
-    <View style={styles.page}>
-      <View style={styles.content}>
-        {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <View style={styles.headerBlock}>
-          <ScreenHeader title="Inbox" subtitle={subtitle} />
-          <View style={styles.searchBarWrap}>
-            <BlurView intensity={60} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
-            <Feather name="search" size={18} color={colors.textDark} style={styles.searchBarIcon} />
-            <TextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              placeholder="Search conversations..."
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              cursorColor={colors.primary}
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              accessibilityLabel="Search conversations"
-            />
-            {searchText.length > 0 ? (
-              <Pressable
-                onPress={() => setSearchText('')}
-                accessibilityLabel="Clear search"
-                accessibilityRole="button"
-                hitSlop={8}
-                style={styles.clearButton}
-              >
-                <Text style={styles.clearButtonText}>✕</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-        <FlatList
-          data={filteredConversations}
-          keyExtractor={(item) => item._id}
-          style={styles.list}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + spacing.xxl },
-          ]}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <View style={styles.emptyCard}>
-              <ScreenState
-                variant="empty"
-                title={isSearching ? 'No matches' : 'No conversations yet'}
-                message={
-                  isSearching
-                    ? `Nothing matched "${searchText.trim()}". Try a different name or listing.`
-                    : 'Start by messaging a seller from any listing page.'
-                }
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.page}>
+        <View style={styles.content}>
+          {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+          <View style={styles.headerBlock}>
+            <ScreenHeader title="Inbox" subtitle={subtitle} />
+            <View style={styles.searchBarWrap}>
+              <BlurView
+                intensity={60}
+                tint={nativeChrome.blurTint}
+                style={StyleSheet.absoluteFill}
               />
+              <Feather
+                name="search"
+                size={18}
+                color={colors.textDark}
+                style={styles.searchBarIcon}
+              />
+              <TextInput
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="Search conversations..."
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                style={styles.searchInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                accessibilityLabel="Search conversations"
+                onSubmitEditing={() => {
+                  Keyboard.dismiss();
+                }}
+              />
+              {searchText.length > 0 ? (
+                <Pressable
+                  onPress={() => setSearchText('')}
+                  accessibilityLabel="Clear search"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={styles.clearButton}
+                >
+                  <Text style={styles.clearButtonText}>✕</Text>
+                </Pressable>
+              ) : null}
             </View>
-          }
-          renderItem={({ item, index }) => {
-            const conversation = item as ConversationRowItem;
-            const pictureId =
-              typeof conversation.otherUser?.picture === 'string'
-                ? conversation.otherUser.picture
-                : null;
-            const avatarUrl = pictureId ? (resolvedOtherUserAvatarUrls[pictureId] ?? null) : null;
-            return (
-              <ConversationRow
-                item={conversation}
-                index={index}
-                avatarUrl={avatarUrl}
-                entranceStyle={entranceStyle}
-                formatTimestamp={formatTimestamp}
-                onPress={() =>
-                  router.push({
-                    pathname: '/conversations/[id]',
-                    params: { id: String(item._id) },
-                  } as never)
-                }
-              />
-            );
-          }}
-          ItemSeparatorComponent={ItemSeparator}
-        />
+          </View>
+          <FlatList
+            data={filteredConversations}
+            keyExtractor={(item) => item._id}
+            style={styles.list}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + spacing.xxl },
+            ]}
+            contentInsetAdjustmentBehavior="automatic"
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={styles.emptyCard}>
+                <ScreenState
+                  variant="empty"
+                  title={isSearching ? 'No matches' : 'No conversations yet'}
+                  message={
+                    isSearching
+                      ? `Nothing matched "${searchText.trim()}". Try a different name or listing.`
+                      : 'Start by messaging a seller from any listing page.'
+                  }
+                />
+              </View>
+            }
+            renderItem={({ item, index }) => {
+              const conversation = item as ConversationRowItem;
+              const pictureId =
+                typeof conversation.otherUser?.picture === 'string'
+                  ? conversation.otherUser.picture
+                  : null;
+              const avatarUrl = pictureId ? (resolvedOtherUserAvatarUrls[pictureId] ?? null) : null;
+              return (
+                <ConversationRow
+                  item={conversation}
+                  index={index}
+                  avatarUrl={avatarUrl}
+                  entranceStyle={entranceStyle}
+                  formatTimestamp={formatTimestamp}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/conversations/[id]',
+                      params: { id: String(item._id) },
+                    } as never)
+                  }
+                />
+              );
+            }}
+            ItemSeparatorComponent={ItemSeparator}
+          />
+        </View>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
