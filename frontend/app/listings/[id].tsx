@@ -23,6 +23,7 @@ import Constants from 'expo-constants';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
@@ -36,6 +37,7 @@ import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
 
 import { APP_STORE_URL } from '../../constants/app';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -68,6 +70,7 @@ export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { isAuthenticated } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
@@ -194,6 +197,7 @@ export default function ListingDetailScreen() {
     try {
       setMarkingSold(true);
       await updateListingStatus({ id: listing._id, status: 'sold' });
+      setFlash('Listing marked as sold.');
     } catch (error) {
       const message =
         error instanceof Error && error.message
@@ -561,6 +565,7 @@ export default function ListingDetailScreen() {
           onClose={() => setReportOpen(false)}
           targetId={String(listing._id)}
           targetType="listing"
+          onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
         />
       </Animated.View>
 

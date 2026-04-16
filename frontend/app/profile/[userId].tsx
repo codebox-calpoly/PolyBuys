@@ -12,11 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { Doc } from 'convex/_generated/dataModel';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
 import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 function yearToOrdinal(gradYear: number): string {
@@ -30,6 +32,7 @@ function yearToOrdinal(gradYear: number): string {
 export default function PublicProfileScreen() {
   const { userId: rawUserId } = useLocalSearchParams<{ userId?: string }>();
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { width } = useWindowDimensions();
   const { user, isAuthenticated } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
@@ -138,6 +141,7 @@ export default function PublicProfileScreen() {
         onClose={() => setReportOpen(false)}
         targetId={profile._id}
         targetType="profile"
+        onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
       />
 
       <Text style={styles.sectionTitle}>Listings</Text>
