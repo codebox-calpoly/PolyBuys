@@ -1,4 +1,4 @@
-import { buildDescriptionPreview } from '../listingDescriptionPreview';
+import { buildDescriptionPreview, DESC_PREVIEW_BULLET_MAX } from '../listingDescriptionPreview';
 
 describe('buildDescriptionPreview', () => {
   it('returns none for empty', () => {
@@ -34,6 +34,24 @@ describe('buildDescriptionPreview', () => {
       expect(r.items[0]).toBe('First point');
       expect(r.items[1]).toBe('Second');
       expect(r.items[2]).toBe('Third');
+    }
+  });
+
+  it('truncates long bullet lines at 78 characters with ellipsis', () => {
+    const longLine = 'A'.repeat(100);
+    const r = buildDescriptionPreview(`- ${longLine}\n- Short`);
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items[0].length).toBe(78);
+      expect(r.items[0].endsWith('…')).toBe(true);
+    }
+  });
+
+  it(`limits bullets to DESC_PREVIEW_BULLET_MAX (${DESC_PREVIEW_BULLET_MAX})`, () => {
+    const r = buildDescriptionPreview('- One\n- Two\n- Three\n- Four\n- Five');
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(DESC_PREVIEW_BULLET_MAX);
     }
   });
 

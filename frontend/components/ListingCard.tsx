@@ -21,8 +21,7 @@ function markAsAnimated(id: string): void {
   animatedListingIds.set(id, undefined);
 }
 
-function formatConditionLabel(condition?: 'new' | 'used' | 'refurbished'): string | null {
-  if (!condition) return null;
+function formatConditionLabel(condition: 'new' | 'used' | 'refurbished'): string {
   switch (condition) {
     case 'new':
       return 'New';
@@ -30,8 +29,6 @@ function formatConditionLabel(condition?: 'new' | 'used' | 'refurbished'): strin
       return 'Used';
     case 'refurbished':
       return 'Refurbished';
-    default:
-      return null;
   }
 }
 
@@ -47,7 +44,7 @@ interface ListingCardProps {
     price: number;
     description: string;
     images?: string[];
-    condition?: 'new' | 'used' | 'refurbished';
+    condition: 'new' | 'used' | 'refurbished';
   };
   index?: number;
   isSaved?: boolean;
@@ -147,6 +144,16 @@ export default function ListingCard({
     return `${raw.slice(0, 157)}…`;
   }, [descriptionPreview]);
 
+  const accessibilityLabel = useMemo(() => {
+    const parts = [
+      `${listing.title}, $${formatPrice(listing.price)}`,
+      conditionLabel,
+      accessibilityDescriptionHint,
+      badgeToShow === 'sold' ? 'Sold' : badgeToShow === 'unavailable' ? 'Unavailable' : null,
+    ].filter(Boolean) as string[];
+    return parts.join(', ');
+  }, [listing.title, listing.price, conditionLabel, accessibilityDescriptionHint, badgeToShow]);
+
   return (
     <Animated.View
       style={[
@@ -168,7 +175,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${conditionLabel ? `, ${conditionLabel}` : ''}${accessibilityDescriptionHint ? `, ${accessibilityDescriptionHint}` : ''}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
+          accessibilityLabel={accessibilityLabel}
           accessibilityRole="button"
         >
           <View
@@ -206,14 +213,12 @@ export default function ListingCard({
             >
               {listing.title}
             </Text>
-            {conditionLabel ? (
-              <Text
-                style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
-                numberOfLines={1}
-              >
-                {conditionLabel}
-              </Text>
-            ) : null}
+            <Text
+              style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
+              numberOfLines={1}
+            >
+              {conditionLabel}
+            </Text>
             {descriptionPreview.kind === 'bullets' ? (
               <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
                 {descriptionPreview.items.map((line, i) => (
@@ -367,7 +372,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   cardDetailsHome: {
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.smPlus,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     gap: 2,
