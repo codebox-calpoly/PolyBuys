@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
-  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,6 +19,8 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { ScreenHeader } from '../../components/ui';
@@ -35,6 +36,7 @@ type ConversationRowItem = {
   lastMessageAt?: number;
   otherUser?: {
     name?: string;
+    picture?: string;
   };
   listing?: {
     id?: Id<'listings'>;
@@ -50,12 +52,14 @@ function ItemSeparator() {
 function ConversationRow({
   item,
   index,
+  avatarUrl,
   entranceStyle,
   onPress,
   formatTimestamp,
 }: {
   item: ConversationRowItem;
   index: number;
+  avatarUrl: string | null;
   entranceStyle: object;
   onPress: () => void;
   formatTimestamp: (timestamp: number) => string;
@@ -63,7 +67,6 @@ function ConversationRow({
   const hasUnread = Boolean(item.hasUnread);
   const otherUserName = item.otherUser?.name ?? 'User';
   const listingTitle = item.listing?.title ?? 'Listing unavailable';
-  const thumbnail = item.listing?.thumbnailUrl ?? null;
 
   const lastMessagePreview = item.lastMessagePreview ?? 'Conversation started';
   const lastMessageAt = item.lastMessageAt ?? item.updatedAt ?? Date.now();
@@ -76,13 +79,7 @@ function ConversationRow({
         accessibilityRole="button"
         accessibilityLabel={`Conversation with ${otherUserName} about ${listingTitle}`}
       >
-        {thumbnail ? (
-          <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
-        ) : (
-          <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-            <Text style={styles.thumbnailPlaceholderText}>No image</Text>
-          </View>
-        )}
+        <ProfileAvatar uri={avatarUrl} name={otherUserName} size={56} style={styles.avatar} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <Text style={[styles.otherUserName, hasUnread && styles.unreadText]} numberOfLines={1}>
@@ -173,7 +170,17 @@ export default function InboxScreen() {
     conversations?.filter(
       (conversation) => Boolean(conversation.hasUnread) || (conversation.unreadCount ?? 0) > 0
     ).length ?? 0;
-
+  const otherUserPictureIds = useMemo(
+    () =>
+      (conversations ?? [])
+        .map((conversation) => conversation.otherUser?.picture)
+        .filter(
+          (pictureId): pictureId is Id<'_storage'> =>
+            typeof pictureId === 'string' && pictureId.length > 0
+        ),
+    [conversations]
+  );
+  const { resolvedUrls: resolvedOtherUserAvatarUrls } = useResolvedImageUrls(otherUserPictureIds);
   const filteredConversations = useMemo(() => {
     if (!conversations) return [];
     const query = searchText.trim().toLowerCase();
@@ -292,20 +299,29 @@ export default function InboxScreen() {
               />
             </View>
           }
-          renderItem={({ item, index }) => (
-            <ConversationRow
-              item={item as ConversationRowItem}
-              index={index}
-              entranceStyle={entranceStyle}
-              formatTimestamp={formatTimestamp}
-              onPress={() =>
-                router.push({
-                  pathname: '/conversations/[id]',
-                  params: { id: String(item._id) },
-                } as never)
-              }
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const conversation = item as ConversationRowItem;
+            const pictureId =
+              typeof conversation.otherUser?.picture === 'string'
+                ? conversation.otherUser.picture
+                : null;
+            const avatarUrl = pictureId ? (resolvedOtherUserAvatarUrls[pictureId] ?? null) : null;
+            return (
+              <ConversationRow
+                item={conversation}
+                index={index}
+                avatarUrl={avatarUrl}
+                entranceStyle={entranceStyle}
+                formatTimestamp={formatTimestamp}
+                onPress={() =>
+                  router.push({
+                    pathname: '/conversations/[id]',
+                    params: { id: String(item._id) },
+                  } as never)
+                }
+              />
+            );
+          }}
           ItemSeparatorComponent={ItemSeparator}
         />
       </View>
@@ -403,21 +419,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  thumbnail: {
+  avatar: {
     width: 56,
     height: 56,
-    borderRadius: borderRadius.sm,
+    borderRadius: 28,
     backgroundColor: colors.border,
-  },
-  thumbnailPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbnailPlaceholderText: {
-    ...typography.footnote,
-    color: colors.muted,
-    textTransform: 'uppercase',
-    fontWeight: '600',
   },
   rowBody: {
     flex: 1,

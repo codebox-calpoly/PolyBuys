@@ -15,6 +15,8 @@ import { useAction, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
@@ -37,6 +39,10 @@ export default function NewConversationScreen() {
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
+  const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
+    sellerProfile?.picture ? [sellerProfile.picture] : []
+  );
+  const sellerAvatarUrl = sellerAvatarUrls[0] ?? null;
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -118,6 +124,15 @@ export default function NewConversationScreen() {
       />
 
       <View style={styles.content}>
+        <View style={styles.sellerRow}>
+          <ProfileAvatar uri={sellerAvatarUrl} name={sellerName} size={48} style={styles.avatar} />
+          <View style={styles.sellerCopy}>
+            <Text style={styles.sellerName}>{sellerName}</Text>
+            <Text style={styles.sellerListing} numberOfLines={1}>
+              {listing.title}
+            </Text>
+          </View>
+        </View>
         <Text style={styles.prompt}>Send a message about &quot;{listing.title}&quot;</Text>
         <TextInput
           value={messageBody}
@@ -163,6 +178,35 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.lg,
     gap: spacing.md,
+  },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  sellerCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  sellerName: {
+    ...typography.subhead,
+    color: colors.textDark,
+    fontWeight: '700',
+  },
+  sellerListing: {
+    ...typography.footnote,
+    color: colors.text,
   },
   prompt: {
     ...typography.subhead,

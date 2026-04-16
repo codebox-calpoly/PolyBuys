@@ -1,12 +1,4 @@
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
@@ -16,6 +8,7 @@ import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
@@ -103,15 +96,7 @@ export default function PublicProfileScreen() {
     >
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarPlaceholderText}>
-                {profile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileMeta}>
@@ -195,14 +180,6 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     backgroundColor: colors.border,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarPlaceholderText: {
-    ...typography.title1,
-    color: colors.primary,
   },
   profileInfo: {
     flex: 1,

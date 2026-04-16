@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   Animated,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { FilterChips, type FilterChipOption } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -152,15 +152,7 @@ export default function SettingsScreen() {
       {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
       <Animated.View style={[styles.profileBlock, entranceStyle]}>
         <View style={styles.profileHeader}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarPlaceholderText}>
-                {profile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileMeta}>{profileSubtitle}</Text>
@@ -343,14 +335,6 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     backgroundColor: colors.border,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarPlaceholderText: {
-    ...typography.title1,
-    color: colors.primary,
   },
   profileInfo: {
     flex: 1,
