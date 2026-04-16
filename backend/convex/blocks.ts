@@ -107,7 +107,7 @@ export const unblockUser = mutation({
 });
 
 /**
- * Users the current account has blocked (for settings / management UI).
+ * Users that the current account has blocked (for settings / management UI).
  * Sorted by display name. Hidden profiles are shown as the placeholder name "Unavailable user"
  * (blockedId is always returned so the user can unblock).
  */
@@ -120,13 +120,21 @@ export const listMyBlockedUsers = query({
       .withIndex('by_blocker_blocked', (q) => q.eq('blockerId', blockerId))
       .collect();
 
-    const rows: BlockedUserListRow[] = [];
+    const blockedIds = [...new Set(blocks.map((b) => b.blockedId))];
+    const profileEntries = await Promise.all(
+      blockedIds.map(async (blockedId) => {
+        const profile = await ctx.db
+          .query('profiles')
+          .withIndex('by_userId', (q) => q.eq('userId', blockedId))
+          .first();
+        return [blockedId, profile] as const;
+      })
+    );
+    const profileByBlockedId = new Map(profileEntries);
 
+    const rows: BlockedUserListRow[] = [];
     for (const block of blocks) {
-      const profile = await ctx.db
-        .query('profiles')
-        .withIndex('by_userId', (q) => q.eq('userId', block.blockedId))
-        .first();
+      const profile = profileByBlockedId.get(block.blockedId);
 
       if (!profile) {
         rows.push({ blockedId: block.blockedId, name: 'Unknown user' });
