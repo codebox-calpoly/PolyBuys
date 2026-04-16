@@ -397,6 +397,7 @@ const styles = StyleSheet.create({
   descBlock: {
     marginTop: 2,
     gap: 2,
+    overflow: 'hidden',
   },
   descBlockHome: {
     marginTop: 0,
