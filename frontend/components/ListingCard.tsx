@@ -20,6 +20,20 @@ function markAsAnimated(id: string): void {
   animatedListingIds.set(id, undefined);
 }
 
+function formatConditionLabel(condition?: 'new' | 'used' | 'refurbished'): string | null {
+  if (!condition) return null;
+  switch (condition) {
+    case 'new':
+      return 'New';
+    case 'used':
+      return 'Used';
+    case 'refurbished':
+      return 'Refurbished';
+    default:
+      return null;
+  }
+}
+
 export type ListingCardBadge = 'sold' | 'unavailable';
 
 export type ListingCardDensity = 'default' | 'home';
@@ -32,6 +46,7 @@ interface ListingCardProps {
     price: number;
     description: string;
     images?: string[];
+    condition?: 'new' | 'used' | 'refurbished';
   };
   index?: number;
   isSaved?: boolean;
@@ -111,6 +126,8 @@ export default function ListingCard({
   const isHomeDensity = density === 'home';
   const isFlatShell = shellStyle === 'flat';
   const isWeb = Platform.OS === 'web';
+  const conditionLabel = formatConditionLabel(listing.condition);
+  const titleLines = isHomeDensity ? 2 : 3;
 
   return (
     <Animated.View
@@ -133,7 +150,7 @@ export default function ListingCard({
           }
           onHoverIn={() => setIsHovered(true)}
           onHoverOut={() => setIsHovered(false)}
-          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
+          accessibilityLabel={`${listing.title}, $${formatPrice(listing.price)}${conditionLabel ? `, ${conditionLabel}` : ''}${badgeToShow ? `, ${badgeToShow === 'sold' ? 'Sold' : 'Unavailable'}` : ''}`}
           accessibilityRole="button"
         >
           <View
@@ -163,13 +180,22 @@ export default function ListingCard({
               </View>
             )}
           </View>
-          <View style={[styles.titlePriceRow, isHomeDensity && styles.titlePriceRowHome]}>
+          <View style={[styles.cardDetails, isHomeDensity && styles.cardDetailsHome]}>
             <Text
               style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
-              numberOfLines={1}
+              numberOfLines={titleLines}
+              ellipsizeMode="tail"
             >
               {listing.title}
             </Text>
+            {conditionLabel ? (
+              <Text
+                style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
+                numberOfLines={1}
+              >
+                {conditionLabel}
+              </Text>
+            ) : null}
             <Text
               style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
               numberOfLines={1}
@@ -205,16 +231,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   listingCardWrapperHome: {
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   cardContainer: {
     position: 'relative',
   },
   listingCard: {
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.08)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    boxShadow: '0 8px 20px rgba(21, 71, 52, 0.07)',
   },
   listingCardFlat: {
     backgroundColor: 'transparent',
@@ -291,44 +319,54 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.text,
   },
-  titlePriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: 0,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-  },
-  titlePriceRowHome: {
-    paddingHorizontal: 0,
+  cardDetails: {
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  cardDetailsHome: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: 2,
   },
   listingTitle: {
-    ...typography.body,
-    fontSize: 14,
-    color: colors.primary,
-    flex: 1,
-    minWidth: 0,
+    ...typography.subhead,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
+    color: colors.textDark,
   },
   listingTitleHome: {
-    ...typography.subhead,
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
+  },
+  listingCondition: {
+    ...typography.footnote,
+    color: colors.gray,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  listingConditionHome: {
+    fontSize: 12,
+    marginTop: 0,
   },
   listingPrice: {
     ...typography.title2,
-    fontSize: 13,
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.accent,
-    flexShrink: 0,
+    marginTop: spacing.xs,
   },
   listingPriceHome: {
-    fontSize: 12,
+    fontSize: 17,
+    marginTop: spacing.xs,
   },
   footer: {
     marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
   },
 });
