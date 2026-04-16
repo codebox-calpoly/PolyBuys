@@ -1,0 +1,28 @@
+frontend/app/(tabs)/inbox.tsx
+  9cbb9132d65866f7 6,12,247-251,277-279,281-342,344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "29135783fa2132bc93af56eb047af2ef8c36bb0a",
+  "prompts": {
+    "9cbb9132d65866f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36a9119a-540b-46f4-aea6-286ed0e4c999",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 1
+    }
+  },
+  "humans": {
+    "h_d6f0aa68cda9fc": {
+      "author": "Evan Taylor"
+    }
+  }
+}
