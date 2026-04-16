@@ -17,7 +17,8 @@ type FlashContextValue = {
 const FlashContext = createContext<FlashContextValue | null>(null);
 
 const FLASH_DURATION_MS = 2000;
-const FLASH_DURATION_REDUCED_MS = 900;
+/** Longer than default so reduced-motion users have enough time to read the message. */
+const FLASH_DURATION_REDUCED_MS = 4000;
 
 /** Space above bottom home indicator / tab bar so the banner does not cover primary nav. */
 function bottomOffsetForPlatform(): number {

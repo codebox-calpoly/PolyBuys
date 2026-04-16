@@ -3,6 +3,10 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { colors } from '../theme/tokens';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import {
+  REPORT_SUBMITTED_ALERT_BODY,
+  REPORT_SUBMITTED_ALERT_TITLE,
+} from '../constants/feedbackMessages';
 
 type ReportReason = 'scam' | 'inappropriate' | 'spam';
 
@@ -59,7 +63,7 @@ export function ReportModal({
       if (onReportSuccess) {
         onReportSuccess();
       } else {
-        Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
+        Alert.alert(REPORT_SUBMITTED_ALERT_TITLE, REPORT_SUBMITTED_ALERT_BODY);
       }
       handleClose();
     } catch (err) {

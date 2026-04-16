@@ -18,6 +18,7 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
 import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 function yearToOrdinal(gradYear: number): string {
@@ -140,7 +141,7 @@ export default function PublicProfileScreen() {
         onClose={() => setReportOpen(false)}
         targetId={profile._id}
         targetType="profile"
-        onReportSuccess={() => setFlash('Report submitted. Thanks for helping keep PolyBuys safe.')}
+        onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
       />
 
       <Text style={styles.sectionTitle}>Listings</Text>

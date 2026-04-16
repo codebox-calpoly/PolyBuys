@@ -37,6 +37,7 @@ import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
 
 import { APP_STORE_URL } from '../../constants/app';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
 type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
@@ -564,9 +565,7 @@ export default function ListingDetailScreen() {
           onClose={() => setReportOpen(false)}
           targetId={String(listing._id)}
           targetType="listing"
-          onReportSuccess={() =>
-            setFlash('Report submitted. Thanks for helping keep PolyBuys safe.')
-          }
+          onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
         />
       </Animated.View>
 
