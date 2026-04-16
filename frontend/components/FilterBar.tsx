@@ -1,18 +1,19 @@
 import React from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { CATEGORY_LABELS } from '../types/filters';
-import type { Category, Filters } from '../types/filters';
+import { CATEGORY_LABELS, LISTING_SORT_SHORT } from '../types/filters';
+import type { Category, Filters, ListingSortBy } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { formatPrice } from '../lib/formatPrice';
 import { colors, borderRadius } from '../theme/tokens';
 
-// Re-export for backward compatibility
 export type { Category, Filters };
 
 interface FilterBarProps {
   filters: Filters;
+  sortBy: ListingSortBy;
   onCategoryPress: () => void;
   onPricePress: () => void;
+  onSortPress: () => void;
   onClearCategory: () => void;
   onClearPrice: () => void;
   onClearAll: () => void;
@@ -20,8 +21,10 @@ interface FilterBarProps {
 
 export function FilterBar({
   filters,
+  sortBy,
   onCategoryPress,
   onPricePress,
+  onSortPress,
   onClearCategory,
   onClearPrice,
   onClearAll,
@@ -30,7 +33,8 @@ export function FilterBar({
 
   const hasCategory = !!filters.category;
   const hasPrice = filters.minPrice !== undefined || filters.maxPrice !== undefined;
-  const hasAnyFilter = hasCategory || hasPrice;
+  const hasNonDefaultSort = sortBy !== 'newest';
+  const hasAnyFilter = hasCategory || hasPrice || hasNonDefaultSort;
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
@@ -108,11 +112,26 @@ export function FilterBar({
           )}
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [
+            styles.chip,
+            hasNonDefaultSort && styles.chipActive,
+            pressed && styles.chipPressed,
+          ]}
+          onPress={onSortPress}
+          accessibilityLabel={`Sort: ${LISTING_SORT_SHORT[sortBy]}`}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.chipText, hasNonDefaultSort && styles.chipTextActive]}>
+            Sort · {LISTING_SORT_SHORT[sortBy]}
+          </Text>
+        </Pressable>
+
         {hasAnyFilter && (
           <Pressable
             style={({ pressed }) => [styles.clearAll, pressed && styles.chipPressed]}
             onPress={onClearAll}
-            accessibilityLabel="Clear all filters"
+            accessibilityLabel="Clear all filters and sort"
             accessibilityRole="button"
           >
             <Text style={styles.clearAllText}>Clear</Text>

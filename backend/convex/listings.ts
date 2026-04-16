@@ -635,6 +635,9 @@ export const updateListing = action({
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot update a deleted listing');
     }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot update a sold listing');
+    }
 
     // Validate inputs
     const update: Record<string, unknown> = {};

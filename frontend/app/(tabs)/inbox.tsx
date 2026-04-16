@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -8,9 +8,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
+  TextInput,
   View,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import Feather from '@expo/vector-icons/Feather';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
@@ -19,12 +22,14 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { ScreenState } from '../../components/ScreenState';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import { ScreenHeader } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationRowItem = {
   _id: string;
   updatedAt?: number;
   hasUnread?: boolean;
+  unreadCount?: number;
   lastMessagePreview?: string;
   lastMessageAt?: number;
   otherUser?: {
@@ -101,7 +106,7 @@ function ConversationRow({
 
 export default function InboxScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
@@ -109,7 +114,8 @@ export default function InboxScreen() {
     api.messages.listUserConversations,
     isAuthenticated && !isWeb ? {} : 'skip'
   );
-  const isDesktopWeb = isWeb && width >= 1024;
+  const [searchText, setSearchText] = useState('');
+  const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   const formatter = useMemo(
     () =>
@@ -161,15 +167,22 @@ export default function InboxScreen() {
     },
     [formatter, weekdayFormatter, shortDateFormatter]
   );
+
   const unreadConversationCount =
     conversations?.filter(
       (conversation) => Boolean(conversation.hasUnread) || (conversation.unreadCount ?? 0) > 0
     ).length ?? 0;
-  const unreadMessageCount =
-    conversations?.reduce(
-      (sum, conversation) => sum + (conversation.unreadCount ?? (conversation.hasUnread ? 1 : 0)),
-      0
-    ) ?? 0;
+
+  const filteredConversations = useMemo(() => {
+    if (!conversations) return [];
+    const query = searchText.trim().toLowerCase();
+    if (query.length === 0) return conversations;
+    return conversations.filter((conversation) => {
+      const name = conversation.otherUser?.name?.toLowerCase() ?? '';
+      const listingTitle = conversation.listing?.title?.toLowerCase() ?? '';
+      return name.includes(query) || listingTitle.includes(query);
+    });
+  }, [conversations, searchText]);
 
   if (isWeb) {
     return (
@@ -209,78 +222,120 @@ export default function InboxScreen() {
     );
   }
 
+  const totalConversations = conversations.length;
+  const subtitleParts: string[] = [];
+  subtitleParts.push(
+    `${totalConversations} ${totalConversations === 1 ? 'conversation' : 'conversations'}`
+  );
+  if (unreadConversationCount > 0) {
+    subtitleParts.push(`${unreadConversationCount} unread`);
+  }
+  const subtitle = subtitleParts.join(' · ');
+  const isSearching = searchText.trim().length > 0;
+
   return (
-    <FlatList
-      data={conversations}
-      keyExtractor={(item) => item._id}
-      style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-      ListHeaderComponent={
-        <Animated.View style={[styles.heroCard, entranceStyle]}>
-          <View style={[styles.heroTopRow, isDesktopWeb && styles.heroTopRowDesktop]}>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroEyebrow}>Inbox</Text>
-              <Text style={styles.heroTitle}>Keep conversations moving</Text>
-              <Text style={styles.heroBody}>
-                Reply quickly, stay on top of unread messages, and keep listing interest warm.
-              </Text>
-            </View>
-            <View style={[styles.heroStatsRow, isDesktopWeb && styles.heroStatsRowDesktop]}>
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatNumber}>{conversations.length}</Text>
-                <Text style={styles.heroStatLabel}>Conversations</Text>
-              </View>
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatNumber}>{unreadConversationCount}</Text>
-                <Text style={styles.heroStatLabel}>Unread chats</Text>
-              </View>
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatNumber}>{unreadMessageCount}</Text>
-                <Text style={styles.heroStatLabel}>Unread messages</Text>
-              </View>
-            </View>
+    <View style={styles.page}>
+      <View style={styles.content}>
+        {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+        <View style={styles.headerBlock}>
+          <ScreenHeader title="Inbox" subtitle={subtitle} />
+          <View style={styles.searchBarWrap}>
+            <BlurView
+              intensity={60}
+              tint="systemThinMaterialLight"
+              style={StyleSheet.absoluteFill}
+            />
+            <Feather name="search" size={18} color={colors.textDark} style={styles.searchBarIcon} />
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder="Search conversations..."
+              placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              accessibilityLabel="Search conversations"
+            />
+            {searchText.length > 0 ? (
+              <Pressable
+                onPress={() => setSearchText('')}
+                accessibilityLabel="Clear search"
+                accessibilityRole="button"
+                hitSlop={8}
+                style={styles.clearButton}
+              >
+                <Text style={styles.clearButtonText}>✕</Text>
+              </Pressable>
+            ) : null}
           </View>
-        </Animated.View>
-      }
-      ListEmptyComponent={
-        <Animated.View style={[styles.card, entranceStyle]}>
-          <ScreenState
-            variant="empty"
-            title="No conversations yet"
-            message="Start by messaging a seller from any listing page."
-          />
-        </Animated.View>
-      }
-      renderItem={({ item, index }) => {
-        return (
-          <ConversationRow
-            item={item as ConversationRowItem}
-            index={index}
-            entranceStyle={entranceStyle}
-            formatTimestamp={formatTimestamp}
-            onPress={() =>
-              router.push({
-                pathname: '/conversations/[id]',
-                params: { id: String(item._id) },
-              } as never)
-            }
-          />
-        );
-      }}
-      ItemSeparatorComponent={ItemSeparator}
-    />
+        </View>
+        <FlatList
+          data={filteredConversations}
+          keyExtractor={(item) => item._id}
+          style={styles.list}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + spacing.xxl },
+          ]}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={styles.emptyCard}>
+              <ScreenState
+                variant="empty"
+                title={isSearching ? 'No matches' : 'No conversations yet'}
+                message={
+                  isSearching
+                    ? `Nothing matched "${searchText.trim()}". Try a different name or listing.`
+                    : 'Start by messaging a seller from any listing page.'
+                }
+              />
+            </View>
+          }
+          renderItem={({ item, index }) => (
+            <ConversationRow
+              item={item as ConversationRowItem}
+              index={index}
+              entranceStyle={entranceStyle}
+              formatTimestamp={formatTimestamp}
+              onPress={() =>
+                router.push({
+                  pathname: '/conversations/[id]',
+                  params: { id: String(item._id) },
+                } as never)
+              }
+            />
+          )}
+          ItemSeparatorComponent={ItemSeparator}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  page: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 980,
+    alignSelf: 'center',
+    paddingTop: spacing.lg,
+    gap: spacing.md,
+  },
+  headerBlock: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
   },
   centeredState: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.md,
@@ -290,91 +345,66 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.text,
   },
-  content: {
-    width: '100%',
-    maxWidth: 980,
-    alignSelf: 'center',
+  searchBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  searchBarIcon: {
+    marginRight: spacing.sm,
+    opacity: 0.7,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.subhead,
+    fontSize: 15,
+    color: colors.textDark,
+    paddingVertical: spacing.sm,
+  },
+  clearButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.xs,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  clearButtonText: {
+    ...typography.footnote,
+    fontSize: 12,
+    color: colors.white,
+    fontWeight: '700',
+    lineHeight: 13,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.xs,
     gap: spacing.sm,
   },
-  heroCard: {
-    marginBottom: spacing.lg,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.xl,
-    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
-  },
-  heroTopRow: {
-    gap: spacing.lg,
-  },
-  heroTopRowDesktop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  heroCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  heroEyebrow: {
-    ...typography.footnote,
-    color: colors.primary,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  heroTitle: {
-    ...typography.title1,
-    color: colors.textDark,
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  heroBody: {
-    ...typography.subhead,
-    color: colors.text,
-    maxWidth: 560,
-  },
-  heroStatsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  heroStatsRowDesktop: {
-    justifyContent: 'flex-end',
-  },
-  heroStat: {
-    minWidth: 116,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    gap: 2,
-  },
-  heroStatNumber: {
-    ...typography.title2,
-    color: colors.textDark,
-    fontVariant: ['tabular-nums'],
-  },
-  heroStatLabel: {
-    ...typography.footnote,
-    color: colors.text,
-  },
   row: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.06)',
   },
   thumbnail: {
     width: 56,
@@ -437,15 +467,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.primary,
   },
-  card: {
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+  emptyCard: {
+    marginTop: spacing.xxl,
     padding: spacing.xl,
-    gap: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     alignItems: 'center',
-    boxShadow: '0 16px 36px rgba(21, 71, 52, 0.06)',
   },
   separator: {
     height: spacing.sm,

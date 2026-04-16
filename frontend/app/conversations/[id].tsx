@@ -11,6 +11,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
@@ -36,6 +38,8 @@ export default function ConversationDetailScreen() {
     typeof id === 'string' && id.trim().length > 0 ? (id as ConversationId) : null;
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
@@ -290,7 +294,7 @@ export default function ConversationDetailScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 82 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
@@ -389,7 +393,7 @@ export default function ConversationDetailScreen() {
         }
       />
 
-      <View style={styles.composerWrap}>
+      <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         {isBlockingOther === true ? (
           <View style={styles.blockedComposer}>
             <Text style={styles.blockedText}>
@@ -409,6 +413,8 @@ export default function ConversationDetailScreen() {
               onChangeText={setMessageBody}
               placeholder="Type a message..."
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               style={styles.input}
               multiline
               maxLength={2000}
@@ -438,14 +444,14 @@ export default function ConversationDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.xl,
   },
   stateTitle: {
@@ -457,9 +463,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     padding: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
@@ -540,8 +546,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   bubbleReceived: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderBottomLeftRadius: 4,
   },
@@ -575,12 +581,11 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   composerWrap: {
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.md,
@@ -590,9 +595,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,

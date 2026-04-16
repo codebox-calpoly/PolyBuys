@@ -27,6 +27,8 @@ export function Field({
       <TextInput
         style={[styles.input, error && styles.inputError, inputStyle]}
         placeholderTextColor={placeholderTextColor}
+        selectionColor={colors.primary}
+        cursorColor={colors.primary}
         {...props}
       />
       {error ? (

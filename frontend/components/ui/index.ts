@@ -7,3 +7,8 @@ export { Chip } from './Chip';
 export type { ChipProps, ChipVariant } from './Chip';
 export { Field } from './Field';
 export type { FieldProps } from './Field';
+export { ScreenHeader } from './ScreenHeader';
+export { FilterChips } from './FilterChips';
+export type { FilterChipOption } from './FilterChips';
+export { SectionCard } from './SectionCard';
+export { KeyboardAwareScreen } from './KeyboardAwareScreen';

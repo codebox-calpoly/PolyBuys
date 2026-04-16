@@ -267,6 +267,25 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('Cannot update a deleted listing');
   });
 
+  it('updateListing cannot update a sold listing', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.updateListingStatus, {
+      id: listingId,
+      status: 'sold',
+    });
+
+    await expect(async () => {
+      await asOwner.action(api.listings.updateListing, {
+        id: listingId,
+        title: 'Post-sale retitle',
+      });
+    }).rejects.toThrowError('Cannot update a sold listing');
+  });
+
   it('updateListingStatus cannot change status of a deleted listing', async () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
