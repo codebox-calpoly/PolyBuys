@@ -121,6 +121,7 @@ export function FilterBar({
           onPress={onSortPress}
           accessibilityLabel={`Sort: ${LISTING_SORT_SHORT[sortBy]}`}
           accessibilityRole="button"
+          accessibilityState={{ selected: hasNonDefaultSort }}
         >
           <Text style={[styles.chipText, hasNonDefaultSort && styles.chipTextActive]}>
             Sort · {LISTING_SORT_SHORT[sortBy]}
