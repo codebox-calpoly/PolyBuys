@@ -67,12 +67,19 @@ function tryNumberedSpans(trimmed: string): string[] | null {
   return items.length >= 2 ? items : null;
 }
 
-/** Newlines / explicit list markers → bullets. */
+/**
+ * Line breaks from the user (Enter) → one bullet per non-empty line.
+ * If two or more lines start with a list marker, only those lines are used so prose after the list is omitted.
+ */
 function tryLineBasedBullets(trimmed: string): string[] | null {
   const lines = trimmed
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+
+  if (lines.length < 2) {
+    return null;
+  }
 
   const markedLines = lines.filter((line) => LINE_START_MARKER.test(line));
 
@@ -84,14 +91,11 @@ function tryLineBasedBullets(trimmed: string): string[] | null {
     });
   }
 
-  const looksLikeList =
-    lines.length >= 2 &&
-    lines.length <= 10 &&
-    lines.every((line) => line.length <= 220) &&
-    (lines.some((line) => LINE_START_MARKER.test(line)) ||
-      lines.every((line) => line.length <= 140));
-
-  if (!looksLikeList) {
+  // Any other multi-line description: each line is a bullet (seller pressed Enter between lines).
+  if (lines.length > 12) {
+    return null;
+  }
+  if (!lines.every((line) => line.length <= 300)) {
     return null;
   }
 
