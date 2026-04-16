@@ -111,7 +111,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.centeredState}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
       >
         <Animated.View style={[styles.signInCard, entranceStyle]}>
           <Text style={styles.signInTitle}>Complete your profile</Text>
@@ -145,7 +145,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={styles.content}
     >
       {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}

@@ -318,12 +318,7 @@ export default function ConversationDetailScreen() {
       />
 
       <View style={styles.headerCard}>
-        <ProfileAvatar
-          uri={headerAvatarUrl}
-          name={headerOtherUserName}
-          size={64}
-          style={styles.headerThumbnail}
-        />
+        <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
         <View style={styles.headerTextWrap}>
           <Text style={styles.headerName} numberOfLines={1}>
             {headerOtherUserName}
@@ -471,11 +466,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  headerThumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
   },
   headerTextWrap: {
     flex: 1,

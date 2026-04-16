@@ -503,7 +503,7 @@ export default function ListingDetailScreen() {
             <ProfileAvatar
               uri={sellerAvatarUrl}
               name={sellerProfile.name}
-              size={42}
+              size={44}
               style={styles.sellerAvatar}
               textStyle={styles.sellerAvatarText}
             />
