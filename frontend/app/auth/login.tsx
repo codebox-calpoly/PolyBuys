@@ -20,9 +20,9 @@ import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
+import { getLoginEntryAction, type LoginStep } from './loginRedirect';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'push' | 'success';
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
 
 function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
@@ -46,7 +46,7 @@ export default function LoginScreen() {
 
   const currentProfile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
-  const [step, setStep] = useState<Step>('welcome');
+  const [step, setStep] = useState<LoginStep>('welcome');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -68,19 +68,21 @@ export default function LoginScreen() {
       : '/';
 
   useEffect(() => {
-    if (isSessionLoading || !isAuthenticated || currentProfile === undefined) {
-      return;
-    }
-    if (step !== 'welcome' && step !== 'email') {
-      return;
-    }
+    const entryAction = getLoginEntryAction({
+      isSessionLoading,
+      isAuthenticated,
+      currentProfile,
+      step,
+    });
 
-    if (currentProfile) {
+    if (entryAction === 'post-auth-redirect') {
       router.replace(postAuthRedirect);
       return;
     }
 
-    setStep('profile');
+    if (entryAction === 'profile') {
+      setStep('profile');
+    }
   }, [isSessionLoading, isAuthenticated, currentProfile, step, postAuthRedirect, router]);
 
   useEffect(() => {
