@@ -17,6 +17,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import AntDesign from '@expo/vector-icons/AntDesign';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import Constants from 'expo-constants';
@@ -458,6 +459,9 @@ export default function ListingDetailScreen() {
               <Text style={styles.iconButtonText}>
                 {(savedOptimistic ?? isSaved) ? 'Saved' : 'Save'}
               </Text>
+              {(savedOptimistic ?? isSaved) && (
+                <AntDesign name="check" color="#000000" style={styles.savedCheckIcon} />
+              )}
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
@@ -761,10 +765,17 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    borderColor: colors.primary,
+    borderWidth: 1,
+    borderRadius: borderRadius.sm,
   },
   iconButtonText: {
     ...typography.subhead,
     color: colors.text,
+  },
+  savedCheckIcon: {
+    marginLeft: spacing.xs,
   },
   chipsRow: {
     flexDirection: 'row',
