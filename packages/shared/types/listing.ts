@@ -17,7 +17,6 @@ export interface Listing {
   status: ListingStatus;
   createdAt: number;
   postedOn: number;
-  tags?: string[];
 }
 
 export interface CreateListingInput {
@@ -27,5 +26,4 @@ export interface CreateListingInput {
   category: ListingCategory;
   condition: ListingCondition;
   images: string[];
-  tags?: string[];
 }

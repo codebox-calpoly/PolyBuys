@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import TagPicker from './TagPicker';
 import { CATEGORY_LABELS } from '../types/filters';
 import type { Category, Filters } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
@@ -12,50 +11,38 @@ export type { Category, Filters };
 
 interface FilterBarProps {
   filters: Filters;
-  selectedTags: string[];
   onCategoryPress: () => void;
   onPricePress: () => void;
-  onTagsChange: (tags: string[]) => void;
   onClearCategory: () => void;
   onClearPrice: () => void;
-  onClearTags: () => void;
   onClearAll: () => void;
 }
 
 export function FilterBar({
   filters,
-  selectedTags,
   onCategoryPress,
   onPricePress,
-  onTagsChange,
   onClearCategory,
   onClearPrice,
-  onClearTags,
   onClearAll,
 }: FilterBarProps) {
-  const [tagPickerVisible, setTagPickerVisible] = useState(false);
   const entranceStyle = useEntranceAnimation(80, 10);
 
   const hasCategory = !!filters.category;
   const hasPrice = filters.minPrice !== undefined || filters.maxPrice !== undefined;
-  const hasTags = selectedTags.length > 0;
-  const hasAnyFilter = hasCategory || hasPrice || hasTags;
+  const hasAnyFilter = hasCategory || hasPrice;
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
-      return `$${formatPrice(filters.minPrice)} - $${formatPrice(filters.maxPrice)}`;
+      return `${formatPrice(filters.minPrice)} - ${formatPrice(filters.maxPrice)}`;
     }
     if (filters.minPrice !== undefined) {
-      return `$${formatPrice(filters.minPrice)}+`;
+      return `${formatPrice(filters.minPrice)}+`;
     }
     if (filters.maxPrice !== undefined) {
-      return `Under $${formatPrice(filters.maxPrice)}`;
+      return `Under ${formatPrice(filters.maxPrice)}`;
     }
     return 'Price';
-  };
-
-  const handleTagFilterPress = () => {
-    setTagPickerVisible(true);
   };
 
   return (
@@ -121,33 +108,6 @@ export function FilterBar({
           )}
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.chip,
-            hasTags && styles.chipActive,
-            pressed && styles.chipPressed,
-          ]}
-          onPress={handleTagFilterPress}
-          accessibilityLabel={hasTags ? `Tags: ${selectedTags.length} selected` : 'Filter by tags'}
-          accessibilityRole="button"
-          accessibilityState={{ selected: hasTags }}
-        >
-          <Text style={[styles.chipText, hasTags && styles.chipTextActive]}>
-            {hasTags ? `Tags (${selectedTags.length})` : 'Tags'}
-          </Text>
-          {hasTags && (
-            <Pressable
-              style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.8 }]}
-              onPress={onClearTags}
-              hitSlop={8}
-              accessibilityLabel="Clear tags filter"
-              accessibilityRole="button"
-            >
-              <Text style={styles.clearBtnText}>×</Text>
-            </Pressable>
-          )}
-        </Pressable>
-
         {hasAnyFilter && (
           <Pressable
             style={({ pressed }) => [styles.clearAll, pressed && styles.chipPressed]}
@@ -159,13 +119,6 @@ export function FilterBar({
           </Pressable>
         )}
       </ScrollView>
-
-      <TagPicker
-        visible={tagPickerVisible}
-        selectedTags={selectedTags}
-        onSelectTags={onTagsChange}
-        onClose={() => setTagPickerVisible(false)}
-      />
     </Animated.View>
   );
 }

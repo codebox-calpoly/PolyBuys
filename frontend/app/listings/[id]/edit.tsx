@@ -18,7 +18,6 @@ import { api } from 'convex/_generated/api';
 import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
-import TagInput from '../../../components/TagInput';
 import { useFlash } from '../../../contexts/FlashContext';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
 import { borderRadius, colors, spacing, typography } from '../../../theme/tokens';
@@ -70,7 +69,6 @@ export default function EditListingScreen() {
   const [category, setCategory] = useState<(typeof categories)[number]>('other');
   const [condition, setCondition] = useState<(typeof conditions)[number]>('used');
   const [images, setImages] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -87,7 +85,6 @@ export default function EditListingScreen() {
     setCategory(listing.category);
     setCondition(listing.condition);
     setImages(listing.images);
-    setTags(listing.tags ?? []);
     setHasInitialized(true);
   }, [hasInitialized, listing]);
 
@@ -142,7 +139,6 @@ export default function EditListingScreen() {
         category,
         condition,
         images,
-        tags,
       });
       if (!result.ok) {
         showAlert(
@@ -313,10 +309,6 @@ export default function EditListingScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.label}>Tags</Text>
-            <TagInput tags={tags} onChange={setTags} />
-          </View>
 
           <View style={styles.buttonContainer}>
             <Pressable

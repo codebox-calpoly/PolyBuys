@@ -31,7 +31,6 @@ interface ListingCardProps {
     title: string;
     price: number;
     description: string;
-    tags?: string[];
     images?: string[];
   };
   index?: number;
