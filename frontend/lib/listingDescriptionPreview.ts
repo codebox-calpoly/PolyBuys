@@ -34,6 +34,35 @@ function stripLeadingMarker(line: string): string {
 }
 
 /**
+ * Within one numbered item's raw slice, drop flush-left lines after the first (prose after the list).
+ * Keeps indented lines as soft-wrapped continuation of the same bullet.
+ */
+function trimListItemBodyChunk(chunk: string): string {
+  const raw = chunk.replace(/\r\n/g, '\n').trimEnd();
+  if (!raw.includes('\n')) {
+    return raw.trim();
+  }
+  const rawLines = raw.split('\n');
+  const kept: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i] ?? '';
+    if (i === 0) {
+      kept.push(line.trimEnd());
+      continue;
+    }
+    if (line.trim() === '') {
+      break;
+    }
+    if (/^(?:\s{2,}\S|\t+\S)/.test(line)) {
+      kept.push(line.trimEnd());
+    } else {
+      break;
+    }
+  }
+  return kept.join('\n').trim();
+}
+
+/**
  * Finds "1. … 2. …" (and "1.Item" without space after the dot) anywhere in the text.
  * Does not treat "2.0" as a list marker.
  */
@@ -52,13 +81,7 @@ function tryNumberedSpans(trimmed: string): string[] | null {
   for (let i = 0; i < indices.length; i++) {
     const from = indices[i].contentStart;
     const to = i + 1 < indices.length ? indices[i + 1].markStart : t.length;
-    let chunk = t.slice(from, to);
-    if (i === indices.length - 1) {
-      const firstPara = chunk.split(/\n\s*\n/)[0];
-      if (firstPara !== undefined) {
-        chunk = firstPara;
-      }
-    }
+    const chunk = trimListItemBodyChunk(t.slice(from, to));
     const normalized = normalizeDescriptionWhitespace(chunk.trim());
     if (normalized.length > 0) {
       items.push(normalized);
@@ -89,6 +112,15 @@ function tryLineBasedBullets(trimmed: string): string[] | null {
       const stripped = stripLeadingMarker(line);
       return capOneLine(normalizeDescriptionWhitespace(stripped));
     });
+  }
+
+  // One marked line then flush-left lines (no indented wrap): list + prose — only the list line(s).
+  if (markedLines.length === 1 && lines.length >= 2) {
+    const afterMarked = lines.filter((line) => !LINE_START_MARKER.test(line));
+    const allAfterAreProse = afterMarked.every((line) => !/^(?:\s{2,}\S|\t+\S)/.test(line));
+    if (allAfterAreProse) {
+      return [capOneLine(normalizeDescriptionWhitespace(stripLeadingMarker(markedLines[0] ?? '')))];
+    }
   }
 
   // Any other multi-line description: each line is a bullet (seller pressed Enter between lines).

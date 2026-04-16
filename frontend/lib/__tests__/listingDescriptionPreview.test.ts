@@ -77,6 +77,28 @@ describe('buildDescriptionPreview', () => {
     }
   });
 
+  it('drops flush prose after the last numbered item', () => {
+    const r = buildDescriptionPreview(
+      '1. Pickup Tuesday\n2. Cash or Venmo\nContact me for other arrangements.'
+    );
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(2);
+      expect(r.items[1]).toContain('Venmo');
+      expect(r.items.join(' ')).not.toContain('Contact');
+    }
+  });
+
+  it('drops prose after a single dash bullet when the rest is unmarked', () => {
+    const r = buildDescriptionPreview('- Like new desk\nMust pick up this week from Poly.');
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(1);
+      expect(r.items[0]).toContain('desk');
+      expect(r.items.join(' ')).not.toContain('pick up this week');
+    }
+  });
+
   it('uses semicolon-separated clauses', () => {
     const r = buildDescriptionPreview(
       'Like new MacBook; includes charger and box; pickup Poly Canyon weekdays'
