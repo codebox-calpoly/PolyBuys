@@ -88,6 +88,10 @@ function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="account-settings"
+              options={{ title: 'Settings', headerBackTitle: 'Profile' }}
+            />
+            <Stack.Screen
               name="profile/edit"
               options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
             />

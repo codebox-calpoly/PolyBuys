@@ -134,7 +134,7 @@ export default function ListingDetailScreen() {
     router.push({
       pathname: '/conversations/new',
       params: { listingId: String(listing._id) },
-    });
+    } as never);
   };
 
   const onSavePress = async () => {
@@ -496,7 +496,7 @@ export default function ListingDetailScreen() {
         {sellerProfile && (
           <Pressable
             style={styles.sellerBlock}
-            onPress={() => router.push(`/profile/${encodeURIComponent(listing.sellerId)}`)}
+            onPress={() => router.push(`/profile/${encodeURIComponent(listing.sellerId)}` as never)}
             accessibilityLabel={`View ${sellerProfile.name}'s profile`}
             accessibilityRole="button"
           >
