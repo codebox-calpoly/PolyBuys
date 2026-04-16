@@ -1,11 +1,11 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
-import { buildDescriptionPreview } from '../lib/listingDescriptionPreview';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
+import { nativeChrome } from '../theme/nativeChrome';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -101,6 +101,45 @@ export default function ListingCard({
 
   const opacity = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
   const translateY = useRef(new Animated.Value(shouldAnimate ? motion.distance : 0)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const prevSavedRef = useRef<boolean | null>(null);
+
+  const playHeartSavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    heartScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.2,
+        friction: 5,
+        tension: 280,
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [heartScale, reduceMotion]);
+
+  const playHeartUnsavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    Animated.sequence([
+      Animated.timing(heartScale, {
+        toValue: 0.88,
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [heartScale, reduceMotion]);
 
   useEffect(() => {
     if (!shouldAnimate) return;
@@ -139,24 +178,15 @@ export default function ListingCard({
   const isFlatShell = shellStyle === 'flat';
   const isWeb = Platform.OS === 'web';
   const conditionLabel = formatConditionLabel(listing.condition);
-  const titleLines = isHomeDensity ? 2 : 3;
-  const descriptionPreview = useMemo(
-    () => buildDescriptionPreview(listing.description),
-    [listing.description]
-  );
+  const titleLines = 1;
 
   const accessibilityDescriptionHint = useMemo(() => {
-    const raw =
-      descriptionPreview.kind === 'plain'
-        ? descriptionPreview.text
-        : descriptionPreview.kind === 'bullets'
-          ? descriptionPreview.items.join('. ')
-          : '';
+    const raw = listing.description.trim().replace(/\s+/g, ' ');
     if (raw.length <= 160) {
       return raw;
     }
     return `${raw.slice(0, 157)}…`;
-  }, [descriptionPreview]);
+  }, [listing.description]);
 
   const accessibilityLabel = useMemo(() => {
     const parts = [
@@ -167,6 +197,26 @@ export default function ListingCard({
     ].filter(Boolean) as string[];
     return parts.join(', ');
   }, [listing.title, listing.price, conditionLabel, accessibilityDescriptionHint, badgeToShow]);
+
+  useEffect(() => {
+    prevSavedRef.current = null;
+  }, [listing._id]);
+
+  useEffect(() => {
+    if (!onToggleSave) return;
+    if (prevSavedRef.current === null) {
+      prevSavedRef.current = isSaved;
+      return;
+    }
+    if (prevSavedRef.current === isSaved) return;
+    const wasSaved = prevSavedRef.current;
+    prevSavedRef.current = isSaved;
+    if (isSaved && !wasSaved) {
+      playHeartSavedAnimation();
+    } else if (!isSaved && wasSaved) {
+      playHeartUnsavedAnimation();
+    }
+  }, [isSaved, onToggleSave, playHeartSavedAnimation, playHeartUnsavedAnimation]);
 
   return (
     <Animated.View
@@ -227,43 +277,20 @@ export default function ListingCard({
             )}
           </View>
           <View style={[styles.cardDetails, isHomeDensity && styles.cardDetailsHome]}>
-            <Text
-              style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
-              numberOfLines={titleLines}
-              ellipsizeMode="tail"
-            >
-              {listing.title}
-            </Text>
-            <Text
-              style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
-              numberOfLines={1}
-            >
-              {conditionLabel}
-            </Text>
-            <View style={[styles.descSlot, isHomeDensity && styles.descSlotHome]}>
-              {descriptionPreview.kind === 'bullets' ? (
-                <View style={[styles.descBlock, isHomeDensity && styles.descBlockHome]}>
-                  {descriptionPreview.items.map((line, i) => (
-                    <Text
-                      key={`${listing._id}-desc-${i}`}
-                      style={[styles.descBulletLine, isHomeDensity && styles.descBulletLineHome]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {'\u2022 '}
-                      {line}
-                    </Text>
-                  ))}
-                </View>
-              ) : descriptionPreview.kind === 'plain' ? (
-                <Text
-                  style={[styles.descPlain, isHomeDensity && styles.descPlainHome]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {descriptionPreview.text}
-                </Text>
-              ) : null}
+            <View style={styles.titleRow}>
+              <Text
+                style={[styles.listingTitle, isHomeDensity && styles.listingTitleHome]}
+                numberOfLines={titleLines}
+                ellipsizeMode="tail"
+              >
+                {listing.title}
+              </Text>
+              <Text
+                style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
+                numberOfLines={1}
+              >
+                {conditionLabel}
+              </Text>
             </View>
             <Text
               style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
@@ -275,14 +302,18 @@ export default function ListingCard({
         </Pressable>
         {onToggleSave && (
           <Pressable
-            style={({ pressed }) => [styles.saveButton, pressed && { opacity: 0.8 }]}
+            style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
             onPress={onToggleSave}
             accessibilityLabel={`${isSaved ? 'Unsave' : 'Save'} listing: ${listing.title?.trim() || listing._id || 'listing'}`}
             accessibilityRole="button"
+            hitSlop={8}
           >
-            <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>
-              {isSaved ? '♥' : '♡'}
-            </Text>
+            <BlurView intensity={40} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>
+                {isSaved ? '♥' : '♡'}
+              </Text>
+            </Animated.View>
           </Pressable>
         )}
         {onManagePress && (
@@ -293,11 +324,7 @@ export default function ListingCard({
             accessibilityRole="button"
             hitSlop={8}
           >
-            <BlurView
-              intensity={40}
-              tint="systemThinMaterialLight"
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={40} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
             <View style={styles.manageDots}>
               <View style={styles.manageDot} />
               <View style={styles.manageDot} />
@@ -384,15 +411,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 1,
-    borderColor: 'rgba(21, 71, 52, 0.08)',
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  saveButtonPressed: {
+    opacity: 0.9,
   },
   saveIcon: {
     fontSize: 15,
-    color: colors.text,
+    color: colors.textDark,
   },
   saveIconActive: {
     color: colors.category,
@@ -492,8 +528,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     gap: 2,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   listingTitle: {
     ...typography.subhead,
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: '600',
     lineHeight: 21,
@@ -506,52 +549,12 @@ const styles = StyleSheet.create({
   },
   listingCondition: {
     ...typography.footnote,
+    flexShrink: 0,
     color: colors.gray,
     fontWeight: '500',
-    marginTop: 2,
   },
   listingConditionHome: {
     fontSize: 12,
-    marginTop: 0,
-  },
-  descSlot: {
-    minHeight: 32,
-    marginTop: 2,
-  },
-  descSlotHome: {
-    minHeight: 30,
-    marginTop: 0,
-  },
-  descBlock: {
-    marginTop: 2,
-    gap: 2,
-    overflow: 'hidden',
-  },
-  descBlockHome: {
-    marginTop: 0,
-    gap: 1,
-  },
-  descBulletLine: {
-    ...typography.footnote,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
-  },
-  descBulletLineHome: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  descPlain: {
-    ...typography.footnote,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
-    marginTop: 2,
-  },
-  descPlainHome: {
-    fontSize: 11,
-    lineHeight: 15,
-    marginTop: 0,
   },
   listingPrice: {
     ...typography.title2,
