@@ -32,19 +32,34 @@ const PAGE_SIZE = 20;
 /** Only refetch on focus when data is older than this (avoids redundant queries and preserves scroll/pagination) */
 const FOCUS_REFETCH_STALE_MS = 45_000;
 
-function chunkItems<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+function buildWebRows(items: Doc<'listings'>[], size: number) {
+  const rows: Array<{
+    key: string;
+    startIndex: number;
+    items: Doc<'listings'>[];
+    fillerKeys: string[];
+  }> = [];
+
+  for (let startIndex = 0; startIndex < items.length; startIndex += size) {
+    const rowItems = items.slice(startIndex, startIndex + size);
+    const rowKey = rowItems.map((item) => item._id).join('-');
+    const fillerKeys: string[] = [];
+
+    for (let slot = rowItems.length; slot < size; slot += 1) {
+      fillerKeys.push(`${rowKey}-filler-${slot}`);
+    }
+
+    rows.push({ key: rowKey, startIndex, items: rowItems, fillerKeys });
   }
-  return chunks;
+
+  return rows;
 }
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isSessionLoading } = useAuth();
-  const { tags, q } = useLocalSearchParams<{ tags?: string | string[]; q?: string | string[] }>();
+  const { q } = useLocalSearchParams<{ q?: string | string[] }>();
   const { width } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation();
   const isWeb = Platform.OS === 'web';
@@ -53,7 +68,6 @@ export default function HomeScreen() {
 
   // Filter state
   const [filters, setFilters] = useState<Filters>({});
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
 
@@ -77,23 +91,9 @@ export default function HomeScreen() {
   // True once we've received any first page; gates fullscreen loader to initial load only
   const hasLoadedOnceRef = useRef(false);
 
-  // Initialize selected tags from URL params
-  useEffect(() => {
-    if (tags) {
-      const tagArray = Array.isArray(tags) ? tags : [tags];
-      setSelectedTags((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(tagArray)) {
-          return prev;
-        }
-        return tagArray;
-      });
-    } else {
-      setSelectedTags((prev) => (prev.length === 0 ? prev : []));
-    }
-  }, [tags]);
-
   const searchQuery = Array.isArray(q) ? (q[0] ?? '').trim() : (q ?? '').trim();
   const hasSearchQuery = isWeb && searchQuery.length > 0;
+  const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}`;
 
   const queryFilterVersion = currentFilterVersionRef.current;
 
@@ -105,7 +105,6 @@ export default function HomeScreen() {
           category: filters.category,
           minPrice: filters.minPrice,
           maxPrice: filters.maxPrice,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
           paginationOpts: { numItems: PAGE_SIZE, cursor },
           _refreshKey: refreshKey,
         }
@@ -120,7 +119,6 @@ export default function HomeScreen() {
             category: filters.category,
             minPrice: filters.minPrice,
             maxPrice: filters.maxPrice,
-            tags: selectedTags.length > 0 ? selectedTags : undefined,
             sortBy: 'newest',
           },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
@@ -175,6 +173,7 @@ export default function HomeScreen() {
   }, [listingsResult, cursor]);
 
   useEffect(() => {
+    void activeFilterKey;
     filterVersionRef.current += 1;
     currentFilterVersionRef.current = filterVersionRef.current;
     setCursor(null);
@@ -182,7 +181,7 @@ export default function HomeScreen() {
     setIsDone(false);
     processedCursorsRef.current.clear();
     hasLoadedOnceRef.current = false;
-  }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags, searchQuery]);
+  }, [activeFilterKey]);
 
   // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
   useFocusEffect(
@@ -223,10 +222,7 @@ export default function HomeScreen() {
   );
 
   const hasActiveFilters =
-    !!filters.category ||
-    filters.minPrice !== undefined ||
-    filters.maxPrice !== undefined ||
-    selectedTags.length > 0;
+    !!filters.category || filters.minPrice !== undefined || filters.maxPrice !== undefined;
 
   const handleCategorySelect = (category: Category | undefined) => {
     setFilters((prev) => ({ ...prev, category }));
@@ -244,24 +240,9 @@ export default function HomeScreen() {
     setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
   };
 
-  const handleTagsChange = (nextTags: string[]) => {
-    setSelectedTags(nextTags);
-    if (nextTags.length > 0) {
-      router.setParams({ tags: nextTags });
-    } else {
-      router.setParams({ tags: undefined });
-    }
-  };
-
-  const handleClearTags = () => {
-    setSelectedTags([]);
-    router.setParams({ tags: undefined });
-  };
-
   const handleClearAll = () => {
     setFilters({});
-    setSelectedTags([]);
-    router.setParams({ tags: undefined, q: undefined });
+    router.setParams({ q: undefined });
   };
 
   const handleLoadMore = useCallback(() => {
@@ -336,7 +317,7 @@ export default function HomeScreen() {
                   : hasSearchQuery
                     ? `Nothing matched "${searchQuery}". Try a different search or fewer filters.`
                     : hasActiveFilters
-                      ? 'Try a wider price range or fewer tags.'
+                      ? 'Try a wider price range or different category.'
                       : 'Be the first to post something for campus.'
             }
             actionLabel={
@@ -358,7 +339,7 @@ export default function HomeScreen() {
       <Text style={styles.footerText}>Loading more...</Text>
     </View>
   ) : null;
-  const webRows = chunkItems(listings, homeColumns);
+  const webRows = buildWebRows(listings, homeColumns);
 
   if (isWeb) {
     return (
@@ -421,13 +402,10 @@ export default function HomeScreen() {
 
           <FilterBar
             filters={filters}
-            selectedTags={selectedTags}
             onCategoryPress={() => setShowCategoryPicker(true)}
             onPricePress={() => setShowPricePicker(true)}
-            onTagsChange={handleTagsChange}
             onClearCategory={handleClearCategory}
             onClearPrice={handleClearPrice}
-            onClearTags={handleClearTags}
             onClearAll={handleClearAll}
           />
 
@@ -447,13 +425,13 @@ export default function HomeScreen() {
           ) : (
             <>
               <View style={styles.webGrid}>
-                {webRows.map((row, rowIndex) => (
-                  <View key={`row-${rowIndex}`} style={styles.columnWrapper}>
-                    {row.map((item, columnIndex) => (
+                {webRows.map((row) => (
+                  <View key={row.key} style={styles.columnWrapper}>
+                    {row.items.map((item, columnOffset) => (
                       <View key={item._id} style={styles.webGridItem}>
                         <ListingCard
                           listing={item}
-                          index={rowIndex * homeColumns + columnIndex}
+                          index={row.startIndex + columnOffset}
                           isSaved={savedState?.[item._id] ?? false}
                           onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
                           density="home"
@@ -461,8 +439,8 @@ export default function HomeScreen() {
                         />
                       </View>
                     ))}
-                    {Array.from({ length: homeColumns - row.length }).map((_, fillerIndex) => (
-                      <View key={`filler-${rowIndex}-${fillerIndex}`} style={styles.webGridItem} />
+                    {row.fillerKeys.map((fillerKey) => (
+                      <View key={fillerKey} style={styles.webGridItem} />
                     ))}
                   </View>
                 ))}
@@ -494,75 +472,31 @@ export default function HomeScreen() {
         style={[styles.content, { paddingHorizontal: contentPadding, maxWidth: contentMaxWidth }]}
       >
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        {isDesktopWeb ? (
-          <Animated.View style={[styles.webHeroCard, entranceStyle]}>
-            <View style={styles.webHeroTopRow}>
-              <View style={styles.webHeroCopy}>
-                <Text style={styles.webHeroEyebrow}>Campus marketplace</Text>
-                <Text style={styles.webHeroTitle}>Browse what Cal Poly students are selling</Text>
-                <Text style={styles.webHeroBody}>
-                  Discover furniture, electronics, textbooks, and more in a feed designed for campus
-                  pickup.
-                </Text>
-              </View>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.createChip,
-                  styles.webCreateChip,
-                  pressed && styles.createChipPressed,
-                ]}
-                onPress={handleCreateListing}
-                disabled={isSessionLoading}
-                accessibilityLabel="Create listing"
-                accessibilityRole="button"
-              >
-                <Text style={styles.createChipText}>
-                  {isAuthenticated ? '+ Create listing' : 'Sign in to sell'}
-                </Text>
-              </Pressable>
-            </View>
-            <Pressable
-              style={[styles.searchBarWrap, styles.webSearchBarWrap]}
-              onPress={() => router.push('/search')}
-              accessibilityLabel="Search items"
-              accessibilityRole="button"
-            >
-              <Text style={styles.searchPlaceholder}>Search items...</Text>
-              <Text style={styles.webSearchHint}>
-                Open the search page for focused results and recent searches.
-              </Text>
-            </Pressable>
-          </Animated.View>
-        ) : (
-          <Animated.View style={[styles.searchRow, entranceStyle]}>
-            <Pressable
-              style={styles.searchBarWrap}
-              onPress={() => router.push('/search')}
-              accessibilityLabel="Search items"
-              accessibilityRole="button"
-            >
-              <Text style={styles.searchPlaceholder}>Search items...</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-              onPress={handleCreateListing}
-              disabled={isSessionLoading}
-              accessibilityLabel="Create listing"
-              accessibilityRole="button"
-            >
-              <Text style={styles.createChipText}>+ Create</Text>
-            </Pressable>
-          </Animated.View>
-        )}
+        <Animated.View style={[styles.searchRow, entranceStyle]}>
+          <Pressable
+            style={styles.searchBarWrap}
+            onPress={() => router.push('/search')}
+            accessibilityLabel="Search items"
+            accessibilityRole="button"
+          >
+            <Text style={styles.searchPlaceholder}>Search items...</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
+            onPress={handleCreateListing}
+            disabled={isSessionLoading}
+            accessibilityLabel="Create listing"
+            accessibilityRole="button"
+          >
+            <Text style={styles.createChipText}>+ Create</Text>
+          </Pressable>
+        </Animated.View>
         <FilterBar
           filters={filters}
-          selectedTags={selectedTags}
           onCategoryPress={() => setShowCategoryPicker(true)}
           onPricePress={() => setShowPricePicker(true)}
-          onTagsChange={handleTagsChange}
           onClearCategory={handleClearCategory}
           onClearPrice={handleClearPrice}
-          onClearTags={handleClearTags}
           onClearAll={handleClearAll}
         />
 

@@ -54,7 +54,6 @@ export default defineSchema({
     hiddenReason: v.optional(v.string()),
     createdAt: v.number(),
     postedOn: v.number(),
-    tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
     .index('by_seller_createdAt', ['sellerId', 'createdAt'])
@@ -71,7 +70,6 @@ export default defineSchema({
       'condition',
       'createdAt',
     ])
-    .index('by_tag', ['tags'])
     .searchIndex('search_listings', {
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],

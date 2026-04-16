@@ -15,7 +15,6 @@ import { useAction, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import ImageUploader from '@/components/ImageUploader';
-import TagInput from '../../components/TagInput';
 import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -65,7 +64,6 @@ export default function NewListingScreen() {
   const [category, setCategory] = useState<(typeof categories)[number]>('other');
   const [condition, setCondition] = useState<(typeof conditions)[number]>('used');
   const [images, setImages] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -135,7 +133,6 @@ export default function NewListingScreen() {
         category,
         condition,
         images,
-        tags,
       });
       setFlash('Listing created.');
       router.replace('/');
@@ -310,11 +307,6 @@ export default function NewListingScreen() {
                 </Pressable>
               ))}
             </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Tags</Text>
-            <TagInput tags={tags} onChange={setTags} />
           </View>
 
           <View style={styles.buttonContainer}>
