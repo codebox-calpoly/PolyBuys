@@ -132,7 +132,6 @@ type PublicListing = {
   status: Doc<'listings'>['status'];
   createdAt: number;
   postedOn: number;
-  tags?: string[];
 };
 
 function toPublicListing(listing: Doc<'listings'>): PublicListing {
@@ -148,7 +147,6 @@ function toPublicListing(listing: Doc<'listings'>): PublicListing {
     status: listing.status,
     createdAt: listing.createdAt,
     postedOn: listing.postedOn,
-    tags: listing.tags,
   };
 }
 

@@ -39,7 +39,6 @@ import ImageLightbox from '../../components/ImageLightbox';
 import { APP_STORE_URL } from '../../constants/app';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
-type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
 function normalizeAppOrigin(value: unknown) {
@@ -117,13 +116,6 @@ export default function ListingDetailScreen() {
       return Math.min(currentIndex, mappedUrls.length - 1);
     });
   }, [mappedUrls.length]);
-
-  const navigateToFeedWithTag = (tag: string) => {
-    router.push({
-      pathname: '/' as FeedTabHref,
-      params: { tags: tag },
-    });
-  };
 
   const onMessageSellerPress = () => {
     if (!listing) return;
@@ -487,11 +479,6 @@ export default function ListingDetailScreen() {
             variant="default"
             label={listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)}
           />
-          {listing.tags?.map((tag) => (
-            <Pressable key={tag} onPress={() => navigateToFeedWithTag(tag)}>
-              <Chip variant="default" label={`#${tag}`} />
-            </Pressable>
-          ))}
         </View>
 
         <Text style={styles.descriptionLabel}>Description</Text>

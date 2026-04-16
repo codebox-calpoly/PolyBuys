@@ -12,12 +12,6 @@ export type Listing = Doc<'listings'> & {
   status: ListingStatus;
 };
 
-export const TAG_CONSTRAINTS = {
-  MAX_TAGS: 5,
-  MAX_TAG_LENGTH: 20,
-  MIN_TAG_LENGTH: 1,
-};
-
 export const PAYLOAD_BOUNDS = {
   TITLE_MIN: 5,
   TITLE_MAX: 100,
@@ -70,39 +64,6 @@ function validateImages(images: string[]) {
   }
 }
 
-function validateTags(tags: string[] | undefined): string[] | undefined {
-  if (tags === undefined) return undefined;
-
-  // Normalize and deduplicate tags
-  const seen = new Set<string>();
-  const normalizedTags: string[] = [];
-
-  for (const tag of tags) {
-    const normalized = tag.trim().toLowerCase();
-
-    if (normalized.length === 0) {
-      throw new ConvexError('Empty tags are not allowed');
-    }
-
-    if (normalized.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-      throw new ConvexError(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-    }
-
-    // Skip duplicates instead of throwing
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      normalizedTags.push(normalized);
-    }
-  }
-
-  // Check max tags after deduplication
-  if (normalizedTags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-    throw new ConvexError(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-  }
-
-  return normalizedTags;
-}
-
 // Category validator for reuse
 const categoryValidator = v.union(
   v.literal('textbooks'),
@@ -129,20 +90,6 @@ export const getListingImageUrl = query({
     return await ctx.storage.getUrl(args.storageId);
   },
 });
-
-function normalizeSearchTags(tags: string[]): string[] {
-  return [
-    ...new Set(
-      tags
-        .map((tag) => tag.trim().toLowerCase())
-        .filter(
-          (tag) =>
-            tag.length >= TAG_CONSTRAINTS.MIN_TAG_LENGTH &&
-            tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH
-        )
-    ),
-  ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
-}
 
 // Get a single listing by ID
 // Owners can see their own hidden listings, others cannot
@@ -182,7 +129,6 @@ export const searchAndFilterListings = query({
         minPrice: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
         condition: v.optional(conditionValidator),
-        tags: v.optional(v.array(v.string())),
         sortBy: v.optional(
           v.union(
             v.literal('newest'),
@@ -416,13 +362,12 @@ export const searchAndFilterListings = query({
   },
 });
 
-// Get all active listings with optional tag/category/price filters
+// Get all active listings with optional category/price filters
 export const getListings = query({
   args: {
     category: v.optional(categoryValidator),
     minPrice: v.optional(v.number()),
     maxPrice: v.optional(v.number()),
-    tags: v.optional(v.array(v.string())),
     paginationOpts: v.object({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
@@ -451,8 +396,6 @@ export const getListings = query({
       throw new ConvexError('maxPrice must be greater than or equal to minPrice');
     }
 
-    const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
-    const hasTags = normalizedTags.length > 0;
     const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
 
     // Use database indexes with proper ordering
@@ -471,8 +414,8 @@ export const getListings = query({
         .order('desc');
     }
 
-    // If no tags/price filters, use direct pagination (most efficient)
-    if (!hasTags && !hasPriceFilters) {
+    // If no price filters, use direct pagination (most efficient)
+    if (!hasPriceFilters) {
       const paginationResult = await query
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
@@ -484,7 +427,7 @@ export const getListings = query({
       };
     }
 
-    // Need tags/price filtering: collect with limit, filter, then paginate in-memory
+    // Need price filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
     const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
 
@@ -492,9 +435,8 @@ export const getListings = query({
       .filter((q) => q.neq(q.field('isHidden'), true))
       .take(MAX_COLLECT);
 
-    // Apply tag and price filters
+    // Apply price filters
     const filtered = allResults.filter((l) => {
-      if (hasTags && !(l.tags ?? []).some((tag) => normalizedTags.includes(tag))) return false;
       if (args.minPrice !== undefined && l.price < args.minPrice) return false;
       if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
       return true;
@@ -561,7 +503,6 @@ export const internalCreateListing = internalMutation({
     category: categoryValidator,
     images: v.array(v.string()),
     condition: conditionValidator,
-    tags: v.optional(v.array(v.string())),
     sellerId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -573,7 +514,6 @@ export const internalCreateListing = internalMutation({
       category: args.category,
       images: args.images,
       condition: args.condition,
-      tags: args.tags,
       sellerId: args.sellerId,
       status: 'active',
       createdAt: now,
@@ -592,7 +532,6 @@ export const createListing = action({
     category: categoryValidator,
     images: v.array(v.string()),
     condition: conditionValidator,
-    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<string> => {
     const userId = await requireAuthUserId(ctx);
@@ -615,7 +554,6 @@ export const createListing = action({
     if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
       throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
     }
-    const normalizedTags = validateTags(args.tags);
 
     // Screen content via OpenAI Moderation API
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
@@ -638,7 +576,6 @@ export const createListing = action({
       category: args.category,
       images: args.images,
       condition: args.condition,
-      tags: normalizedTags,
       sellerId: userId,
     });
 
@@ -657,7 +594,6 @@ export const internalUpdateListing = internalMutation({
       images: v.optional(v.array(v.string())),
       condition: v.optional(conditionValidator),
       category: v.optional(categoryValidator),
-      tags: v.optional(v.array(v.string())),
     }),
   },
   handler: async (ctx, args) => {
@@ -681,7 +617,6 @@ export const updateListing = action({
     images: v.optional(v.array(v.string())),
     condition: v.optional(conditionValidator),
     category: v.optional(categoryValidator),
-    tags: v.optional(v.array(v.string())),
   },
   handler: async (
     ctx,
@@ -737,11 +672,6 @@ export const updateListing = action({
       update.price = args.price;
     }
 
-    if (args.tags !== undefined) {
-      const normalizedTags = validateTags(args.tags);
-      update.tags = normalizedTags;
-    }
-
     if (Object.keys(update).length === 0) {
       throw new ConvexError('No valid fields to update');
     }
@@ -777,7 +707,6 @@ export const updateListing = action({
           | 'tickets'
           | 'other'
           | undefined,
-        tags: update.tags as string[] | undefined,
       },
     });
 
