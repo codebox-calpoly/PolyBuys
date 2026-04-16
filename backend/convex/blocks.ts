@@ -108,7 +108,8 @@ export const unblockUser = mutation({
 
 /**
  * Users the current account has blocked (for settings / management UI).
- * Sorted by display name. Omits hidden profiles but still returns blockedId so they can be unblocked.
+ * Sorted by display name. Hidden profiles are shown as the placeholder name "Unavailable user"
+ * (blockedId is always returned so the user can unblock).
  */
 export const listMyBlockedUsers = query({
   args: {},
@@ -125,7 +126,7 @@ export const listMyBlockedUsers = query({
       const profile = await ctx.db
         .query('profiles')
         .withIndex('by_userId', (q) => q.eq('userId', block.blockedId))
-        .unique();
+        .first();
 
       if (!profile) {
         rows.push({ blockedId: block.blockedId, name: 'Unknown user' });

@@ -182,7 +182,14 @@ export default function AccountSettingsScreen() {
           return;
         }
 
-        await updateMessageNotificationsEnabled({ enabled: true });
+        try {
+          await updateMessageNotificationsEnabled({ enabled: true });
+        } catch (error) {
+          setMessageNotificationsValue(previousValue);
+          const message =
+            error instanceof Error ? error.message : 'Failed to update notification preference';
+          Alert.alert('Notification Update Failed', message);
+        }
       } else {
         let removePushTokenSucceeded = false;
         let removePushTokenError: unknown = null;
@@ -195,6 +202,16 @@ export default function AccountSettingsScreen() {
 
         try {
           await updateMessageNotificationsEnabled({ enabled: false });
+          if (!removePushTokenSucceeded) {
+            const removeTokenMessage =
+              removePushTokenError instanceof Error
+                ? removePushTokenError.message
+                : 'Failed to remove this device push token.';
+            Alert.alert(
+              'Notification partially disabled',
+              `Your notification preference was saved, but we could not remove this device's push token. You may still receive some notifications.\n\nDetails: ${removeTokenMessage}`
+            );
+          }
         } catch (error) {
           const updatePreferenceMessage =
             error instanceof Error ? error.message : 'Failed to update notification preference';
@@ -220,11 +237,6 @@ export default function AccountSettingsScreen() {
           return;
         }
       }
-    } catch (error) {
-      setMessageNotificationsValue(previousValue);
-      const message =
-        error instanceof Error ? error.message : 'Failed to update notification preference';
-      Alert.alert('Notification Update Failed', message);
     } finally {
       setIsUpdatingMessageNotifications(false);
     }
