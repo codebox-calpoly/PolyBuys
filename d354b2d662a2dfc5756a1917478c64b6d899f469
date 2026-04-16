@@ -1,0 +1,42 @@
+frontend/app/(tabs)/inbox.tsx
+  d98e13e32eb51a4b 27,244
+frontend/components/ListingCard.tsx
+  d98e13e32eb51a4b 1,3,8,104-142,181,184,189,201-220,280-293,305,309,311-316,327,414,417-427,431,531-535,538-539,552
+frontend/app/(tabs)/search/index.tsx
+  d98e13e32eb51a4b 28,204-205,207-208,217,270,297-302,359-368,371,377,385,388-389,401-404,578-582,586-589
+frontend/app/_layout.tsx
+  d98e13e32eb51a4b 2,10,15-27,69
+frontend/theme/nativeChrome.ts
+  d98e13e32eb51a4b 1-46
+frontend/app/(tabs)/index.tsx
+  d98e13e32eb51a4b 281-282,556-560,684-685
+frontend/app.json
+  d98e13e32eb51a4b 7
+frontend/app/(tabs)/_layout.tsx
+  d98e13e32eb51a4b 121,124-125,128,132,134-138,144-149,158-162,171-175,189-193,279,282-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "d354b2d662a2dfc5756a1917478c64b6d899f469",
+  "prompts": {
+    "d98e13e32eb51a4b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "11bfca69-d495-45af-bf96-6dc77bf74412",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 536,
+      "total_deletions": 311,
+      "accepted_lines": 260,
+      "overriden_lines": 10
+    }
+  },
+  "humans": {
+    "h_d6f0aa68cda9fc": {
+      "author": "Evan Taylor"
+    }
+  }
+}
