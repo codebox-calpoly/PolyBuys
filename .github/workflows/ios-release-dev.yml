@@ -1,0 +1,50 @@
+name: iOS TestFlight (manual)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-release-manual-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: Build and submit iOS
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20.19.4'
+          cache: 'npm'
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Build iOS (local)
+        working-directory: frontend
+        run: eas build --platform ios --profile production --local --non-interactive --output=${{ github.workspace }}/build.ipa
+
+      - name: Submit to TestFlight
+        working-directory: frontend
+        run: eas submit --platform ios --profile production --path ${{ github.workspace }}/build.ipa --non-interactive
+
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.ref_name }}-${{ github.sha }}
+          path: ${{ github.workspace }}/build.ipa
+          if-no-files-found: ignore
+          retention-days: 14
