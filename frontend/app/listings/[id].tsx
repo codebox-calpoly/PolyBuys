@@ -464,7 +464,7 @@ export default function ListingDetailScreen() {
                 {(savedOptimistic ?? isSaved) ? 'Saved' : 'Save'}
               </Text>
               {(savedOptimistic ?? isSaved) && (
-                <AntDesign name="check" color="#000000" style={{ marginLeft: 4 }} />
+                <AntDesign name="check" color="#000000" style={styles.savedCheckIcon} />
               )}
             </Pressable>
             <Pressable
@@ -773,12 +773,17 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     borderColor: colors.primary,
+    borderWidth: 1,
     borderRadius: borderRadius.sm,
   },
   iconButtonText: {
     ...typography.subhead,
     color: colors.text,
+  },
+  savedCheckIcon: {
+    marginLeft: spacing.xs,
   },
   chipsRow: {
     flexDirection: 'row',
