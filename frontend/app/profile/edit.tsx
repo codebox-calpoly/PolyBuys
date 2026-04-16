@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { KeyboardAwareScreen } from '../../components/ui';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import { useFlash } from '../../contexts/FlashContext';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const BOUNDS = {
@@ -30,33 +30,82 @@ const DEFAULT_YEAR = '2026';
 const PROFILE_IMAGE_BOUNDS = {
   MAX_WIDTH: 1200,
   MAX_FILE_SIZE_MB: 5,
+  UPLOAD_TIMEOUT_MS: 20000,
 };
 
-async function uploadImageToConvex(uploadUrl: string, blob: Blob): Promise<Id<'_storage'>> {
+type UploadOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
+async function uploadImageToConvex(
+  uploadUrl: string,
+  blob: Blob,
+  { signal, timeoutMs = PROFILE_IMAGE_BOUNDS.UPLOAD_TIMEOUT_MS }: UploadOptions = {}
+): Promise<Id<'_storage'>> {
   return await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let settled = false;
+
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const resolveOnce = (value: Id<'_storage'>) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const onAbort = () => {
+      try {
+        xhr.abort();
+      } catch {
+        // no-op
+      }
+      rejectOnce(new Error('Image upload was cancelled.'));
+    };
+    const cleanup = () => {
+      xhr.onerror = null;
+      xhr.onload = null;
+      xhr.onabort = null;
+      xhr.ontimeout = null;
+      signal?.removeEventListener('abort', onAbort);
+    };
+
+    if (signal?.aborted) {
+      rejectOnce(new Error('Image upload was cancelled.'));
+      return;
+    }
+
     xhr.open('POST', uploadUrl);
+    xhr.timeout = timeoutMs;
     xhr.setRequestHeader('Content-Type', blob.type || 'image/jpeg');
 
-    xhr.onerror = () => reject(new Error('Network error during image upload.'));
+    xhr.onerror = () => rejectOnce(new Error('Network error during image upload.'));
+    xhr.onabort = () => rejectOnce(new Error('Image upload was cancelled.'));
+    xhr.ontimeout = () => rejectOnce(new Error('Image upload timed out. Please try again.'));
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`Image upload failed (${xhr.status}).`));
+        rejectOnce(new Error(`Image upload failed (${xhr.status}).`));
         return;
       }
 
       try {
         const parsed = JSON.parse(xhr.responseText) as { storageId?: Id<'_storage'> };
         if (!parsed.storageId) {
-          reject(new Error('Upload response missing storage ID.'));
+          rejectOnce(new Error('Upload response missing storage ID.'));
           return;
         }
-        resolve(parsed.storageId);
+        resolveOnce(parsed.storageId);
       } catch {
-        reject(new Error('Upload response could not be parsed.'));
+        rejectOnce(new Error('Upload response could not be parsed.'));
       }
     };
 
+    signal?.addEventListener('abort', onAbort, { once: true });
     xhr.send(blob);
   });
 }
@@ -64,10 +113,12 @@ async function uploadImageToConvex(uploadUrl: string, blob: Blob): Promise<Id<'_
 export default function ProfileEditScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const { setFlash } = useFlash();
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
   const createProfile = useMutation(api.profiles.createProfile);
   const updateProfile = useMutation(api.profiles.updateProfile);
   const generateUploadUrl = useMutation(api.profiles.generateUploadUrl);
+  const uploadAbortRef = useRef<AbortController | null>(null);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,12 +126,12 @@ export default function ProfileEditScreen() {
   const [major, setMajor] = useState('');
   const [year, setYear] = useState(DEFAULT_YEAR);
   const [picture, setPicture] = useState<Id<'_storage'> | null>(null);
-  const [picturePreviewUri, setPicturePreviewUri] = useState<string | null>(null);
-  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
+  const [pendingPictureUri, setPendingPictureUri] = useState<string | null>(null);
+  const [isPreparingPicture, setIsPreparingPicture] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { mappedUrls: pictureUrls } = useResolvedImageUrls(picture ? [picture] : []);
-  const pictureUrl = picturePreviewUri ?? pictureUrls[0] ?? null;
+  const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
 
   useEffect(() => {
     if (!isAuthenticated || profile === undefined) return;
@@ -103,7 +154,7 @@ export default function ProfileEditScreen() {
       setYear(DEFAULT_YEAR);
       setPicture(null);
     }
-    setPicturePreviewUri(null);
+    setPendingPictureUri(null);
     setLoadedKey(key);
   }, [isAuthenticated, profile, loadedKey]);
 
@@ -113,15 +164,22 @@ export default function ProfileEditScreen() {
     }
   }, [isAuthenticated, router]);
 
+  useEffect(() => {
+    return () => {
+      uploadAbortRef.current?.abort();
+      uploadAbortRef.current = null;
+    };
+  }, []);
+
   const handlePickPicture = async () => {
-    if (isUploadingPicture || isSubmitting) {
+    if (isPreparingPicture || isSubmitting) {
       return;
     }
 
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission required', 'Please allow photo library access to upload a photo.');
+        setFlash('Photo library permission is required to upload a profile picture.');
         return;
       }
 
@@ -135,7 +193,7 @@ export default function ProfileEditScreen() {
         return;
       }
 
-      setIsUploadingPicture(true);
+      setIsPreparingPicture(true);
       const picked = result.assets[0];
 
       // Re-encode first to apply EXIF orientation so landscape photos do not appear rotated.
@@ -160,21 +218,18 @@ export default function ProfileEditScreen() {
         );
       }
 
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadImageToConvex(uploadUrl, blob);
-      setPicture(storageId);
-      setPicturePreviewUri(manipulated.uri);
+      setPendingPictureUri(manipulated.uri);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload profile image';
-      Alert.alert('Upload failed', message);
+      const message = error instanceof Error ? error.message : 'Failed to prepare profile image';
+      setFlash(message);
     } finally {
-      setIsUploadingPicture(false);
+      setIsPreparingPicture(false);
     }
   };
 
   const handleRemovePicture = () => {
     setPicture(null);
-    setPicturePreviewUri(null);
+    setPendingPictureUri(null);
   };
 
   const handleSave = async () => {
@@ -184,17 +239,17 @@ export default function ProfileEditScreen() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
-      Alert.alert('Missing field', 'Name is required.');
+      setFlash('Name is required.');
       return;
     }
     if (!trimmedMajor) {
-      Alert.alert('Missing field', 'Major is required.');
+      setFlash('Major is required.');
       return;
     }
 
     const emailError = getEmailValidationError(normalizedEmail);
     if (emailError) {
-      Alert.alert('Invalid email', emailError);
+      setFlash(emailError);
       return;
     }
 
@@ -204,22 +259,32 @@ export default function ProfileEditScreen() {
       parsedYear < BOUNDS.MIN_YEAR ||
       parsedYear > BOUNDS.MAX_YEAR
     ) {
-      Alert.alert(
-        'Invalid year',
-        `Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`
-      );
+      setFlash(`Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`);
       return;
     }
 
     try {
       setIsSubmitting(true);
+      let nextPicture: Id<'_storage'> | null = picture;
+
+      if (pendingPictureUri) {
+        const blob = await (await fetch(pendingPictureUri)).blob();
+        const uploadUrl = await generateUploadUrl({});
+        uploadAbortRef.current?.abort();
+        const abortController = new AbortController();
+        uploadAbortRef.current = abortController;
+        nextPicture = await uploadImageToConvex(uploadUrl, blob, {
+          signal: abortController.signal,
+        });
+        uploadAbortRef.current = null;
+      }
 
       if (!profile) {
         await createProfile({
           name: trimmedName,
           email: normalizedEmail,
           bio: trimmedBio || undefined,
-          picture: picture ?? undefined,
+          picture: nextPicture ?? undefined,
           major: trimmedMajor,
           year: parsedYear,
         });
@@ -228,18 +293,21 @@ export default function ProfileEditScreen() {
           name: trimmedName,
           email: normalizedEmail,
           bio: trimmedBio || undefined,
-          picture: picture === null ? null : picture,
+          picture: nextPicture,
           major: trimmedMajor,
           year: parsedYear,
         });
       }
 
+      setPicture(nextPicture);
+      setPendingPictureUri(null);
       Alert.alert('Profile saved', 'Your profile has been updated.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (error) {
+      uploadAbortRef.current = null;
       const message = error instanceof Error ? error.message : 'Failed to save profile';
-      Alert.alert('Save failed', message);
+      setFlash(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -258,39 +326,35 @@ export default function ProfileEditScreen() {
       <View style={styles.field}>
         <Text style={styles.label}>Profile picture</Text>
         <View style={styles.pictureRow}>
-          {pictureUrl ? (
-            <Image source={{ uri: pictureUrl }} style={styles.avatar} />
-          ) : (
-            <ProfileAvatar name={name} size={84} style={styles.avatar} />
-          )}
+          <ProfileAvatar uri={pictureUrl} name={name} size={84} style={styles.avatar} />
           <View style={styles.pictureActions}>
             <Pressable
               style={({ pressed }) => [
                 styles.pictureButton,
                 pressed && styles.buttonPressed,
-                isUploadingPicture && styles.buttonDisabled,
+                isPreparingPicture && styles.buttonDisabled,
               ]}
               onPress={() => void handlePickPicture()}
-              disabled={isUploadingPicture || isSubmitting}
+              disabled={isPreparingPicture || isSubmitting}
               accessibilityRole="button"
-              accessibilityLabel={picture ? 'Change profile picture' : 'Add profile picture'}
+              accessibilityLabel={pictureUrl ? 'Change profile picture' : 'Add profile picture'}
             >
-              {isUploadingPicture ? (
+              {isPreparingPicture ? (
                 <ActivityIndicator color={colors.primary} size="small" />
               ) : (
                 <Text style={styles.pictureButtonText}>
-                  {picture ? 'Change photo' : 'Upload photo'}
+                  {pictureUrl ? 'Change photo' : 'Upload photo'}
                 </Text>
               )}
             </Pressable>
-            {picture ? (
+            {pictureUrl ? (
               <Pressable
                 onPress={handleRemovePicture}
-                disabled={isUploadingPicture || isSubmitting}
+                disabled={isPreparingPicture || isSubmitting}
                 style={({ pressed }) => [
                   styles.removeButton,
                   pressed && styles.buttonPressed,
-                  (isUploadingPicture || isSubmitting) && styles.buttonDisabled,
+                  (isPreparingPicture || isSubmitting) && styles.buttonDisabled,
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Remove profile picture"
@@ -371,10 +435,10 @@ export default function ProfileEditScreen() {
         style={({ pressed }) => [
           styles.saveButton,
           pressed && styles.buttonPressed,
-          (isSubmitting || isUploadingPicture) && styles.buttonDisabled,
+          (isSubmitting || isPreparingPicture) && styles.buttonDisabled,
         ]}
         onPress={() => void handleSave()}
-        disabled={isSubmitting || isUploadingPicture}
+        disabled={isSubmitting || isPreparingPicture}
         accessibilityLabel={isSubmitting ? 'Saving profile' : 'Save profile'}
         accessibilityRole="button"
       >
@@ -420,7 +484,6 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: colors.border,
   },
   pictureButton: {
     borderWidth: 1,

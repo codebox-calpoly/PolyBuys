@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   StyleSheet,
@@ -23,7 +24,8 @@ export function getAvatarInitial(name?: string | null) {
   if (!trimmed) {
     return '?';
   }
-  return trimmed.charAt(0).toUpperCase();
+  const first = [...trimmed][0];
+  return first.toUpperCase();
 }
 
 export default function ProfileAvatar({
@@ -35,18 +37,39 @@ export default function ProfileAvatar({
 }: ProfileAvatarProps) {
   const imageStyle = style as StyleProp<ImageStyle>;
   const initialFontSize = Math.max(14, Math.round(size * 0.42));
+  const [imageError, setImageError] = useState(false);
   const avatarShape = {
     width: size,
     height: size,
     borderRadius: size / 2,
   };
+  const avatarLabel = useMemo(() => {
+    const trimmedName = name?.trim();
+    return trimmedName ? `${trimmedName}'s avatar` : 'User avatar';
+  }, [name]);
 
-  if (uri) {
-    return <Image source={{ uri }} style={[styles.base, avatarShape, imageStyle]} />;
+  useEffect(() => {
+    setImageError(false);
+  }, [uri]);
+
+  if (uri && !imageError) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[styles.base, avatarShape, imageStyle]}
+        onError={() => setImageError(true)}
+        accessibilityLabel={avatarLabel}
+        accessibilityRole="image"
+      />
+    );
   }
 
   return (
-    <View style={[styles.base, styles.placeholder, avatarShape, style]}>
+    <View
+      style={[styles.base, styles.placeholder, avatarShape, style]}
+      accessibilityLabel={avatarLabel}
+      accessibilityRole="image"
+    >
       <Text
         style={[
           styles.initialText,

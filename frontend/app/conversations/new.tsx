@@ -125,7 +125,7 @@ export default function NewConversationScreen() {
 
       <View style={styles.content}>
         <View style={styles.sellerRow}>
-          <ProfileAvatar uri={sellerAvatarUrl} name={sellerName} size={48} style={styles.avatar} />
+          <ProfileAvatar uri={sellerAvatarUrl} name={sellerName} size={48} />
           <View style={styles.sellerCopy}>
             <Text style={styles.sellerName}>{sellerName}</Text>
             <Text style={styles.sellerListing} numberOfLines={1}>
@@ -188,11 +188,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: colors.surface,
     padding: spacing.md,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
   },
   sellerCopy: {
     flex: 1,

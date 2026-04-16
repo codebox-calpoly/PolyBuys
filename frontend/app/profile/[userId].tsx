@@ -96,7 +96,7 @@ export default function PublicProfileScreen() {
     >
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
-          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
+          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileMeta}>
@@ -174,12 +174,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.border,
   },
   profileInfo: {
     flex: 1,
