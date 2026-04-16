@@ -15,6 +15,18 @@ describe('buildDescriptionPreview', () => {
     }
   });
 
+  it('treats each Enter-separated line as a bullet even without markers or short-line limits', () => {
+    const lineA = 'A'.repeat(160);
+    const lineB = 'B'.repeat(160);
+    const r = buildDescriptionPreview(`${lineA}\n${lineB}`);
+    expect(r.kind).toBe('bullets');
+    if (r.kind === 'bullets') {
+      expect(r.items).toHaveLength(2);
+      expect(r.items[0]).toMatch(/^A+/);
+      expect(r.items[1]).toMatch(/^B+/);
+    }
+  });
+
   it('strips leading list markers', () => {
     const r = buildDescriptionPreview('- First point\n• Second\n1) Third');
     expect(r.kind).toBe('bullets');
