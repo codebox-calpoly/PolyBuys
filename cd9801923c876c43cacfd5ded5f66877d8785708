@@ -1,0 +1,139 @@
+frontend/app/(tabs)/settings.tsx
+  a802c04820c217a8 13,23,37-41,48,52,144-145,152-153,166,202,204-207,209-217,220,222,290,296,306-308,333,438,440,442,444-448,450,452-453,455,473,475
+frontend/app/listings/new.tsx
+  a802c04820c217a8 20,177-183,185-188,190-195,197-206,208-209,211-224,226-239,241-244,246-255,257-259,262-263,265-285,287,289-306,308-311,313,315-348,355,361-363,365-366,392-394,407-409,462-463,465,477-478,480,482
+  h_d6f0aa68cda9fc 184
+frontend/app/(tabs)/search/index.tsx
+  a802c04820c217a8 3,15,18-19,21-23,25-28,32-33,38-39,50,68-80,89,93-94,97,101-102,155-156,163,166-167,171,173-174,182-341,345,348-355,357-367,374-376,381,386-396,398-410,413,422,426-427,435,442,446-459,462-466,469,474-481,483,485-488,490-491,493-494,497-499,501-508,511-514,516,519,522-523,525-537,551-556,577-579
+frontend/components/MyListingActionsSheet.tsx
+  a802c04820c217a8 25-29,33-34
+frontend/components/PriceRangePicker.tsx
+  a802c04820c217a8 152
+backend/convex/blocks.ts
+  a802c04820c217a8 31,34,37,42,53-56,88-91,159-160,176-177
+  375eff957886f4e5 12,48,83,108,154,171,188
+frontend/components/ui/ScreenHeader.tsx
+  a802c04820c217a8 1-60
+frontend/components/ui/FilterChips.tsx
+  a802c04820c217a8 1-87
+frontend/components/ListingCard.tsx
+  375eff957886f4e5 12,54
+  a802c04820c217a8 4,37-38,57-58,65-77,85-86,221-227,243-267,288-307,314-336,400-448,517-524
+frontend/app/(tabs)/index.tsx
+  a802c04820c217a8 23,26-27,71,74,93,99,102-107,122,240,358-364,408,411,480-505,523-529,656
+frontend/app/profile/edit.tsx
+  a802c04820c217a8 16,139-204,206-223,230,236,252,258
+frontend/app/(tabs)/inbox.tsx
+  h_d6f0aa68cda9fc 367,385,388
+  a802c04820c217a8 1,11,14-16,25,32,109,117-118,170,175-185,225-235,237-272,274-315,320,322-334,338,348,350-366,368,371-373,375-382,384,386-387,389,391-392,394-397,400,402,470-471,473-476
+frontend/app/account-settings.tsx
+  a802c04820c217a8 410,416,430-432
+frontend/components/ReportModal.tsx
+  a802c04820c217a8 113-114
+frontend/types/filters.ts
+  a802c04820c217a8 28-45
+frontend/app/(tabs)/search/_layout.tsx
+  a802c04820c217a8 1-25
+frontend/components/SortPicker.tsx
+  a802c04820c217a8 1-123
+frontend/components/ui/SectionCard.tsx
+  a802c04820c217a8 1-19,21-60
+frontend/app/(tabs)/my-listings.tsx
+  a802c04820c217a8 18,26,30,37-41,44,46-48,50,52-54,236-245,250-265,268-272,309-320
+frontend/components/ImageLightbox.tsx
+  a802c04820c217a8 12,30,88-92,157
+frontend/app/conversations/[id].tsx
+  a802c04820c217a8 14-15,41-42,297,416-417,447,454,466,468,549-550,584,598,600
+frontend/app/(tabs)/_layout.tsx
+  a802c04820c217a8 6,80-81,114-116
+frontend/app/profile/[userId].tsx
+  a802c04820c217a8 165,169,181-183
+frontend/app/auth/login.tsx
+  375eff957886f4e5 370
+  a802c04820c217a8 481-482,495-496,509-510,580-581,598-599
+backend/convex/listings.ts
+  a802c04820c217a8 638-640
+frontend/app/conversations/new.tsx
+  a802c04820c217a8 12,29,110-111,127-128,154,160,175,177
+backend/convex/__tests__/listings.test.ts
+  a802c04820c217a8 270-288
+frontend/app/listings/[id]/edit.tsx
+  a802c04820c217a8 21,177-196,200-206,208-211,213-218,220-233,235-248,250-253,255-264,266-268,271-274,276-296,298,300-317,319-322,324,326-359,366,372-374,376-377,403-405,418-420,473-474,476,488-489,491,493
+  h_d6f0aa68cda9fc 207
+frontend/components/ui/KeyboardAwareScreen.tsx
+  a802c04820c217a8 1-63
+frontend/components/ui/index.ts
+  a802c04820c217a8 10-14
+frontend/components/FilterBar.tsx
+  a802c04820c217a8 3-4,13,16,24,27,36-37,115-129,134
+frontend/app/_layout.tsx
+  a802c04820c217a8 13,51-53,58,65-72
+frontend/components/ui/Field.tsx
+  a802c04820c217a8 30-31
+frontend/app/listings/[id].tsx
+  a802c04820c217a8 20-21,460-464,472,512,581,586,636-640,654,730,733,737-738,743-744,750,753,755-758,760,763,765,768-769,772-775,780-781,786,798-800,802,805-807,833-834,838-839,841,845,847,850-854,856,860-861,865,867,871-872
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "cd9801923c876c43cacfd5ded5f66877d8785708",
+  "prompts": {
+    "375eff957886f4e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9c957065-dbc9-4b9c-9799-841d8bca8333",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 69,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "826e6047c5931e58": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "81f2eaf0-3eee-4e67-ba88-63a0c7d3d4fd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 64,
+      "total_deletions": 75,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "a2052e9499c04769": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9715-40a2-7962-95f6-b89048a336f6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 5,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "a802c04820c217a8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "79925332-3f22-4eeb-970b-5b3cb0c15b0c",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 3564,
+      "total_deletions": 2970,
+      "accepted_lines": 2022,
+      "overriden_lines": 100
+    }
+  },
+  "humans": {
+    "h_d6f0aa68cda9fc": {
+      "author": "Evan Taylor"
+    }
+  }
+}
