@@ -201,14 +201,21 @@ export default function ConversationDetailScreen() {
       return;
     }
 
-    const blockAction = () => {
-      blockUser({ blockedId: otherUserId })
-        .then(() => {
-          Alert.alert('User blocked', 'You will no longer receive messages from this user.');
-        })
-        .catch((err) => {
-          Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
-        });
+    const blockAction = async () => {
+      try {
+        const blockId = await blockUser({ blockedId: otherUserId });
+        if (!blockId) {
+          Alert.alert(
+            'User unavailable',
+            'This user is no longer available to block.'
+          );
+          return;
+        }
+
+        Alert.alert('User blocked', 'You will no longer receive messages from this user.');
+      } catch (err) {
+        Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
+      }
     };
 
     Alert.alert(
@@ -216,7 +223,7 @@ export default function ConversationDetailScreen() {
       'You will no longer receive messages from this user. They will not be notified.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Block', style: 'destructive', onPress: blockAction },
+        { text: 'Block', style: 'destructive', onPress: () => void blockAction() },
       ]
     );
   };
