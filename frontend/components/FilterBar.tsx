@@ -172,7 +172,7 @@ export function FilterBar({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 12,
+    marginBottom: 0,
   },
   scrollContent: {
     flexDirection: 'row',

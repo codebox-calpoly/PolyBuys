@@ -171,7 +171,7 @@ export default function MyListingsScreen() {
   }
 
   const isCompactLayout = width < 760;
-  const columnCount = width >= 1200 ? 3 : isCompactLayout ? 1 : 2;
+  const columnCount = 2;
   const contentPadding = width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 

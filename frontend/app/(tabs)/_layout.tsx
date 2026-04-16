@@ -7,7 +7,7 @@ import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import { colors, typography } from '../../theme/tokens';
+import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 function WebHeaderLayout() {
   const router = useRouter();
@@ -186,14 +186,12 @@ const styles = StyleSheet.create({
   },
   webRoot: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   webHeaderBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
   },
   webHeaderContent: {
     width: '100%',
@@ -202,27 +200,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   brand: {
     ...typography.title1,
-    color: colors.primary,
+    color: colors.textDark,
+    fontSize: 28,
+    lineHeight: 34,
   },
   webSearchControl: {
-    minWidth: 260,
-    maxWidth: 320,
+    minWidth: 280,
+    maxWidth: 360,
     width: '100%',
     minHeight: 44,
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: borderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
     justifyContent: 'center',
   },
   webSearchControlActive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.locationDark,
+    backgroundColor: colors.white,
+    borderColor: colors.primary,
   },
   webSearchInput: {
     ...typography.subhead,

@@ -23,6 +23,7 @@ function markAsAnimated(id: string): void {
 export type ListingCardBadge = 'sold' | 'unavailable';
 
 export type ListingCardDensity = 'default' | 'home';
+export type ListingCardShellStyle = 'default' | 'flat';
 
 interface ListingCardProps {
   listing: {
@@ -46,6 +47,8 @@ interface ListingCardProps {
   footer?: ReactNode;
   /** Density variant: "home" for home tab (denser, tighter layout); "default" for other screens */
   density?: ListingCardDensity;
+  /** Visual shell style: "flat" removes card surface/shadow for Home feed alignment */
+  shellStyle?: ListingCardShellStyle;
 }
 
 export default function ListingCard({
@@ -58,6 +61,7 @@ export default function ListingCard({
   onPress: onPressProp,
   footer,
   density = 'default',
+  shellStyle = 'default',
 }: ListingCardProps) {
   const badgeToShow = badge ?? (showUnavailableBadge ? 'unavailable' : undefined);
   const router = useRouter();
@@ -106,6 +110,7 @@ export default function ListingCard({
   );
 
   const isHomeDensity = density === 'home';
+  const isFlatShell = shellStyle === 'flat';
   const isWeb = Platform.OS === 'web';
 
   return (
@@ -120,7 +125,8 @@ export default function ListingCard({
         <Pressable
           style={(state) => [
             styles.listingCard,
-            isHovered && styles.listingCardHover,
+            isFlatShell && styles.listingCardFlat,
+            isHovered && !isFlatShell && styles.listingCardHover,
             state.pressed && styles.listingCardPressed,
           ]}
           onPress={() =>
@@ -191,10 +197,7 @@ export default function ListingCard({
   );
 }
 
-const CARD_IMAGE_ASPECT = 170 / 145;
-/** Slightly taller than square for a premium, image-forward layout */
-const HOME_IMAGE_ASPECT = 0.9;
-const HOME_IMAGE_ASPECT_WEB = 1.22;
+const LISTING_IMAGE_HEIGHT = 220;
 
 const styles = StyleSheet.create({
   listingCardWrapper: {
@@ -212,12 +215,13 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
     boxShadow: '0 10px 24px rgba(21, 71, 52, 0.08)',
   },
+  listingCardFlat: {
+    backgroundColor: 'transparent',
+    boxShadow: 'none',
+  },
   listingCardHover: {
-    borderColor: colors.locationDark,
     boxShadow: '0 18px 36px rgba(21, 71, 52, 0.14)',
     transform: [{ translateY: -2 }],
   },
@@ -226,17 +230,14 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: CARD_IMAGE_ASPECT,
+    height: LISTING_IMAGE_HEIGHT,
     backgroundColor: colors.surface,
+    borderRadius: borderRadius.sm,
     overflow: 'hidden',
     position: 'relative',
   },
-  imageContainerHome: {
-    aspectRatio: HOME_IMAGE_ASPECT,
-  },
-  imageContainerHomeWeb: {
-    aspectRatio: HOME_IMAGE_ASPECT_WEB,
-  },
+  imageContainerHome: {},
+  imageContainerHomeWeb: {},
   saveButton: {
     position: 'absolute',
     top: spacing.xs,
@@ -279,11 +280,13 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    borderRadius: borderRadius.sm,
   },
   imagePlaceholder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: borderRadius.sm,
   },
   imagePlaceholderText: {
     ...typography.footnote,
@@ -294,33 +297,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 0,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
   },
   titlePriceRowHome: {
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 0,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
   listingTitle: {
     ...typography.body,
+    fontSize: 14,
     color: colors.primary,
     flex: 1,
     minWidth: 0,
   },
   listingTitleHome: {
     ...typography.subhead,
+    fontSize: 13,
     fontWeight: '600',
   },
   listingPrice: {
     ...typography.title2,
-    fontSize: 17,
+    fontSize: 13,
     color: colors.accent,
     flexShrink: 0,
   },
   listingPriceHome: {
-    fontSize: 16,
+    fontSize: 12,
   },
   footer: {
     marginTop: spacing.sm,
