@@ -4,7 +4,7 @@ import { colors } from '../theme/tokens';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
 
-type ReportReason = 'scam' | 'inappropriate' | 'spam';
+type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
 
 type ReportModalProps = {
   isVisible: boolean;
@@ -17,6 +17,7 @@ const REASONS: { value: ReportReason; label: string; desc: string }[] = [
   { value: 'scam', label: 'Scam', desc: 'Fraudulent listing or deceptive behavior' },
   { value: 'inappropriate', label: 'Inappropriate', desc: 'Offensive or policy-violating content' },
   { value: 'spam', label: 'Spam', desc: 'Low-quality, duplicate, or irrelevant posting' },
+  { value: 'other', label: 'Other', desc: 'Something else not covered above' },
 ];
 
 const MAX_NOTES = 500;
@@ -40,6 +41,10 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
 
   const handleSubmit = async () => {
     if (!reason || submitting) return;
+    if (reason === 'other' && !notes.trim()) {
+      Alert.alert('Notes required', 'Please provide details when selecting "Other" as the reason.');
+      return;
+    }
     setSubmitting(true);
     try {
       await createReport({
@@ -79,7 +84,9 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
             </Pressable>
           ))}
 
-          <Text style={styles.subtitle}>Notes (optional)</Text>
+          <Text style={styles.subtitle}>
+            {reason === 'other' ? 'Notes (required)' : 'Notes (optional)'}
+          </Text>
           <TextInput
             style={styles.notesInput}
             multiline
