@@ -205,10 +205,7 @@ export default function ConversationDetailScreen() {
       try {
         const blockId = await blockUser({ blockedId: otherUserId });
         if (!blockId) {
-          Alert.alert(
-            'User unavailable',
-            'This user is no longer available to block.'
-          );
+          Alert.alert('User unavailable', 'This user is no longer available to block.');
           return;
         }
 
