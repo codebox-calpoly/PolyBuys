@@ -16,7 +16,12 @@ export const createReport = mutation({
   args: {
     targetId: v.string(),
     targetType: v.union(v.literal('listing'), v.literal('profile')),
-    reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
+    reason: v.union(
+      v.literal('scam'),
+      v.literal('inappropriate'),
+      v.literal('spam'),
+      v.literal('other')
+    ),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -25,6 +30,11 @@ export const createReport = mutation({
     // 2. Validate notes length if provided
     if (args.notes && args.notes.length > MAX_NOTES_LENGTH) {
       throw new ConvexError(`Notes must be ${MAX_NOTES_LENGTH} characters or less`);
+    }
+
+    // Require notes when reason is "other" so moderators have context
+    if (args.reason === 'other' && (!args.notes || args.notes.trim().length === 0)) {
+      throw new ConvexError('Please provide details when selecting "Other" as the reason');
     }
 
     // 5. Validate target exists and handle malformed IDs

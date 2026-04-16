@@ -108,7 +108,12 @@ export default defineSchema({
     targetId: v.string(), // Can be listing or profile ID
     targetType: v.union(v.literal('listing'), v.literal('profile')),
     reporterId: v.string(), // Auth identity subject
-    reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
+    reason: v.union(
+      v.literal('scam'),
+      v.literal('inappropriate'),
+      v.literal('spam'),
+      v.literal('other')
+    ),
     notes: v.optional(v.string()),
     createdAt: v.number(),
   })
