@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
+import { buildDescriptionPreview } from '../lib/listingDescriptionPreview';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -32,58 +33,6 @@ function formatConditionLabel(condition?: 'new' | 'used' | 'refurbished'): strin
     default:
       return null;
   }
-}
-
-const DESC_BULLET_MAX = 2;
-/** Per bullet — keeps cards scannable; ellipsis added in UI via numberOfLines. */
-const DESC_BULLET_MAX_CHARS = 78;
-const DESC_LINE_LEADING_LIST = /^\s*[-•*]\s+/;
-
-function normalizeDescriptionWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-type DescriptionPreview =
-  | { kind: 'none' }
-  | { kind: 'plain'; text: string }
-  | { kind: 'bullets'; items: string[] };
-
-/** Short preview for the card: bullets when the seller used line breaks / list markers; else 2-line snippet. */
-function buildDescriptionPreview(raw: string): DescriptionPreview {
-  const trimmed = raw?.trim() ?? '';
-  if (!trimmed) {
-    return { kind: 'none' };
-  }
-
-  const lines = trimmed
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  const looksLikeList =
-    lines.length >= 2 &&
-    lines.length <= 8 &&
-    lines.every((line) => line.length <= 220) &&
-    (lines.some((line) => DESC_LINE_LEADING_LIST.test(line)) ||
-      lines.every((line) => line.length <= 140));
-
-  if (looksLikeList) {
-    const items = lines.slice(0, DESC_BULLET_MAX).map((line) => {
-      const stripped = line.replace(DESC_LINE_LEADING_LIST, '').trim();
-      const oneLine = normalizeDescriptionWhitespace(stripped);
-      if (oneLine.length <= DESC_BULLET_MAX_CHARS) {
-        return oneLine;
-      }
-      return `${oneLine.slice(0, DESC_BULLET_MAX_CHARS - 1)}…`;
-    });
-    return { kind: 'bullets', items };
-  }
-
-  const plain = normalizeDescriptionWhitespace(trimmed);
-  if (!plain) {
-    return { kind: 'none' };
-  }
-  return { kind: 'plain', text: plain };
 }
 
 export type ListingCardBadge = 'sold' | 'unavailable';
