@@ -345,6 +345,11 @@ export default function InboxScreen() {
     [hideConversation]
   );
 
+  const handleBackgroundPress = useCallback(() => {
+    setActiveSwipeConversationId(null);
+    Keyboard.dismiss();
+  }, []);
+
   const formatter = useMemo(
     () =>
       new Intl.DateTimeFormat(undefined, {
@@ -475,12 +480,20 @@ export default function InboxScreen() {
   const isSearching = searchText.trim().length > 0;
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback onPress={handleBackgroundPress} accessible={false}>
       <View style={styles.page}>
         <View style={styles.content}>
           {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
           <View style={styles.headerBlock}>
-            <ScreenHeader title="Inbox" subtitle={subtitle} />
+            <ScreenHeader
+              title="Inbox"
+              subtitle={subtitle}
+              action={
+                <View style={styles.swipeHint}>
+                  <Text style={styles.swipeHintText}>Swipe left to report or delete</Text>
+                </View>
+              }
+            />
             <View style={styles.searchBarWrap}>
               <BlurView
                 intensity={60}
@@ -602,6 +615,23 @@ const styles = StyleSheet.create({
   headerBlock: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
+  },
+  swipeHint: {
+    alignSelf: 'center',
+    backgroundColor: colors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.location,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeHintText: {
+    ...typography.subhead,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   centeredState: {
     flex: 1,
