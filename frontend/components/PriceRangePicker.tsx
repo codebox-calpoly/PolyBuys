@@ -8,7 +8,11 @@ import {
   Modal,
   Pressable,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { colors } from '../theme/tokens';
 
@@ -34,6 +38,7 @@ export function PriceRangePicker({
   onApply,
   onClose,
 }: PriceRangePickerProps) {
+  const insets = useSafeAreaInsets();
   const entranceStyle = useEntranceAnimation(40, 8);
   const [min, setMin] = useState<string>(minPrice?.toString() ?? '');
   const [max, setMax] = useState<string>(maxPrice?.toString() ?? '');
@@ -104,65 +109,87 @@ export function PriceRangePicker({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Animated.View style={[styles.sheet, entranceStyle]}>
-          <Pressable style={styles.sheetTapArea} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.handle} />
-            <Text style={styles.title}>Price Range</Text>
+      <View style={styles.overlay}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityLabel="Close price filter"
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoider}
+          keyboardVerticalOffset={0}
+        >
+          <Animated.View style={[styles.sheet, entranceStyle]}>
+            <View style={styles.sheetTapArea}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  { paddingBottom: Math.max(insets.bottom, 16) },
+                ]}
+              >
+                <View style={styles.handle} />
+                <Text style={styles.title}>Price Range</Text>
 
-            {/* Quick Presets */}
-            <View style={styles.presetsContainer}>
-              {PRESETS.map((preset) => (
-                <TouchableOpacity
-                  key={preset.label}
-                  style={styles.presetButton}
-                  onPress={() => handlePreset(preset)}
-                >
-                  <Text style={styles.presetText}>{preset.label}</Text>
+                {/* Quick Presets */}
+                <View style={styles.presetsContainer}>
+                  {PRESETS.map((preset) => (
+                    <TouchableOpacity
+                      key={preset.label}
+                      style={styles.presetButton}
+                      onPress={() => handlePreset(preset)}
+                    >
+                      <Text style={styles.presetText}>{preset.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Custom Range Inputs */}
+                <Text style={styles.sectionTitle}>Custom Range</Text>
+                <View style={styles.inputRow}>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Min</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={min}
+                      onChangeText={setMin}
+                      placeholder="$0"
+                      keyboardType="numeric"
+                      placeholderTextColor="#999"
+                      selectionColor={colors.primary}
+                      cursorColor={colors.primary}
+                    />
+                  </View>
+                  <Text style={styles.separator}>–</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Max</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={max}
+                      onChangeText={setMax}
+                      placeholder="Any"
+                      keyboardType="numeric"
+                      placeholderTextColor="#999"
+                      selectionColor={colors.primary}
+                      cursorColor={colors.primary}
+                    />
+                  </View>
+                </View>
+
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+                  <Text style={styles.applyButtonText}>Apply</Text>
                 </TouchableOpacity>
-              ))}
+              </ScrollView>
             </View>
-
-            {/* Custom Range Inputs */}
-            <Text style={styles.sectionTitle}>Custom Range</Text>
-            <View style={styles.inputRow}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Min</Text>
-                <TextInput
-                  style={styles.input}
-                  value={min}
-                  onChangeText={setMin}
-                  placeholder="$0"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                />
-              </View>
-              <Text style={styles.separator}>–</Text>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Max</Text>
-                <TextInput
-                  style={styles.input}
-                  value={max}
-                  onChangeText={setMax}
-                  placeholder="Any"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                />
-              </View>
-            </View>
-
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
-              <Text style={styles.applyButtonText}>Apply</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -170,8 +197,15 @@ export function PriceRangePicker({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  keyboardAvoider: {
+    width: '100%',
+    maxHeight: '92%',
   },
   sheet: {
     backgroundColor: 'transparent',
@@ -185,7 +219,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#dbe6e1',
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    maxHeight: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 0,
   },
   handle: {
     width: 40,
