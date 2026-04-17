@@ -22,13 +22,16 @@ type SheetActionItem = {
 };
 
 function getActions(status: Doc<'listings'>['status']): SheetActionItem[] {
-  const baseActions: SheetActionItem[] = [
-    {
+  const baseActions: SheetActionItem[] = [];
+
+  // Sold listings are frozen — seller can only delete.
+  if (status !== 'sold') {
+    baseActions.push({
       key: 'edit',
       label: 'Edit listing',
       description: 'Update title, description, photos, and price.',
-    },
-  ];
+    });
+  }
 
   if (status === 'active') {
     baseActions.push(

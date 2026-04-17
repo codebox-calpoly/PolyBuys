@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Alert,
   Animated,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -11,17 +9,18 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
-import { Switch } from 'react-native';
-import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
+import { FilterChips, type FilterChipOption } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
 
@@ -35,19 +34,24 @@ function yearToOrdinal(gradYear: number): string {
 
 type TabId = 'listings' | 'saved';
 
-const PROFILE_EDIT: Href = '/profile/edit';
+const TAB_OPTIONS: FilterChipOption<TabId>[] = [
+  { value: 'listings', label: 'Listings' },
+  { value: 'saved', label: 'Saved' },
+];
+
+const PROFILE_EDIT = '/profile/edit';
+const ACCOUNT_SETTINGS = '/account-settings';
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated, isLoading, signOut } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const signOutInProgressRef = useRef(false);
+  const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [messageNotificationsValue, setMessageNotificationsValue] = useState(true);
-  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false);
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
   const myListings = useQuery(api.listings.getMyListings, isAuthenticated && !isWeb ? {} : 'skip');
   const savedArgs = isAuthenticated && !isWeb && activeTab === 'saved' ? {} : 'skip';
@@ -57,16 +61,6 @@ export default function SettingsScreen() {
     loadMore: loadMoreSavedListings,
   } = usePaginatedQuery(api.savedListings.getMySavedListings, savedArgs, { initialNumItems: 20 });
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
-  const messageNotificationsEnabled = useQuery(
-    api.users.getMessageNotificationsEnabled,
-    isAuthenticated && !isWeb ? {} : 'skip'
-  );
-  const updateMessageNotificationsEnabled = useMutation(
-    api.users.updateMessageNotificationsEnabled
-  );
-  const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
-  const removePushToken = useMutation(api.pushNotifications.removePushToken);
-  const deleteAccount = useMutation(api.users.deleteAccount);
   const { mappedUrls: avatarUrls } = useResolvedImageUrls(
     profile?.picture ? [profile.picture] : []
   );
@@ -79,149 +73,10 @@ export default function SettingsScreen() {
   const isWideLayout = width >= 980;
 
   useEffect(() => {
-    if (!isWeb && !isLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fsettings' as never);
     }
-  }, [isAuthenticated, isLoading, isWeb, router]);
-
-  useEffect(() => {
-    if (typeof messageNotificationsEnabled === 'boolean') {
-      setMessageNotificationsValue(messageNotificationsEnabled);
-    }
-  }, [messageNotificationsEnabled]);
-
-  const handleAuthAction = async () => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Fsettings' as never);
-      return;
-    }
-
-    if (signOutInProgressRef.current) {
-      return;
-    }
-
-    try {
-      signOutInProgressRef.current = true;
-      setIsSigningOut(true);
-      await signOut();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to sign out';
-      Alert.alert('Sign Out Failed', message);
-    } finally {
-      signOutInProgressRef.current = false;
-      setIsSigningOut(false);
-    }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete account',
-      'Are you sure? This will permanently delete your account and all your data. You can always sign back up later.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete account',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAccount({});
-            } catch (error) {
-              const message = error instanceof Error ? error.message : 'Failed to delete account';
-              Alert.alert('Delete Account Failed', message);
-              return;
-            }
-
-            try {
-              await signOut();
-            } catch (error) {
-              const details = error instanceof Error ? `\n\nDetails: ${error.message}` : '';
-              Alert.alert(
-                'Account Deleted',
-                `Your account was deleted, but we could not sign you out automatically. Please sign out manually.${details}`
-              );
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleMessageNotificationsToggle = async (value: boolean) => {
-    if (isUpdatingMessageNotifications) return;
-
-    const previousValue = messageNotificationsValue;
-    setMessageNotificationsValue(value);
-    setIsUpdatingMessageNotifications(true);
-
-    try {
-      if (value) {
-        let permissionGranted = false;
-        try {
-          permissionGranted = await requestPermissionAndSyncToken(recordPushToken);
-        } catch (error) {
-          setMessageNotificationsValue(previousValue);
-          const message =
-            error instanceof Error ? error.message : 'Unable to enable notifications right now.';
-          Alert.alert('Notification Update Failed', message);
-          return;
-        }
-
-        if (!permissionGranted) {
-          setMessageNotificationsValue(previousValue);
-          Alert.alert(
-            'Notification Update Failed',
-            'Push permission was not granted. Enable notifications in system settings and try again.'
-          );
-          return;
-        }
-
-        await updateMessageNotificationsEnabled({ enabled: true });
-      } else {
-        let removePushTokenSucceeded = false;
-        let removePushTokenError: unknown = null;
-        try {
-          await removePushToken({});
-          removePushTokenSucceeded = true;
-        } catch (error) {
-          removePushTokenError = error;
-        }
-
-        try {
-          await updateMessageNotificationsEnabled({ enabled: false });
-        } catch (error) {
-          const updatePreferenceMessage =
-            error instanceof Error ? error.message : 'Failed to update notification preference';
-
-          if (removePushTokenSucceeded) {
-            Alert.alert(
-              'Notification partially updated',
-              `This device push token was removed, but we could not save your notification preference.\n\nDetails: ${updatePreferenceMessage}`
-            );
-            return;
-          }
-
-          setMessageNotificationsValue(previousValue);
-          const removeTokenMessage =
-            removePushTokenError instanceof Error
-              ? removePushTokenError.message
-              : 'Failed to remove this device push token.';
-
-          Alert.alert(
-            'Notification Update Failed',
-            `We could not disable notifications.\n\nToken removal: ${removeTokenMessage}\nPreference update: ${updatePreferenceMessage}`
-          );
-          return;
-        }
-      }
-    } catch (error) {
-      setMessageNotificationsValue(previousValue);
-      const message =
-        error instanceof Error ? error.message : 'Failed to update notification preference';
-      Alert.alert('Notification Update Failed', message);
-    } finally {
-      setIsUpdatingMessageNotifications(false);
-    }
-  };
+  }, [isAuthenticated, isSessionLoading, isWeb, router]);
 
   if (isWeb) {
     return (
@@ -257,7 +112,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.centeredState}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
       >
         <Animated.View style={[styles.signInCard, entranceStyle]}>
           <Text style={styles.signInTitle}>Complete your profile</Text>
@@ -266,9 +121,18 @@ export default function SettingsScreen() {
           </Text>
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push(PROFILE_EDIT)}
+            onPress={() => router.push(PROFILE_EDIT as never)}
           >
             <Text style={styles.primaryButtonText}>Set up profile</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.settingsRow, pressed && styles.buttonPressed]}
+            onPress={() => router.push(ACCOUNT_SETTINGS as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Account settings"
+          >
+            <Text style={styles.settingsRowLabel}>Account settings</Text>
+            <Text style={styles.settingsRowChevron}>›</Text>
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -277,28 +141,21 @@ export default function SettingsScreen() {
 
   const yearLabel = yearToOrdinal(profile.year);
 
+  const profileSubtitle = `${profile.major} • ${yearLabel}`;
+
   return (
     <ScrollView
       style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={styles.content}
     >
-      <Animated.View style={[styles.profileCard, entranceStyle]}>
+      {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+      <Animated.View style={[styles.profileBlock, entranceStyle]}>
         <View style={styles.profileHeader}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarPlaceholderText}>
-                {profile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileMeta}>
-              {profile.major} • {yearLabel}
-            </Text>
+            <Text style={styles.profileMeta}>{profileSubtitle}</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{listingsCount}</Text>
@@ -317,7 +174,7 @@ export default function SettingsScreen() {
             <Text style={styles.bioText}>{profile.bio}</Text>
             <Pressable
               style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push(PROFILE_EDIT)}
+              onPress={() => router.push(PROFILE_EDIT as never)}
               accessibilityLabel="Edit profile"
               accessibilityRole="button"
             >
@@ -327,63 +184,34 @@ export default function SettingsScreen() {
         ) : (
           <Pressable
             style={({ pressed }) => [styles.addBioRow, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push(PROFILE_EDIT)}
+            onPress={() => router.push(PROFILE_EDIT as never)}
           >
             <Text style={styles.addBioText}>Add a bio...</Text>
             <Text style={styles.editIconText}>✎</Text>
           </Pressable>
         )}
 
-        {/*
-          Temporarily hidden.
+        <View style={styles.profileActions}>
           <Pressable
-            style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
-            onPress={handleShareProfile}
+            style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
+            onPress={() => router.push(PROFILE_EDIT as never)}
+            accessibilityLabel="Edit profile"
+            accessibilityRole="button"
           >
-            <Text style={styles.shareButtonText}>Share Profile</Text>
+            <Text style={styles.secondaryPillText}>Edit profile</Text>
           </Pressable>
-        */}
+          <Pressable
+            style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
+            onPress={() => router.push(ACCOUNT_SETTINGS as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Account settings"
+          >
+            <Text style={styles.secondaryPillText}>Settings</Text>
+          </Pressable>
+        </View>
       </Animated.View>
 
-      <View style={styles.notificationsSection}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <View style={styles.notificationRow}>
-          <Text style={styles.notificationLabel}>Message notifications</Text>
-          <Switch
-            value={messageNotificationsValue}
-            onValueChange={(value) => void handleMessageNotificationsToggle(value)}
-            disabled={isUpdatingMessageNotifications || messageNotificationsEnabled === undefined}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.white}
-          />
-        </View>
-        <Text style={styles.notificationHint}>
-          Get notified when someone messages you about a listing.
-        </Text>
-      </View>
-
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, activeTab === 'listings' && styles.tabActive]}
-          onPress={() => setActiveTab('listings')}
-          accessibilityLabel="My listings"
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'listings' }}
-        >
-          <Text style={[styles.tabText, activeTab === 'listings' && styles.tabTextActive]}>
-            Listings
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'saved' && styles.tabActive]}
-          onPress={() => setActiveTab('saved')}
-          accessibilityLabel="Saved listings"
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'saved' }}
-        >
-          <Text style={[styles.tabText, activeTab === 'saved' && styles.tabTextActive]}>Saved</Text>
-        </Pressable>
-      </View>
+      <FilterChips options={TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'listings' ? (
         displayListings.length === 0 ? (
@@ -444,33 +272,6 @@ export default function SettingsScreen() {
           )}
         </View>
       )}
-
-      <View style={styles.footer}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.buttonPressed,
-            (isSigningOut || isLoading) && styles.buttonDisabled,
-          ]}
-          onPress={handleAuthAction}
-          disabled={isSigningOut || isLoading}
-        >
-          <Text style={styles.secondaryButtonText}>
-            {isSigningOut ? 'Signing out...' : 'Sign out'}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.deleteButton,
-            pressed && styles.buttonPressed,
-            isLoading && styles.buttonDisabled,
-          ]}
-          onPress={handleDeleteAccount}
-          disabled={isLoading}
-        >
-          <Text style={styles.deleteButtonText}>Delete account</Text>
-        </Pressable>
-      </View>
     </ScrollView>
   );
 }
@@ -478,13 +279,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     gap: spacing.sm,
   },
   centeredState: {
@@ -494,9 +295,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   signInCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xxl,
     gap: spacing.md,
@@ -521,14 +322,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.lg,
   },
-  profileCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
+  profileBlock: {
     gap: spacing.md,
-    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
   },
   profileHeader: {
     flexDirection: 'row',
@@ -540,14 +335,6 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     backgroundColor: colors.border,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarPlaceholderText: {
-    ...typography.title1,
-    color: colors.primary,
   },
   profileInfo: {
     flex: 1,
@@ -583,30 +370,22 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.text,
   },
-  notificationsSection: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    ...typography.heading,
-    color: colors.textDark,
-  },
-  notificationRow: {
+  settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  notificationLabel: {
-    ...typography.body,
-    color: colors.text,
+  settingsRowLabel: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.textDark,
   },
-  notificationHint: {
-    ...typography.footnote,
+  settingsRowChevron: {
+    fontSize: 22,
     color: colors.muted,
+    fontWeight: '300',
   },
   bioRow: {
     flexDirection: 'row',
@@ -640,30 +419,24 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.muted,
   },
-  tabs: {
+  profileActions: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xs,
+    gap: spacing.sm,
   },
-  tab: {
+  secondaryPill: {
     flex: 1,
-    paddingVertical: spacing.md,
+    minHeight: 40,
+    borderRadius: borderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     alignItems: 'center',
-    borderRadius: borderRadius.sm,
+    justifyContent: 'center',
   },
-  tabActive: {
-    backgroundColor: colors.location,
-  },
-  tabText: {
-    ...typography.subhead,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  tabTextActive: {
+  secondaryPillText: {
+    ...typography.footnoteMed,
     color: colors.textDark,
+    fontWeight: '600',
   },
   grid: {
     flexDirection: 'row',
@@ -681,10 +454,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   emptyTab: {
-    backgroundColor: colors.surface,
-    flexBasis: '48%',
+    backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xxl,
     alignItems: 'center',
@@ -698,20 +470,6 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.text,
     textAlign: 'center',
-  },
-  footer: {
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
-  deleteButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.md,
-    paddingHorizontal: 0,
-  },
-  deleteButtonText: {
-    ...typography.subhead,
-    color: colors.destructive,
-    fontWeight: '600',
   },
   primaryButton: {
     backgroundColor: colors.primary,
@@ -745,8 +503,5 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],
-  },
-  buttonDisabled: {
-    opacity: 0.7,
   },
 });

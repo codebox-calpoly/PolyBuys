@@ -1,22 +1,17 @@
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { Doc } from 'convex/_generated/dataModel';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ListingCard from '../../components/ListingCard';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 function yearToOrdinal(gradYear: number): string {
@@ -30,6 +25,7 @@ function yearToOrdinal(gradYear: number): string {
 export default function PublicProfileScreen() {
   const { userId: rawUserId } = useLocalSearchParams<{ userId?: string }>();
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { width } = useWindowDimensions();
   const { user, isAuthenticated } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
@@ -100,15 +96,7 @@ export default function PublicProfileScreen() {
     >
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarPlaceholderText}>
-                {profile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileMeta}>
@@ -138,6 +126,7 @@ export default function PublicProfileScreen() {
         onClose={() => setReportOpen(false)}
         targetId={profile._id}
         targetType="profile"
+        onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
       />
 
       <Text style={styles.sectionTitle}>Listings</Text>
@@ -158,11 +147,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     width: '100%',
@@ -174,9 +163,9 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   profileCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xl,
     gap: spacing.md,
@@ -185,20 +174,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.border,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarPlaceholderText: {
-    ...typography.title1,
-    color: colors.primary,
   },
   profileInfo: {
     flex: 1,

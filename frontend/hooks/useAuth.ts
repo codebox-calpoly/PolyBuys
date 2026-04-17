@@ -6,25 +6,22 @@ import type { User } from '@polybuys/shared';
 export interface UseAuthReturn {
   user: User | null;
   isAuthenticated: boolean;
+  isSessionLoading: boolean;
+  isUserLoading: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
 }
 
-/**
- * Custom hook for authentication
- * Wraps Convex Auth hooks and provides user data
- *
- * Note: For OTP sign-in, use useAuthActions().signIn directly in the login screen
- */
 export function useAuth(): UseAuthReturn {
   const authActions = useAuthActions();
   const authSignOut = authActions?.signOut;
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const removePushToken = useMutation(api.pushNotifications.removePushToken);
 
-  // Get current user from database (skip query when not authenticated)
   const user = useQuery(api.users.getCurrentUser, isAuthenticated ? undefined : 'skip');
-  const isLoading = authLoading || (isAuthenticated && user === undefined);
+  const isSessionLoading = authLoading;
+  const isUserLoading = isAuthenticated && user === undefined;
+  const isLoading = isSessionLoading;
 
   const signOut = async (): Promise<void> => {
     if (!authSignOut) {
@@ -48,6 +45,8 @@ export function useAuth(): UseAuthReturn {
   return {
     user: user || null,
     isAuthenticated,
+    isSessionLoading,
+    isUserLoading,
     isLoading,
     signOut,
   };

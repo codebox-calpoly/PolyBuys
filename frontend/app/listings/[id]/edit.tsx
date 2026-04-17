@@ -5,7 +5,6 @@ import {
   Animated,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,8 +16,9 @@ import { api } from 'convex/_generated/api';
 import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
-import TagInput from '../../../components/TagInput';
+import { useFlash } from '../../../contexts/FlashContext';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { KeyboardAwareScreen, ScreenHeader } from '../../../components/ui';
 import { borderRadius, colors, spacing, typography } from '../../../theme/tokens';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
@@ -52,6 +52,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function EditListingScreen() {
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const listing = useQuery(
@@ -67,7 +68,6 @@ export default function EditListingScreen() {
   const [category, setCategory] = useState<(typeof categories)[number]>('other');
   const [condition, setCondition] = useState<(typeof conditions)[number]>('used');
   const [images, setImages] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -84,7 +84,6 @@ export default function EditListingScreen() {
     setCategory(listing.category);
     setCondition(listing.condition);
     setImages(listing.images);
-    setTags(listing.tags ?? []);
     setHasInitialized(true);
   }, [hasInitialized, listing]);
 
@@ -139,7 +138,6 @@ export default function EditListingScreen() {
         category,
         condition,
         images,
-        tags,
       });
       if (!result.ok) {
         showAlert(
@@ -148,7 +146,8 @@ export default function EditListingScreen() {
         );
         return;
       }
-      showAlert('Success', 'Listing updated.', () => router.back());
+      setFlash('Listing updated.');
+      router.back();
     } catch (error) {
       const actionError = getListingActionError(error, 'Update failed');
       showAlert(actionError.title, actionError.message);
@@ -175,18 +174,36 @@ export default function EditListingScreen() {
     return <ListingUnavailable />;
   }
 
+  if (listing.status === 'sold' || listing.status === 'deleted') {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>
+          {listing.status === 'sold'
+            ? 'Sold listings cannot be edited.'
+            : 'This listing is no longer available.'}
+        </Text>
+        <Pressable
+          style={({ pressed }) => [styles.cancelButton, pressed && styles.buttonPressed]}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.cancelButtonText}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const isCancelDisabled = isSubmitting || hasPendingUploads;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
-      <Animated.View style={[styles.formCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Edit Listing</Text>
-        <Text style={styles.title}>Update your item</Text>
-        <Text style={styles.subtitle}>Keep your listing accurate so buyers can decide faster.</Text>
+    <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
+      <Animated.View style={[styles.formBlock, entranceStyle]}>
+        <ScreenHeader
+          title="Update your item"
+          subtitle="Keep your listing accurate so buyers can decide faster."
+          animate={false}
+        />
 
         <View style={styles.section}>
           <Text style={styles.label}>Photos</Text>
@@ -209,6 +226,8 @@ export default function EditListingScreen() {
             placeholder="Enter listing title"
             accessibilityLabel="Listing title"
             placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
             maxLength={100}
           />
         </View>
@@ -221,6 +240,8 @@ export default function EditListingScreen() {
             onChangeText={setDescription}
             placeholder="Describe your item"
             placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
             multiline
             numberOfLines={4}
           />
@@ -242,6 +263,8 @@ export default function EditListingScreen() {
               }}
               placeholder="15"
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               keyboardType="decimal-pad"
             />
           </View>
@@ -300,11 +323,6 @@ export default function EditListingScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Tags</Text>
-          <TagInput tags={tags} onChange={setTags} />
-        </View>
-
         <View style={styles.buttonContainer}>
           <Pressable
             style={({ pressed }) => [
@@ -338,29 +356,25 @@ export default function EditListingScreen() {
           </Pressable>
         </View>
       </Animated.View>
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 26,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  formCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.muted,
-    padding: spacing.lg,
+  formBlock: {
+    gap: spacing.md,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -371,22 +385,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 16,
     color: colors.text,
-  },
-  eyebrow: {
-    ...typography.footnoteMed,
-    color: colors.textDark,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  title: {
-    ...typography.title1,
-    marginBottom: 6,
-    color: colors.textDark,
-  },
-  subtitle: {
-    ...typography.subhead,
-    color: colors.text,
-    marginBottom: 16,
   },
   section: {
     marginBottom: spacing.lg,
@@ -402,9 +400,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
     ...typography.body,
     color: colors.textDark,
@@ -417,9 +415,9 @@ const styles = StyleSheet.create({
   priceInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.white,
   },
   pricePrefix: {
@@ -472,10 +470,10 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: colors.primary,
-    padding: 15,
-    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 45,
+    minHeight: 48,
     justifyContent: 'center',
   },
   submitButtonDisabled: {
@@ -487,12 +485,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: {
-    padding: 14,
-    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
   },
   cancelButtonDisabled: {
     opacity: 0.6,

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,12 +10,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -36,7 +38,9 @@ export default function ConversationDetailScreen() {
     typeof id === 'string' && id.trim().length > 0 ? (id as ConversationId) : null;
 
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
+  const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
   const blockUser = useMutation(api.blocks.blockUser);
@@ -95,13 +99,11 @@ export default function ConversationDetailScreen() {
     conversation?.listingId ??
     null) as Id<'listings'> | null;
   const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
-  const headerThumbnailSource =
-    conversation?.listing?.thumbnailUrl ??
-    (listing?.images && listing.images.length > 0 ? listing.images[0] : null);
-  const { mappedUrls: headerMappedUrls } = useResolvedImageUrls(
-    headerThumbnailSource ? [headerThumbnailSource] : []
+  const headerOtherUserPicture = conversation?.otherUser?.picture ?? null;
+  const { mappedUrls: headerAvatarMappedUrls } = useResolvedImageUrls(
+    headerOtherUserPicture ? [headerOtherUserPicture] : []
   );
-  const headerThumbnailUrl = headerMappedUrls[0] ?? null;
+  const headerAvatarUrl = headerAvatarMappedUrls[0] ?? null;
   const headerOtherUserName = conversation?.otherUser?.name ?? 'User';
   const headerConversationTitle = conversation?.otherUser?.name ?? 'Conversation';
   const headerListingTitle =
@@ -133,11 +135,11 @@ export default function ConversationDetailScreen() {
   };
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isSessionLoading && !isAuthenticated) {
       const returnTo = conversationId ? `/conversations/${conversationId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as never);
     }
-  }, [authLoading, conversationId, isAuthenticated, router]);
+  }, [isSessionLoading, conversationId, isAuthenticated, router]);
 
   useEffect(() => {
     if (!messages) {
@@ -197,14 +199,18 @@ export default function ConversationDetailScreen() {
       return;
     }
 
-    const blockAction = () => {
-      blockUser({ blockedId: otherUserId })
-        .then(() => {
-          Alert.alert('User blocked', 'You will no longer receive messages from this user.');
-        })
-        .catch((err) => {
-          Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
-        });
+    const blockAction = async () => {
+      try {
+        const blockId = await blockUser({ blockedId: otherUserId });
+        if (!blockId) {
+          Alert.alert('User unavailable', 'This user is no longer available to block.');
+          return;
+        }
+
+        Alert.alert('User blocked', 'You will no longer receive messages from this user.');
+      } catch (err) {
+        Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
+      }
     };
 
     Alert.alert(
@@ -212,7 +218,7 @@ export default function ConversationDetailScreen() {
       'You will no longer receive messages from this user. They will not be notified.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Block', style: 'destructive', onPress: blockAction },
+        { text: 'Block', style: 'destructive', onPress: () => void blockAction() },
       ]
     );
   };
@@ -252,7 +258,7 @@ export default function ConversationDetailScreen() {
   }
 
   if (
-    authLoading ||
+    isSessionLoading ||
     (isAuthenticated &&
       (conversationList === undefined ||
         currentUserSubject === undefined ||
@@ -290,7 +296,7 @@ export default function ConversationDetailScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 82 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
@@ -312,13 +318,7 @@ export default function ConversationDetailScreen() {
       />
 
       <View style={styles.headerCard}>
-        {headerThumbnailUrl ? (
-          <Image source={{ uri: headerThumbnailUrl }} style={styles.headerThumbnail} />
-        ) : (
-          <View style={[styles.headerThumbnail, styles.thumbnailPlaceholder]}>
-            <Text style={styles.thumbnailPlaceholderText}>No image</Text>
-          </View>
-        )}
+        <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
         <View style={styles.headerTextWrap}>
           <Text style={styles.headerName} numberOfLines={1}>
             {headerOtherUserName}
@@ -389,7 +389,7 @@ export default function ConversationDetailScreen() {
         }
       />
 
-      <View style={styles.composerWrap}>
+      <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         {isBlockingOther === true ? (
           <View style={styles.blockedComposer}>
             <Text style={styles.blockedText}>
@@ -409,6 +409,8 @@ export default function ConversationDetailScreen() {
               onChangeText={setMessageBody}
               placeholder="Type a message..."
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               style={styles.input}
               multiline
               maxLength={2000}
@@ -438,14 +440,14 @@ export default function ConversationDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.xl,
   },
   stateTitle: {
@@ -457,29 +459,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     padding: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  headerThumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.border,
-  },
-  thumbnailPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbnailPlaceholderText: {
-    ...typography.footnote,
-    fontSize: 10,
-    color: colors.muted,
-    fontWeight: '600',
   },
   headerTextWrap: {
     flex: 1,
@@ -540,8 +526,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   bubbleReceived: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderBottomLeftRadius: 4,
   },
@@ -575,12 +561,11 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   composerWrap: {
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.md,
@@ -590,9 +575,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,

@@ -20,9 +20,9 @@ import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
+import { getLoginEntryAction, type LoginStep } from './loginRedirect';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-type Step = 'welcome' | 'email' | { email: string } | 'checking' | 'profile' | 'push' | 'success';
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
 
 function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
@@ -36,7 +36,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const panelEntrance = useEntranceAnimation();
   const createProfile = useMutation(api.profiles.createProfile);
   const recordPushToken = useMutation(api.pushNotifications.recordPushToken);
@@ -44,12 +44,9 @@ export default function LoginScreen() {
     api.users.updateMessageNotificationsEnabled
   );
 
-  const profileForRedirect = useQuery(
-    api.profiles.getCurrentProfile,
-    isAuthenticated ? {} : 'skip'
-  );
+  const currentProfile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
-  const [step, setStep] = useState<Step>('welcome');
+  const [step, setStep] = useState<LoginStep>('welcome');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -58,7 +55,9 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
   const verifiedEmailRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizedReturnTo = Array.isArray(returnTo) ? returnTo[0] : returnTo;
   const postAuthRedirect: Href =
@@ -68,62 +67,73 @@ export default function LoginScreen() {
       ? (normalizedReturnTo as Href)
       : '/';
 
-  const shouldQueryProfile = step === 'checking' || step === 'profile';
-  const profileData = useQuery(api.profiles.getCurrentProfile, shouldQueryProfile ? {} : 'skip');
-
   useEffect(() => {
-    if (authLoading || !isAuthenticated || profileForRedirect === undefined) {
+    const entryAction = getLoginEntryAction({
+      isSessionLoading,
+      isAuthenticated,
+      currentProfile,
+      step,
+    });
+
+    if (entryAction === 'post-auth-redirect') {
+      router.replace(postAuthRedirect);
       return;
     }
-    if (profileForRedirect && (step === 'welcome' || step === 'email')) {
-      router.replace(postAuthRedirect);
-    }
-  }, [authLoading, isAuthenticated, profileForRedirect, step, postAuthRedirect, router]);
 
-  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+    if (entryAction === 'profile') {
+      setStep('profile');
+    }
+  }, [isSessionLoading, isAuthenticated, currentProfile, step, postAuthRedirect, router]);
 
   useEffect(() => {
     if (step !== 'checking') {
       setCheckingTimedOut(false);
       return;
     }
+    if (currentProfile !== undefined) {
+      setCheckingTimedOut(false);
+      return;
+    }
+    const timeout = setTimeout(() => setCheckingTimedOut(true), 8000);
+    return () => clearTimeout(timeout);
+  }, [step, currentProfile]);
 
-    if (profileData === undefined) {
-      // Start a timeout — if the profile query hasn't resolved after 8 s,
-      // surface an error state so the user isn't stuck on an infinite spinner.
-      const timeout = setTimeout(() => setCheckingTimedOut(true), 8000);
-      return () => clearTimeout(timeout);
+  useEffect(() => {
+    if (step !== 'checking' || currentProfile === undefined) {
+      return;
     }
 
-    if (profileData) {
+    if (currentProfile) {
       setStep('success');
-      const t = setTimeout(() => {
-        router.replace(postAuthRedirect);
-      }, 1500);
-      return () => clearTimeout(t);
+      return;
     }
 
-    if (authLoading || !isAuthenticated) {
+    if (isSessionLoading || !isAuthenticated) {
       return;
     }
 
     setStep('profile');
-  }, [step, profileData, authLoading, isAuthenticated, postAuthRedirect, router]);
+  }, [step, currentProfile, isSessionLoading, isAuthenticated]);
 
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (step !== 'success') {
+      return;
+    }
+    const t = setTimeout(() => {
+      router.replace(postAuthRedirect);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [step, postAuthRedirect, router]);
 
   const handleCheckingRetry = useCallback(() => {
-    // Clear any outstanding retry timer before creating a new one
     if (retryTimerRef.current !== null) {
       clearTimeout(retryTimerRef.current);
     }
     setCheckingTimedOut(false);
-    // Re-enter the checking step to retrigger the profile query & timeout
     setStep('email');
     retryTimerRef.current = setTimeout(() => setStep('checking'), 100);
   }, []);
 
-  // Clean up the retry timer on unmount
   useEffect(() => {
     return () => {
       if (retryTimerRef.current !== null) {
@@ -347,9 +357,6 @@ export default function LoginScreen() {
 
   const finishAndRedirect = () => {
     setStep('success');
-    setTimeout(() => {
-      router.replace(postAuthRedirect);
-    }, 1500);
   };
 
   const persistMessageNotificationsPreference = async (enabled: boolean) => {
@@ -360,7 +367,7 @@ export default function LoginScreen() {
     try {
       await requestPermissionAndSyncToken(recordPushToken);
     } catch {
-      // Permission denied - continue anyway
+      void 0;
     }
 
     const messageNotificationsEnabled = true;
@@ -471,6 +478,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="Your name"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -483,6 +492,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="e.g. Computer Science"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={major}
                   onChangeText={setMajor}
                   autoCapitalize="words"
@@ -495,6 +506,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="2026"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={year}
                   onChangeText={setYear}
                   keyboardType="number-pad"
@@ -564,6 +577,8 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="you@calpoly.edu"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -580,6 +595,8 @@ export default function LoginScreen() {
                   style={[styles.input, styles.codeInput]}
                   placeholder="12345678"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                   value={code}
                   onChangeText={setCode}
                   keyboardType="number-pad"

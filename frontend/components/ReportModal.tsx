@@ -3,25 +3,38 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { colors } from '../theme/tokens';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import {
+  REPORT_SUBMITTED_ALERT_BODY,
+  REPORT_SUBMITTED_ALERT_TITLE,
+} from '../constants/feedbackMessages';
 
-type ReportReason = 'scam' | 'inappropriate' | 'spam';
+type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
 
 type ReportModalProps = {
   isVisible: boolean;
   onClose: () => void;
   targetId: string;
   targetType: 'listing' | 'profile';
+  /** When set, success uses this instead of a blocking alert (e.g. in-app flash banner). */
+  onReportSuccess?: () => void;
 };
 
 const REASONS: { value: ReportReason; label: string; desc: string }[] = [
   { value: 'scam', label: 'Scam', desc: 'Fraudulent listing or deceptive behavior' },
   { value: 'inappropriate', label: 'Inappropriate', desc: 'Offensive or policy-violating content' },
   { value: 'spam', label: 'Spam', desc: 'Low-quality, duplicate, or irrelevant posting' },
+  { value: 'other', label: 'Other', desc: 'Something else not covered above' },
 ];
 
 const MAX_NOTES = 500;
 
-export function ReportModal({ isVisible, onClose, targetId, targetType }: ReportModalProps) {
+export function ReportModal({
+  isVisible,
+  onClose,
+  targetId,
+  targetType,
+  onReportSuccess,
+}: ReportModalProps) {
   const createReport = useMutation(api.reports.createReport);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
@@ -40,6 +53,10 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
 
   const handleSubmit = async () => {
     if (!reason || submitting) return;
+    if (reason === 'other' && !notes.trim()) {
+      Alert.alert('Notes required', 'Please provide details when selecting "Other" as the reason.');
+      return;
+    }
     setSubmitting(true);
     try {
       await createReport({
@@ -48,7 +65,11 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
         reason,
         notes: notes.trim() ? notes.trim() : undefined,
       });
-      Alert.alert('Report submitted', 'Thanks for helping keep PolyBuys safe.');
+      if (onReportSuccess) {
+        onReportSuccess();
+      } else {
+        Alert.alert(REPORT_SUBMITTED_ALERT_TITLE, REPORT_SUBMITTED_ALERT_BODY);
+      }
       handleClose();
     } catch (err) {
       const msg = String((err as Error)?.message ?? 'Unable to submit report right now.');
@@ -79,7 +100,9 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
             </Pressable>
           ))}
 
-          <Text style={styles.subtitle}>Notes (optional)</Text>
+          <Text style={styles.subtitle}>
+            {reason === 'other' ? 'Notes (required)' : 'Notes (optional)'}
+          </Text>
           <TextInput
             style={styles.notesInput}
             multiline
@@ -87,6 +110,8 @@ export function ReportModal({ isVisible, onClose, targetId, targetType }: Report
             value={notes}
             onChangeText={setNotes}
             placeholder="Add details that help moderators review this report"
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
           />
           <Text style={styles.counter}>
             {notes.length}/{MAX_NOTES}

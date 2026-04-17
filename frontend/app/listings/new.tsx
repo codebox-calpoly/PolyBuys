@@ -5,7 +5,6 @@ import {
   Animated,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,9 +14,10 @@ import { useAction, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
 import ImageUploader from '@/components/ImageUploader';
-import TagInput from '../../components/TagInput';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
 import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
@@ -60,8 +60,9 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function NewListingScreen() {
   const router = useRouter();
+  const { setFlash } = useFlash();
   const createListing = useAction(api.listings.createListing);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
 
@@ -71,17 +72,16 @@ export default function NewListingScreen() {
   const [category, setCategory] = useState<(typeof categories)[number]>('other');
   const [condition, setCondition] = useState<(typeof conditions)[number]>('used');
   const [images, setImages] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isSessionLoading && !isAuthenticated) {
       showAlert('Sign In Required', 'Please sign in to create a listing');
       router.replace('/auth/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isSessionLoading, router]);
 
   async function onSubmit() {
     if (submittingRef.current) {
@@ -141,9 +141,9 @@ export default function NewListingScreen() {
         category,
         condition,
         images,
-        tags,
       });
-      showAlert('Success', 'Listing created.', () => router.replace('/'));
+      setFlash('Listing created.');
+      router.replace('/');
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
       showAlert(actionError.title, actionError.message);
@@ -153,7 +153,7 @@ export default function NewListingScreen() {
     }
   }
 
-  if (isLoading) {
+  if (isSessionLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -174,17 +174,13 @@ export default function NewListingScreen() {
   const isCancelDisabled = isSubmitting || hasPendingUploads;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
-      <Animated.View style={[styles.formCard, entranceStyle]}>
-        <Text style={styles.eyebrow}>Create Listing</Text>
-        <Text style={styles.title}>Add your item</Text>
-        <Text style={styles.subtitle}>
-          Make it clear, detailed, and easy for students to trust.
-        </Text>
+    <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
+      <Animated.View style={[styles.formBlock, entranceStyle]}>
+        <ScreenHeader
+          title="Add your item"
+          subtitle="Make it clear, detailed, and easy for students to trust."
+          animate={false}
+        />
 
         <View style={styles.section}>
           <Text style={styles.label}>Photos</Text>
@@ -221,6 +217,8 @@ export default function NewListingScreen() {
             placeholder="Enter listing title"
             accessibilityLabel="Listing title"
             placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
             maxLength={100}
           />
         </View>
@@ -233,6 +231,8 @@ export default function NewListingScreen() {
             onChangeText={setDescription}
             placeholder="Describe your item"
             placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
             multiline
             numberOfLines={4}
           />
@@ -254,6 +254,8 @@ export default function NewListingScreen() {
               }}
               placeholder="15"
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               keyboardType="decimal-pad"
             />
           </View>
@@ -310,11 +312,6 @@ export default function NewListingScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Tags</Text>
-          <TagInput tags={tags} onChange={setTags} />
-        </View>
-
         <View style={styles.buttonContainer}>
           <Pressable
             style={({ pressed }) => [
@@ -348,29 +345,25 @@ export default function NewListingScreen() {
           </Pressable>
         </View>
       </Animated.View>
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 26,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  formCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.muted,
-    padding: spacing.lg,
+  formBlock: {
+    gap: spacing.md,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -381,22 +374,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 16,
     color: colors.text,
-  },
-  eyebrow: {
-    ...typography.footnoteMed,
-    color: colors.textDark,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  title: {
-    ...typography.title1,
-    marginBottom: 6,
-    color: colors.textDark,
-  },
-  subtitle: {
-    ...typography.subhead,
-    color: colors.text,
-    marginBottom: 16,
   },
   section: {
     marginBottom: spacing.lg,
@@ -412,9 +389,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
     ...typography.body,
     color: colors.textDark,
@@ -427,9 +404,9 @@ const styles = StyleSheet.create({
   priceInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.white,
   },
   pricePrefix: {
@@ -482,10 +459,10 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: colors.primary,
-    padding: 15,
-    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 45,
+    minHeight: 48,
     justifyContent: 'center',
   },
   submitButtonDisabled: {
@@ -497,12 +474,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: {
-    padding: 14,
-    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
   },
   cancelButtonDisabled: {
     opacity: 0.6,

@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-native';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { ConvexReactClient } from 'convex/react';
 import { useConvexAuth } from 'convex/react';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
@@ -7,8 +7,23 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
+import { FlashProvider } from '../contexts/FlashContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { colors, typography } from '../theme/tokens';
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.surface,
+    card: colors.surface,
+    text: colors.textDark,
+    border: colors.border,
+    notification: colors.category,
+  },
+};
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
 export const unstable_settings = {
@@ -45,58 +60,70 @@ function PushNotificationsBootstrap() {
 }
 
 function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <SafeAreaProvider>
       <ConvexAuthProvider client={convex} storage={storage}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <PushNotificationsBootstrap />
-          <StatusBar style="auto" />
-          <Stack
-            screenOptions={{
-              headerBackButtonDisplayMode: 'minimal',
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
-            <Stack.Screen
-              name="listings/[id]"
-              options={{ title: 'Listing Details', headerBackTitle: 'Back' }}
-            />
-            <Stack.Screen
-              name="listings/new"
-              options={{ title: 'Create Listing', headerBackTitle: 'Back' }}
-            />
-            <Stack.Screen
-              name="listings/[id]/edit"
-              options={{ title: 'Edit Listing', headerBackTitle: 'Back' }}
-            />
-            <Stack.Screen
-              name="messages/[id]"
-              options={{ title: 'Messages', headerBackTitle: 'Back' }}
-            />
-            <Stack.Screen
-              name="conversations/[id]"
-              options={{ title: 'Conversation', headerBackTitle: 'Inbox' }}
-            />
-            <Stack.Screen
-              name="auth/login"
-              options={{
-                title: 'Sign In',
-                headerBackTitle: 'Back',
-                headerShown: Platform.OS !== 'web',
+        <ThemeProvider value={navigationTheme}>
+          <FlashProvider>
+            <PushNotificationsBootstrap />
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerBackButtonDisplayMode: 'minimal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTintColor: colors.textDark,
+                headerTitleStyle: {
+                  ...typography.heading,
+                  color: colors.textDark,
+                },
+                headerShadowVisible: false,
+                contentStyle: { backgroundColor: colors.surface },
               }}
-            />
-            <Stack.Screen
-              name="profile/edit"
-              options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
-            />
-            <Stack.Screen
-              name="profile/[userId]"
-              options={{ title: 'Profile', headerBackTitle: 'Back' }}
-            />
-            <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
-          </Stack>
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
+              <Stack.Screen
+                name="listings/[id]"
+                options={{ title: 'Listing Details', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen
+                name="listings/new"
+                options={{ title: 'Create Listing', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen
+                name="listings/[id]/edit"
+                options={{ title: 'Edit Listing', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen
+                name="messages/[id]"
+                options={{ title: 'Messages', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen
+                name="conversations/[id]"
+                options={{ title: 'Conversation', headerBackTitle: 'Inbox' }}
+              />
+              <Stack.Screen
+                name="auth/login"
+                options={{
+                  title: 'Sign In',
+                  headerBackTitle: 'Back',
+                  headerShown: Platform.OS !== 'web',
+                }}
+              />
+              <Stack.Screen
+                name="account-settings"
+                options={{ title: 'Settings', headerBackTitle: 'Profile' }}
+              />
+              <Stack.Screen
+                name="profile/edit"
+                options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
+              />
+              <Stack.Screen
+                name="profile/[userId]"
+                options={{ title: 'Profile', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
+            </Stack>
+          </FlashProvider>
         </ThemeProvider>
       </ConvexAuthProvider>
     </SafeAreaProvider>

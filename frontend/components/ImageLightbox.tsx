@@ -9,6 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '../theme/tokens';
 
 interface ImageLightboxProps {
@@ -26,16 +27,15 @@ export default function ImageLightbox({
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
-  // Sync index when the lightbox opens with a new initialIndex
   useEffect(() => {
     if (visible) {
       setCurrentIndex(initialIndex);
     }
   }, [visible, initialIndex]);
 
-  // Auto-focus the overlay on web so keyboard events are captured immediately
   useEffect(() => {
     if (visible && Platform.OS === 'web') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,7 +59,6 @@ export default function ImageLightbox({
     if (hasNext) setCurrentIndex((i) => i + 1);
   };
 
-  // Handle keyboard navigation on web
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
     if (e.key === 'ArrowLeft') goToPrevious();
@@ -79,16 +78,18 @@ export default function ImageLightbox({
   const content = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <View ref={overlayRef as any} style={styles.overlay} {...(webProps as any)}>
-      {/* Backdrop */}
       <Pressable
         style={styles.backdrop}
         onPress={onClose}
         accessibilityLabel="Close image viewer"
       />
 
-      {/* Close button */}
       <Pressable
-        style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
+        style={({ pressed }) => [
+          styles.closeButton,
+          { top: Math.max(insets.top + 8, 20) },
+          pressed && styles.closeButtonPressed,
+        ]}
         onPress={onClose}
         accessibilityLabel="Close"
         accessibilityRole="button"
@@ -96,7 +97,6 @@ export default function ImageLightbox({
         <Text style={styles.closeButtonText}>✕</Text>
       </Pressable>
 
-      {/* Image */}
       <View
         style={[
           styles.imageContainer,
@@ -120,7 +120,6 @@ export default function ImageLightbox({
         )}
       </View>
 
-      {/* Navigation arrows */}
       {hasMultiple && (
         <>
           <Pressable
@@ -154,9 +153,8 @@ export default function ImageLightbox({
         </>
       )}
 
-      {/* Indicators */}
       {hasMultiple && (
-        <View style={styles.indicators}>
+        <View style={[styles.indicators, { bottom: Math.max(insets.bottom + 16, 24) }]}>
           <Text style={styles.counterText}>
             {currentIndex + 1} / {images.length}
           </Text>
@@ -176,7 +174,6 @@ export default function ImageLightbox({
     </View>
   );
 
-  // On web use a plain portal-style overlay; on native use Modal
   if (Platform.OS === 'web') {
     return content;
   }
@@ -207,7 +204,6 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 16,
     right: 16,
     zIndex: 10,
     width: 44,
@@ -275,7 +271,6 @@ const styles = StyleSheet.create({
   },
   indicators: {
     position: 'absolute',
-    bottom: 24,
     zIndex: 10,
     alignItems: 'center',
     gap: spacing.sm,
