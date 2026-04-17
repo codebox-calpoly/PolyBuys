@@ -103,8 +103,8 @@ export default defineSchema({
     .index('by_listing', ['listingId']),
 
   reports: defineTable({
-    targetId: v.string(), // Can be listing or profile ID
-    targetType: v.union(v.literal('listing'), v.literal('profile')),
+    targetId: v.string(), // Can be listing, profile, or conversation ID
+    targetType: v.union(v.literal('listing'), v.literal('profile'), v.literal('conversation')),
     reporterId: v.string(), // Auth identity subject
     reason: v.union(
       v.literal('scam'),
@@ -128,6 +128,10 @@ export default defineSchema({
     buyerLastReadAt: v.number(),
     sellerLastReadAt: v.number(),
     lastMessageId: v.optional(v.id('messages')),
+    buyerInboxHiddenAt: v.optional(v.number()),
+    sellerInboxHiddenAt: v.optional(v.number()),
+    buyerInboxHiddenReason: v.optional(v.union(v.literal('deleted'), v.literal('reported'))),
+    sellerInboxHiddenReason: v.optional(v.union(v.literal('deleted'), v.literal('reported'))),
   })
     .index('by_listing_buyer_seller', ['listingId', 'buyerId', 'sellerId'])
     .index('by_buyer', ['buyerId', 'updatedAt'])

@@ -10,6 +10,11 @@ export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
 
+const MAX_REPORTS_PER_DAY = 10;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_REPORT_NOTES_LENGTH = 500;
+type ConversationInboxHiddenReason = 'deleted' | 'reported';
+
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
 }
@@ -56,6 +61,24 @@ export const internalSendMessage = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    const hiddenFieldPatch =
+      conversation.buyerId === args.recipientId
+        ? conversation.buyerInboxHiddenAt !== undefined &&
+          conversation.buyerInboxHiddenReason === 'reported'
+          ? {}
+          : { buyerInboxHiddenAt: undefined, buyerInboxHiddenReason: undefined }
+        : conversation.sellerId === args.recipientId
+          ? conversation.sellerInboxHiddenAt !== undefined &&
+            conversation.sellerInboxHiddenReason === 'reported'
+            ? {}
+            : { sellerInboxHiddenAt: undefined, sellerInboxHiddenReason: undefined }
+          : {};
+
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
       listingId: args.listingId,
@@ -70,6 +93,7 @@ export const internalSendMessage = internalMutation({
     await ctx.db.patch(args.conversationId, {
       updatedAt: now,
       lastMessageId: messageId,
+      ...hiddenFieldPatch,
     });
 
     return { messageId };
@@ -342,6 +366,12 @@ export const listUserConversations = query({
       .filter((conversation): conversation is Doc<'conversations'> => conversation !== null)
       .filter((conversation) => conversation.buyerId === userId || conversation.sellerId === userId)
       .filter((conversation) => conversation.lastMessageId !== undefined)
+      .filter((conversation) => {
+        if (conversation.buyerId === userId) {
+          return conversation.buyerInboxHiddenAt === undefined;
+        }
+        return conversation.sellerInboxHiddenAt === undefined;
+      })
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     // One conversation per listing (stable IDs, no sibling merging needed)
@@ -743,6 +773,112 @@ export const markMessagesAsRead = mutation({
     );
 
     return { ok: true };
+  },
+});
+
+export const hideConversationFromInbox = mutation({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+  },
+  handler: async (ctx, args) => {
+    const { conversationScope } = await requireConversationScope(ctx, args);
+    const now = Date.now();
+
+    await Promise.all(
+      conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
+        if (isBuyer) {
+          await ctx.db.patch(conversation._id, {
+            buyerInboxHiddenAt: now,
+            buyerInboxHiddenReason: 'deleted' satisfies ConversationInboxHiddenReason,
+          });
+        } else if (isSeller) {
+          await ctx.db.patch(conversation._id, {
+            sellerInboxHiddenAt: now,
+            sellerInboxHiddenReason: 'deleted' satisfies ConversationInboxHiddenReason,
+          });
+        }
+      })
+    );
+
+    return { ok: true };
+  },
+});
+
+export const reportConversation = mutation({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    reason: v.union(
+      v.literal('scam'),
+      v.literal('inappropriate'),
+      v.literal('spam'),
+      v.literal('other')
+    ),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { userId, conversationScope } = await requireConversationScope(ctx, args);
+    const trimmedNotes = args.notes?.trim();
+
+    if (trimmedNotes && trimmedNotes.length > MAX_REPORT_NOTES_LENGTH) {
+      throw new ConvexError(`Notes must be ${MAX_REPORT_NOTES_LENGTH} characters or less`);
+    }
+
+    if (args.reason === 'other' && (!trimmedNotes || trimmedNotes.length === 0)) {
+      throw new ConvexError('Please provide details when selecting "Other" as the reason');
+    }
+
+    const existingReport = await ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) =>
+        q.eq('targetId', args.conversationId).eq('targetType', 'conversation')
+      )
+      .filter((q) => q.eq(q.field('reporterId'), userId))
+      .first();
+
+    if (existingReport) {
+      throw new ConvexError('You have already reported this conversation');
+    }
+
+    const oneDayAgo = Date.now() - ONE_DAY_MS;
+    const recentReports = await ctx.db
+      .query('reports')
+      .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
+      .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
+      .collect();
+
+    if (recentReports.length >= MAX_REPORTS_PER_DAY) {
+      throw new ConvexError('Report limit reached. Please try again later.');
+    }
+
+    const reportId = await ctx.db.insert('reports', {
+      targetId: args.conversationId,
+      targetType: 'conversation',
+      reporterId: userId,
+      reason: args.reason,
+      notes: trimmedNotes,
+      createdAt: Date.now(),
+    });
+
+    const now = Date.now();
+    await Promise.all(
+      conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
+        if (isBuyer) {
+          await ctx.db.patch(conversation._id, {
+            buyerInboxHiddenAt: now,
+            buyerInboxHiddenReason: 'reported' satisfies ConversationInboxHiddenReason,
+          });
+        } else if (isSeller) {
+          await ctx.db.patch(conversation._id, {
+            sellerInboxHiddenAt: now,
+            sellerInboxHiddenReason: 'reported' satisfies ConversationInboxHiddenReason,
+          });
+        }
+      })
+    );
+
+    return { reportId };
   },
 });
 
