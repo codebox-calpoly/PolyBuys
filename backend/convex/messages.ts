@@ -14,6 +14,13 @@ const MAX_REPORTS_PER_DAY = 10;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_REPORT_NOTES_LENGTH = 500;
 type ConversationInboxHiddenReason = 'deleted' | 'reported';
+type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
+const REPORT_REASON_VALIDATOR = v.union(
+  v.literal('scam'),
+  v.literal('inappropriate'),
+  v.literal('spam'),
+  v.literal('other')
+);
 
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
@@ -644,6 +651,87 @@ async function collectMessagesForConversationScope(
   return messageBatches.flat().sort((left, right) => left.createdAt - right.createdAt);
 }
 
+function normalizeAndValidateReportNotes(reason: ReportReason, notes?: string) {
+  const trimmedNotes = notes?.trim();
+  if (trimmedNotes && trimmedNotes.length > MAX_REPORT_NOTES_LENGTH) {
+    throw new ConvexError(`Notes must be ${MAX_REPORT_NOTES_LENGTH} characters or less`);
+  }
+
+  if (reason === 'other' && (!trimmedNotes || trimmedNotes.length === 0)) {
+    throw new ConvexError('Please provide details when selecting "Other" as the reason');
+  }
+
+  return trimmedNotes;
+}
+
+async function enforceReportRateLimit(ctx: MutationCtx, userId: Id<'users'>) {
+  const oneDayAgo = Date.now() - ONE_DAY_MS;
+  const recentReports = await ctx.db
+    .query('reports')
+    .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
+    .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
+    .collect();
+
+  if (recentReports.length >= MAX_REPORTS_PER_DAY) {
+    throw new ConvexError('Report limit reached. Please try again later.');
+  }
+}
+
+async function hideConversationForParticipant(
+  ctx: MutationCtx,
+  conversation: Doc<'conversations'>,
+  userId: Id<'users'>,
+  reason: ConversationInboxHiddenReason,
+  hiddenAt: number
+) {
+  if (conversation.buyerId === userId) {
+    await ctx.db.patch(conversation._id, {
+      buyerInboxHiddenAt: hiddenAt,
+      buyerInboxHiddenReason: reason,
+    });
+    return;
+  }
+
+  if (conversation.sellerId === userId) {
+    await ctx.db.patch(conversation._id, {
+      sellerInboxHiddenAt: hiddenAt,
+      sellerInboxHiddenReason: reason,
+    });
+    return;
+  }
+
+  throw new ConvexError('Forbidden');
+}
+
+async function updateConversationAfterDeletedMessage(
+  ctx: MutationCtx,
+  conversation: Doc<'conversations'>,
+  deletedMessageId: Id<'messages'>
+) {
+  if (conversation.lastMessageId !== deletedMessageId) {
+    return;
+  }
+
+  const latestRemainingMessage = await ctx.db
+    .query('messages')
+    .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
+    .order('desc')
+    .first();
+
+  if (!latestRemainingMessage) {
+    await ctx.db.patch(conversation._id, {
+      lastMessageId: undefined,
+      updatedAt: conversation.createdAt,
+    });
+    return;
+  }
+
+  await ctx.db.patch(conversation._id, {
+    lastMessageId: latestRemainingMessage._id,
+    updatedAt: latestRemainingMessage.createdAt,
+  });
+}
+
 // Internal: create conversation if not exists (used by createConversationAndSendFirstMessage)
 export const internalGetOrCreateConversation = internalMutation({
   args: {
@@ -776,32 +864,103 @@ export const markMessagesAsRead = mutation({
   },
 });
 
+export const deleteMessage = mutation({
+  args: {
+    messageId: v.id('messages'),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new ConvexError('Message not found');
+    }
+
+    const { userId, conversationScope } = await requireConversationScope(ctx, {
+      conversationId: message.conversationId,
+    });
+    const conversation = conversationScope[0]?.conversation;
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    if (message.senderId === userId) {
+      throw new ConvexError('You can only delete messages from the other participant');
+    }
+
+    await ctx.db.delete(args.messageId);
+    await updateConversationAfterDeletedMessage(ctx, conversation, args.messageId);
+    return { ok: true };
+  },
+});
+
 export const hideConversationFromInbox = mutation({
   args: {
     conversationId: v.id('conversations'),
     siblingConversationIds: v.optional(v.array(v.id('conversations'))),
   },
   handler: async (ctx, args) => {
-    const { conversationScope } = await requireConversationScope(ctx, args);
+    const { conversationScope, userId } = await requireConversationScope(ctx, args);
     const now = Date.now();
 
     await Promise.all(
-      conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
-        if (isBuyer) {
-          await ctx.db.patch(conversation._id, {
-            buyerInboxHiddenAt: now,
-            buyerInboxHiddenReason: 'deleted' satisfies ConversationInboxHiddenReason,
-          });
-        } else if (isSeller) {
-          await ctx.db.patch(conversation._id, {
-            sellerInboxHiddenAt: now,
-            sellerInboxHiddenReason: 'deleted' satisfies ConversationInboxHiddenReason,
-          });
-        }
-      })
+      conversationScope.map(({ conversation }) =>
+        hideConversationForParticipant(ctx, conversation, userId, 'deleted', now)
+      )
     );
 
     return { ok: true };
+  },
+});
+
+export const reportMessage = mutation({
+  args: {
+    messageId: v.id('messages'),
+    reason: REPORT_REASON_VALIDATOR,
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new ConvexError('Message not found');
+    }
+
+    const { userId, conversationScope } = await requireConversationScope(ctx, {
+      conversationId: message.conversationId,
+    });
+    const conversation = conversationScope[0]?.conversation;
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    if (message.senderId === userId) {
+      throw new ConvexError('You can only report messages from the other participant');
+    }
+
+    const trimmedNotes = normalizeAndValidateReportNotes(args.reason, args.notes);
+
+    const existingReport = await ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) => q.eq('targetId', args.messageId).eq('targetType', 'message'))
+      .filter((q) => q.eq(q.field('reporterId'), userId))
+      .first();
+
+    if (existingReport) {
+      throw new ConvexError('You have already reported this message');
+    }
+
+    await enforceReportRateLimit(ctx, userId);
+
+    const reportId = await ctx.db.insert('reports', {
+      targetId: args.messageId,
+      targetType: 'message',
+      reporterId: userId,
+      reason: args.reason,
+      notes: trimmedNotes,
+      createdAt: Date.now(),
+    });
+
+    await hideConversationForParticipant(ctx, conversation, userId, 'reported', Date.now());
+
+    return { reportId };
   },
 });
 
@@ -809,25 +968,12 @@ export const reportConversation = mutation({
   args: {
     conversationId: v.id('conversations'),
     siblingConversationIds: v.optional(v.array(v.id('conversations'))),
-    reason: v.union(
-      v.literal('scam'),
-      v.literal('inappropriate'),
-      v.literal('spam'),
-      v.literal('other')
-    ),
+    reason: REPORT_REASON_VALIDATOR,
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { userId, conversationScope } = await requireConversationScope(ctx, args);
-    const trimmedNotes = args.notes?.trim();
-
-    if (trimmedNotes && trimmedNotes.length > MAX_REPORT_NOTES_LENGTH) {
-      throw new ConvexError(`Notes must be ${MAX_REPORT_NOTES_LENGTH} characters or less`);
-    }
-
-    if (args.reason === 'other' && (!trimmedNotes || trimmedNotes.length === 0)) {
-      throw new ConvexError('Please provide details when selecting "Other" as the reason');
-    }
+    const trimmedNotes = normalizeAndValidateReportNotes(args.reason, args.notes);
 
     const existingReport = await ctx.db
       .query('reports')
@@ -841,16 +987,7 @@ export const reportConversation = mutation({
       throw new ConvexError('You have already reported this conversation');
     }
 
-    const oneDayAgo = Date.now() - ONE_DAY_MS;
-    const recentReports = await ctx.db
-      .query('reports')
-      .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
-      .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
-      .collect();
-
-    if (recentReports.length >= MAX_REPORTS_PER_DAY) {
-      throw new ConvexError('Report limit reached. Please try again later.');
-    }
+    await enforceReportRateLimit(ctx, userId);
 
     const reportId = await ctx.db.insert('reports', {
       targetId: args.conversationId,
@@ -863,19 +1000,9 @@ export const reportConversation = mutation({
 
     const now = Date.now();
     await Promise.all(
-      conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
-        if (isBuyer) {
-          await ctx.db.patch(conversation._id, {
-            buyerInboxHiddenAt: now,
-            buyerInboxHiddenReason: 'reported' satisfies ConversationInboxHiddenReason,
-          });
-        } else if (isSeller) {
-          await ctx.db.patch(conversation._id, {
-            sellerInboxHiddenAt: now,
-            sellerInboxHiddenReason: 'reported' satisfies ConversationInboxHiddenReason,
-          });
-        }
-      })
+      conversationScope.map(({ conversation }) =>
+        hideConversationForParticipant(ctx, conversation, userId, 'reported', now)
+      )
     );
 
     return { reportId };

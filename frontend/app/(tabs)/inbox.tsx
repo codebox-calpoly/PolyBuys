@@ -159,15 +159,25 @@ function ConversationRow({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dx) > 8 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          const isHorizontal =
+            Math.abs(gestureState.dx) > 10 &&
+            Math.abs(gestureState.dy) < 12 &&
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4;
+          if (!isHorizontal) {
+            return false;
+          }
+          return gestureState.dx < -8 || gestureState.dx > 8;
+        },
         onPanResponderGrant: () => {
           translateX.stopAnimation((currentValue) => {
             swipeStartOffset.current = currentValue;
           });
         },
         onPanResponderMove: (_, gestureState) => {
+          if (Math.abs(gestureState.dy) > Math.abs(gestureState.dx)) {
+            return;
+          }
           const next = Math.max(
             -SWIPE_LEFT_ACTION_WIDTH,
             Math.min(SWIPE_RIGHT_MAX_TRANSLATE, swipeStartOffset.current + gestureState.dx)

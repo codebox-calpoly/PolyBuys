@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -15,21 +17,116 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { Id } from 'convex/_generated/dataModel';
+import { Doc, Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ProfileAvatar from '../../components/ProfileAvatar';
+import { ReportModal } from '../../components/ReportModal';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
+const MESSAGE_ACTION_PANEL_WIDTH = 148;
+const MESSAGE_ACTION_BUTTON_WIDTH = MESSAGE_ACTION_PANEL_WIDTH / 2;
+const MESSAGE_ACTION_BUTTON_HEIGHT = 52;
 
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(timestamp));
+}
+
+function SwipeableMessageRow({
+  message,
+  isSent,
+  receiptLabel,
+  activeMessageActionId,
+  setActiveMessageActionId,
+  onDelete,
+  onReport,
+}: {
+  message: Doc<'messages'>;
+  isSent: boolean;
+  receiptLabel: string;
+  activeMessageActionId: Id<'messages'> | null;
+  setActiveMessageActionId: (messageId: Id<'messages'> | null) => void;
+  onDelete: (messageId: Id<'messages'>) => void;
+  onReport: (messageId: Id<'messages'>) => void;
+}) {
+  const isActionOpen = !isSent && activeMessageActionId === message._id;
+
+  const handleDeletePress = useCallback(() => {
+    setActiveMessageActionId(null);
+    onDelete(message._id);
+  }, [message._id, onDelete, setActiveMessageActionId]);
+
+  const handleReportPress = useCallback(() => {
+    setActiveMessageActionId(null);
+    onReport(message._id);
+  }, [message._id, onReport, setActiveMessageActionId]);
+
+  const handleMessagePress = useCallback(() => {
+    if (isActionOpen) {
+      setActiveMessageActionId(null);
+    }
+  }, [isActionOpen, setActiveMessageActionId]);
+
+  const handleMessageLongPress = useCallback(() => {
+    if (!isSent) {
+      setActiveMessageActionId(message._id);
+    }
+  }, [isSent, message._id, setActiveMessageActionId]);
+
+  return (
+    <View style={[styles.messageRow, isSent ? styles.messageRowSent : styles.messageRowReceived]}>
+      <Pressable
+        onPress={handleMessagePress}
+        onLongPress={handleMessageLongPress}
+        delayLongPress={260}
+        style={[styles.bubble, isSent ? styles.bubbleSent : styles.bubbleReceived]}
+        accessibilityRole="button"
+        accessibilityLabel={isSent ? 'Sent message' : 'Received message'}
+        accessibilityHint={
+          isSent ? 'Message from you' : 'Long press to show report and delete actions'
+        }
+      >
+        <Text
+          style={[styles.messageText, isSent ? styles.messageTextSent : styles.messageTextReceived]}
+        >
+          {message.body}
+        </Text>
+        <Text
+          style={[styles.messageMeta, isSent ? styles.messageMetaSent : styles.messageMetaReceived]}
+        >
+          {isSent
+            ? `${formatMessageTimestamp(message.createdAt)} • ${receiptLabel}`
+            : formatMessageTimestamp(message.createdAt)}
+        </Text>
+      </Pressable>
+      {isActionOpen ? (
+        <View style={styles.messageActionPanel}>
+          <Pressable
+            style={[styles.messageActionButton, styles.messageReportActionButton]}
+            onPress={handleReportPress}
+            accessibilityRole="button"
+            accessibilityLabel="Report message"
+          >
+            <Text style={styles.messageActionLabel}>Report</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.messageActionButton, styles.messageDeleteActionButton]}
+            onPress={handleDeletePress}
+            accessibilityRole="button"
+            accessibilityLabel="Delete message"
+          >
+            <Text style={styles.messageActionLabel}>Delete</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export default function ConversationDetailScreen() {
@@ -43,11 +140,15 @@ export default function ConversationDetailScreen() {
   const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
+  const deleteMessage = useMutation(api.messages.deleteMessage);
   const blockUser = useMutation(api.blocks.blockUser);
   const unblockUser = useMutation(api.blocks.unblockUser);
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [reportingMessageId, setReportingMessageId] = useState<Id<'messages'> | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<Id<'messages'> | null>(null);
+  const [activeMessageActionId, setActiveMessageActionId] = useState<Id<'messages'> | null>(null);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
   const isMarkingReadRef = useRef(false);
@@ -249,6 +350,27 @@ export default function ConversationDetailScreen() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: Id<'messages'>) => {
+    if (deletingMessageId === messageId) {
+      return;
+    }
+
+    try {
+      setDeletingMessageId(messageId);
+      await deleteMessage({ messageId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to delete this message.';
+      Alert.alert('Could not delete message', message);
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
+  const handleBackgroundPress = useCallback(() => {
+    setActiveMessageActionId(null);
+    Keyboard.dismiss();
+  }, []);
+
   if (!conversationId) {
     return (
       <View style={styles.centeredState}>
@@ -293,147 +415,165 @@ export default function ConversationDetailScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
-    >
-      <Stack.Screen
-        options={{
-          title: headerConversationTitle,
-          headerBackTitle: 'Inbox',
-          headerRight: otherUserId
-            ? () => (
-                <Pressable
-                  onPress={handleBlockPress}
-                  style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
-                >
-                  <Text style={styles.headerActionText}>
-                    {isBlockingOther === true ? 'Unblock' : 'Block'}
-                  </Text>
-                </Pressable>
-              )
-            : undefined,
-        }}
-      />
+    <TouchableWithoutFeedback onPress={handleBackgroundPress} accessible={false}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+      >
+        <Stack.Screen
+          options={{
+            title: headerConversationTitle,
+            headerBackTitle: 'Inbox',
+            headerRight: otherUserId
+              ? () => (
+                  <Pressable
+                    onPress={handleBlockPress}
+                    style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={styles.headerActionText}>
+                      {isBlockingOther === true ? 'Unblock' : 'Block'}
+                    </Text>
+                  </Pressable>
+                )
+              : undefined,
+          }}
+        />
 
-      <View style={styles.headerCard}>
-        <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
-        <View style={styles.headerTextWrap}>
-          <Text style={styles.headerName} numberOfLines={1}>
-            {headerOtherUserName}
-          </Text>
-          <Text style={styles.headerListing} numberOfLines={1}>
-            {headerListingTitle}
-          </Text>
-        </View>
-        {listingId ? (
-          <Pressable
-            onPress={() => router.push(`/listings/${listingId}`)}
-            style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="View listing"
-          >
-            <Text style={styles.headerListingLinkText}>View listing</Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      <SafetyBanner />
-
-      <FlatList
-        ref={listRef}
-        data={messages ?? []}
-        keyExtractor={(item) => item._id}
-        style={styles.messagesList}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.messagesContent}
-        keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => {
-          const isSent = currentUserId !== null && item.senderId === currentUserId;
-          const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
-          return (
-            <View
-              style={[
-                styles.messageRow,
-                isSent ? styles.messageRowSent : styles.messageRowReceived,
-              ]}
-            >
-              <View style={[styles.bubble, isSent ? styles.bubbleSent : styles.bubbleReceived]}>
-                <Text
-                  style={[
-                    styles.messageText,
-                    isSent ? styles.messageTextSent : styles.messageTextReceived,
-                  ]}
-                >
-                  {item.body}
-                </Text>
-                <Text
-                  style={[
-                    styles.messageMeta,
-                    isSent ? styles.messageMetaSent : styles.messageMetaReceived,
-                  ]}
-                >
-                  {isSent
-                    ? `${formatMessageTimestamp(item.createdAt)} • ${receiptLabel}`
-                    : formatMessageTimestamp(item.createdAt)}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No messages yet. Say hello.</Text>
-          </View>
-        }
-      />
-
-      <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-        {isBlockingOther === true ? (
-          <View style={styles.blockedComposer}>
-            <Text style={styles.blockedText}>
-              You have blocked this user. Tap Unblock above to send messages.
+        <View style={styles.headerCard}>
+          <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {headerOtherUserName}
+            </Text>
+            <Text style={styles.headerListing} numberOfLines={1}>
+              {headerListingTitle}
             </Text>
           </View>
-        ) : isBlockedByOther === true ? (
-          <View style={styles.blockedComposer}>
-            <Text style={styles.blockedText}>
-              You cannot send messages in this conversation because this user has blocked you.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <TextInput
-              value={messageBody}
-              onChangeText={setMessageBody}
-              placeholder="Type a message..."
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              cursorColor={colors.primary}
-              style={styles.input}
-              multiline
-              maxLength={2000}
-              editable={!isSending}
-              textAlignVertical="top"
-            />
+          {listingId ? (
             <Pressable
-              onPress={() => {
-                void onSend();
-              }}
-              style={({ pressed }) => [
-                styles.sendButton,
-                (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-              disabled={!messageBody.trim() || isSending}
+              onPress={() => router.push(`/listings/${listingId}`)}
+              style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="View listing"
             >
-              <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+              <Text style={styles.headerListingLinkText}>View listing</Text>
             </Pressable>
-          </>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+          ) : null}
+        </View>
+
+        <SafetyBanner />
+
+        <FlatList
+          ref={listRef}
+          data={messages ?? []}
+          keyExtractor={(item) => item._id}
+          style={styles.messagesList}
+          scrollEnabled={false}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.messagesContent}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            setActiveMessageActionId(null);
+          }}
+          renderItem={({ item }) => {
+            const isSent = currentUserId !== null && item.senderId === currentUserId;
+            const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
+            return (
+              <SwipeableMessageRow
+                message={item}
+                isSent={isSent}
+                receiptLabel={receiptLabel}
+                activeMessageActionId={activeMessageActionId}
+                setActiveMessageActionId={setActiveMessageActionId}
+                onDelete={(messageId) => {
+                  Alert.alert('Delete message', 'Remove this message from the conversation?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        void handleDeleteMessage(messageId);
+                      },
+                    },
+                  ]);
+                }}
+                onReport={(messageId) => {
+                  Alert.alert(
+                    'Report message',
+                    'This will submit a report and hide this conversation from your inbox.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Report',
+                        style: 'destructive',
+                        onPress: () => setReportingMessageId(messageId),
+                      },
+                    ]
+                  );
+                }}
+              />
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No messages yet. Say hello.</Text>
+            </View>
+          }
+        />
+
+        <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+          {isBlockingOther === true ? (
+            <View style={styles.blockedComposer}>
+              <Text style={styles.blockedText}>
+                You have blocked this user. Tap Unblock above to send messages.
+              </Text>
+            </View>
+          ) : isBlockedByOther === true ? (
+            <View style={styles.blockedComposer}>
+              <Text style={styles.blockedText}>
+                You cannot send messages in this conversation because this user has blocked you.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <TextInput
+                value={messageBody}
+                onChangeText={setMessageBody}
+                placeholder="Type a message..."
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                style={styles.input}
+                multiline
+                maxLength={2000}
+                editable={!isSending}
+                textAlignVertical="top"
+              />
+              <Pressable
+                onPress={() => {
+                  void onSend();
+                }}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                disabled={!messageBody.trim() || isSending}
+              >
+                <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+        <ReportModal
+          isVisible={reportingMessageId !== null}
+          onClose={() => setReportingMessageId(null)}
+          targetId={reportingMessageId ? String(reportingMessageId) : ''}
+          targetType="message"
+        />
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -507,15 +647,51 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    maxWidth: '92%',
+    gap: 0,
   },
   messageRowSent: {
-    justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
+    maxWidth: '82%',
   },
   messageRowReceived: {
-    justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
+  },
+  messageActionPanel: {
+    width: MESSAGE_ACTION_PANEL_WIDTH,
+    height: MESSAGE_ACTION_BUTTON_HEIGHT,
+    flexDirection: 'row',
+    marginLeft: 0,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
+    overflow: 'hidden',
+  },
+  messageActionButton: {
+    width: MESSAGE_ACTION_BUTTON_WIDTH,
+    height: MESSAGE_ACTION_BUTTON_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageReportActionButton: {
+    backgroundColor: '#4a4a4a',
+  },
+  messageDeleteActionButton: {
+    backgroundColor: '#c62828',
+  },
+  messageActionLabel: {
+    ...typography.footnoteMed,
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.white,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   bubble: {
-    maxWidth: '82%',
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

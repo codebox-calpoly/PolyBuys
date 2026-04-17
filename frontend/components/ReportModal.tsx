@@ -15,7 +15,7 @@ type ReportModalProps = {
   isVisible: boolean;
   onClose: () => void;
   targetId: string;
-  targetType: 'listing' | 'profile' | 'conversation';
+  targetType: 'listing' | 'profile' | 'conversation' | 'message';
   /** When set, success uses this instead of a blocking alert (e.g. in-app flash banner). */
   onReportSuccess?: () => void;
 };
@@ -38,6 +38,7 @@ export function ReportModal({
 }: ReportModalProps) {
   const createReport = useMutation(api.reports.createReport);
   const reportConversation = useMutation(api.messages.reportConversation);
+  const reportMessage = useMutation(api.messages.reportMessage);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +66,12 @@ export function ReportModal({
       if (targetType === 'conversation') {
         await reportConversation({
           conversationId: targetId as Id<'conversations'>,
+          reason,
+          notes: trimmedNotes,
+        });
+      } else if (targetType === 'message') {
+        await reportMessage({
+          messageId: targetId as Id<'messages'>,
           reason,
           notes: trimmedNotes,
         });
@@ -96,9 +103,11 @@ export function ReportModal({
           <Text style={styles.title}>
             {targetType === 'profile'
               ? 'Report profile'
-              : targetType === 'conversation'
+              : targetType === 'message'
                 ? 'Report message'
-                : 'Report listing'}
+                : targetType === 'conversation'
+                  ? 'Report conversation'
+                  : 'Report listing'}
           </Text>
           <Text style={styles.subtitle}>Select a reason (required)</Text>
 
