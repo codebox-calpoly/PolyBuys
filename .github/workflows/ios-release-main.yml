@@ -54,6 +54,12 @@ jobs:
         working-directory: frontend
         run: eas build --platform ios --profile production --local --non-interactive --output=${{ github.workspace }}/build.ipa
 
+      - name: Deploy Convex backend
+        working-directory: backend
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
+        run: npx convex deploy
+
       - name: Submit to TestFlight
         working-directory: frontend
         run: eas submit --platform ios --profile production --path ${{ github.workspace }}/build.ipa --non-interactive
