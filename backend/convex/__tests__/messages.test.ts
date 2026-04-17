@@ -525,6 +525,138 @@ describe('Messages queries and mutations', () => {
     });
   });
 
+  describe('hideConversationFromInbox', () => {
+    it('hides the conversation for the caller but not the other participant', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+
+      expect(buyerConversations).toHaveLength(0);
+      expect(sellerConversations).toHaveLength(1);
+      expect(sellerConversations[0]._id).toBe(conversationId);
+    });
+
+    it('shows the conversation again when a new incoming message is received', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Still available?',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(1);
+      expect(buyerConversations[0]._id).toBe(conversationId);
+      expect(buyerConversations[0].lastMessagePreview).toBe('Still available?');
+    });
+  });
+
+  describe('reportConversation', () => {
+    it('creates a conversation report and hides the thread for the reporter', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+      const { reportId } = await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      const report = await t.run(async (ctx) => ctx.db.get(reportId));
+      expect(report).toMatchObject({
+        targetId: conversationId,
+        targetType: 'conversation',
+        reporterId: buyer.id,
+        reason: 'spam',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(0);
+      expect(sellerConversations).toHaveLength(1);
+    });
+
+    it('rejects duplicate reports from the same user for the same conversation', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.reportConversation, {
+          conversationId,
+          reason: 'scam',
+        });
+      }).rejects.toThrow('You have already reported this conversation');
+    });
+
+    it('keeps the conversation hidden after report when new messages arrive', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'inappropriate',
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Following up on this.',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(0);
+    });
+  });
+
   describe('getOrCreateConversation', () => {
     it('throws error when user tries to message themselves', async () => {
       const t = createConvexTest();
