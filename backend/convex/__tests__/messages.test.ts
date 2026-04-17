@@ -577,6 +577,152 @@ describe('Messages queries and mutations', () => {
     });
   });
 
+  describe('deleteMessage', () => {
+    it('allows deleting the other participant message and restores the previous lastMessageId', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversationBeforeSend = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const originalLastMessageId = conversationBeforeSend?.lastMessageId;
+      expect(originalLastMessageId).toBeDefined();
+
+      const sent = await asBuyer.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'This message should be deleted.',
+      });
+
+      await asSeller.mutation(api.messages.deleteMessage, {
+        messageId: sent.messageId,
+      });
+
+      const deletedMessage = await t.run(async (ctx) => ctx.db.get(sent.messageId));
+      const conversationAfterDelete = await t.run(async (ctx) => ctx.db.get(conversationId));
+
+      expect(deletedMessage).toBeNull();
+      expect(conversationAfterDelete?.lastMessageId).toBe(originalLastMessageId);
+    });
+
+    it('rejects deleting your own message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const buyerMessageId = conversation?.lastMessageId;
+      expect(buyerMessageId).toBeDefined();
+      if (!buyerMessageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.deleteMessage, {
+          messageId: buyerMessageId,
+        });
+      }).rejects.toThrow('You can only delete messages from the other participant');
+    });
+  });
+
+  describe('reportMessage', () => {
+    it('creates a report for a specific message and hides the conversation for the reporter', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      const { reportId } = await asSeller.mutation(api.messages.reportMessage, {
+        messageId,
+        reason: 'spam',
+      });
+
+      const report = await t.run(async (ctx) => ctx.db.get(reportId));
+      expect(report).toMatchObject({
+        targetId: messageId,
+        targetType: 'message',
+        reporterId: seller.id,
+        reason: 'spam',
+      });
+
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(sellerConversations).toHaveLength(0);
+      expect(buyerConversations).toHaveLength(1);
+    });
+
+    it('rejects duplicate reports from the same user for the same message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await asSeller.mutation(api.messages.reportMessage, {
+        messageId,
+        reason: 'inappropriate',
+      });
+
+      await expect(async () => {
+        await asSeller.mutation(api.messages.reportMessage, {
+          messageId,
+          reason: 'spam',
+        });
+      }).rejects.toThrow('You have already reported this message');
+    });
+
+    it('rejects reporting your own message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.reportMessage, {
+          messageId,
+          reason: 'spam',
+        });
+      }).rejects.toThrow('You can only report messages from the other participant');
+    });
+  });
+
   describe('reportConversation', () => {
     it('creates a conversation report and hides the thread for the reporter', async () => {
       const t = createConvexTest();

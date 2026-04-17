@@ -103,8 +103,13 @@ export default defineSchema({
     .index('by_listing', ['listingId']),
 
   reports: defineTable({
-    targetId: v.string(), // Can be listing, profile, or conversation ID
-    targetType: v.union(v.literal('listing'), v.literal('profile'), v.literal('conversation')),
+    targetId: v.string(), // Can be listing, profile, conversation, or message ID
+    targetType: v.union(
+      v.literal('listing'),
+      v.literal('profile'),
+      v.literal('conversation'),
+      v.literal('message')
+    ),
     reporterId: v.string(), // Auth identity subject
     reason: v.union(
       v.literal('scam'),
