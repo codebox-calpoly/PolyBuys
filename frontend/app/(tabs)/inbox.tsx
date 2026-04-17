@@ -774,7 +774,6 @@ const styles = StyleSheet.create({
     height: spacing.sm,
   },
   buttonPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.99 }],
+    backgroundColor: colors.surface,
   },
 });
