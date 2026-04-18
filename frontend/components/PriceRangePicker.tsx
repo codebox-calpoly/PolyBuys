@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   keyboardAvoider: {
     width: '100%',
