@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { colors, borderRadius, typography, spacing } from '../theme/tokens';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
@@ -42,6 +43,8 @@ type PickedImage = {
   height?: number;
   isObjectUrl?: boolean;
 };
+
+const IMAGE_UPLOADER_LOG_PREFIX = '[ImageUploader]';
 
 function UploadProgressBar({ progress, compact = false }: { progress: number; compact?: boolean }) {
   const clampedProgress = Math.max(0, Math.min(1, progress));
@@ -226,56 +229,65 @@ export default function ImageUploader({
       format: SaveFormat.JPEG,
     });
 
-    const blobResponse = await fetch(manipulated.uri);
-    const blob = await blobResponse.blob();
-
     const maxBytes = maxFileSizeMB * 1024 * 1024;
-    if (blob.size > maxBytes) {
+    const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
+    if (!fileInfo.exists || fileInfo.isDirectory) {
+      throw new Error('Compressed image file is missing.');
+    }
+    if (fileInfo.size > maxBytes) {
       throw new Error(`Image is too large after compression (max ${maxFileSizeMB} MB).`);
     }
 
     return {
-      blob,
       uri: manipulated.uri,
     };
   }
 
-  async function uploadToConvex(blob: Blob, onProgress: (progress: number) => void) {
+  async function uploadToConvex(fileUri: string, onProgress: (progress: number) => void) {
     const uploadUrl = await generateUploadUrl({});
-
-    return await new Promise<string>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', uploadUrl);
-      xhr.setRequestHeader('Content-Type', blob.type || 'image/jpeg');
-
-      xhr.upload.onprogress = (event) => {
-        if (!event.lengthComputable) {
+    const task = FileSystem.createUploadTask(
+      uploadUrl,
+      fileUri,
+      {
+        headers: {
+          'Content-Type': 'image/jpeg',
+        },
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      },
+      (progressEvent) => {
+        if (progressEvent.totalBytesExpectedToSend <= 0) {
           return;
         }
-        onProgress(event.loaded / event.total);
-      };
+        onProgress(progressEvent.totalBytesSent / progressEvent.totalBytesExpectedToSend);
+      }
+    );
+    const result = await task.uploadAsync();
 
-      xhr.onerror = () => reject(new Error('Network error during upload.'));
-      xhr.onload = () => {
-        if (xhr.status < 200 || xhr.status >= 300) {
-          reject(new Error(`Upload failed (${xhr.status}).`));
-          return;
-        }
+    if (!result) {
+      throw new Error('Upload was cancelled.');
+    }
+    if (result.status < 200 || result.status >= 300) {
+      const responseText = typeof result.body === 'string' ? result.body.trim().slice(0, 200) : '';
+      throw new Error(
+        responseText
+          ? `Upload failed (${result.status}): ${responseText}`
+          : `Upload failed (${result.status}).`
+      );
+    }
 
-        try {
-          const parsed = JSON.parse(xhr.responseText) as { storageId?: string };
-          if (!parsed.storageId) {
-            reject(new Error('Upload response missing storage ID.'));
-            return;
-          }
-          resolve(parsed.storageId);
-        } catch {
-          reject(new Error('Upload response could not be parsed.'));
-        }
-      };
-
-      xhr.send(blob);
-    });
+    try {
+      const parsed = JSON.parse(result.body) as { storageId?: string };
+      if (!parsed.storageId) {
+        throw new Error('Upload response missing storage ID.');
+      }
+      return parsed.storageId;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Upload response missing storage ID.') {
+        throw error;
+      }
+      throw new Error('Upload response could not be parsed.');
+    }
   }
 
   function removeImage(imageId: string) {
@@ -285,7 +297,7 @@ export default function ImageUploader({
   async function startUpload(picked: PickedImage, localId: string) {
     try {
       const compressed = await compressAndValidate(picked);
-      const storageId = await uploadToConvex(compressed.blob, (progress) => {
+      const storageId = await uploadToConvex(compressed.uri, (progress) => {
         setPendingUploads((prev) =>
           prev.map((upload) => (upload.localId === localId ? { ...upload, progress } : upload))
         );
@@ -299,13 +311,20 @@ export default function ImageUploader({
       revokeObjectUrl(localId);
       onImagesChange((prev) => [...prev, storageId]);
     } catch (error) {
+      const resolvedError =
+        error instanceof Error ? error : new Error('Upload failed for an unknown reason.');
+      console.error(IMAGE_UPLOADER_LOG_PREFIX, 'Upload failed', {
+        localId,
+        pickedUri: picked.uri,
+        message: resolvedError.message,
+      });
       setPendingUploads((prev) =>
         prev.map((upload) =>
           upload.localId === localId
             ? {
                 ...upload,
                 status: 'error',
-                error: error instanceof Error ? error.message : 'Upload failed',
+                error: resolvedError.message,
               }
             : upload
         )
@@ -489,7 +508,12 @@ export default function ImageUploader({
                     <UploadProgressBar progress={upload.progress} compact />
                   </View>
                 ) : (
-                  <Text style={styles.errorText}>Failed</Text>
+                  <View style={styles.pendingContent}>
+                    <Text style={styles.errorText}>Failed</Text>
+                    {upload.error ? (
+                      <Text style={styles.errorDetailText}>{upload.error}</Text>
+                    ) : null}
+                  </View>
                 )}
               </View>
 
@@ -689,6 +713,11 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.errorText,
     fontWeight: '700',
+  },
+  errorDetailText: {
+    ...typography.footnote,
+    color: colors.white,
+    textAlign: 'center',
   },
   errorActions: {
     flexDirection: 'row',

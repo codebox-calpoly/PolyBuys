@@ -20,7 +20,7 @@ import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
-import { getLoginEntryAction, type LoginStep } from './loginRedirect';
+import { getLoginEntryAction, type LoginStep } from '../../lib/auth/loginRedirect';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
