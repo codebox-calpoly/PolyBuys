@@ -495,15 +495,7 @@ export default function InboxScreen() {
         <View style={styles.content}>
           {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
           <View style={styles.headerBlock}>
-            <ScreenHeader
-              title="Inbox"
-              subtitle={subtitle}
-              action={
-                <View style={styles.swipeHint}>
-                  <Text style={styles.swipeHintText}>Swipe left to report or delete</Text>
-                </View>
-              }
-            />
+            <ScreenHeader title="Inbox" subtitle={subtitle} />
             <View style={styles.searchBarWrap}>
               <BlurView
                 intensity={60}
@@ -625,23 +617,6 @@ const styles = StyleSheet.create({
   headerBlock: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
-  },
-  swipeHint: {
-    alignSelf: 'center',
-    backgroundColor: colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.location,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    minHeight: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  swipeHintText: {
-    ...typography.subhead,
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
   },
   centeredState: {
     flex: 1,
