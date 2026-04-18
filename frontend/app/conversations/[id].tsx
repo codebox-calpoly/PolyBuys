@@ -44,7 +44,6 @@ function SwipeableMessageRow({
   receiptLabel,
   activeMessageActionId,
   setActiveMessageActionId,
-  onDelete,
   onReport,
 }: {
   message: Doc<'messages'>;
@@ -52,15 +51,9 @@ function SwipeableMessageRow({
   receiptLabel: string;
   activeMessageActionId: Id<'messages'> | null;
   setActiveMessageActionId: (messageId: Id<'messages'> | null) => void;
-  onDelete: (messageId: Id<'messages'>) => void;
   onReport: (messageId: Id<'messages'>) => void;
 }) {
-  const isActionOpen = activeMessageActionId === message._id;
-
-  const handleDeletePress = useCallback(() => {
-    setActiveMessageActionId(null);
-    onDelete(message._id);
-  }, [message._id, onDelete, setActiveMessageActionId]);
+  const isActionOpen = !isSent && activeMessageActionId === message._id;
 
   const handleReportPress = useCallback(() => {
     setActiveMessageActionId(null);
@@ -74,8 +67,10 @@ function SwipeableMessageRow({
   }, [isActionOpen, setActiveMessageActionId]);
 
   const handleMessageLongPress = useCallback(() => {
-    setActiveMessageActionId(message._id);
-  }, [message._id, setActiveMessageActionId]);
+    if (!isSent) {
+      setActiveMessageActionId(message._id);
+    }
+  }, [isSent, message._id, setActiveMessageActionId]);
 
   return (
     <View style={[styles.messageRow, isSent ? styles.messageRowSent : styles.messageRowReceived]}>
@@ -86,9 +81,7 @@ function SwipeableMessageRow({
         style={[styles.bubble, isSent ? styles.bubbleSent : styles.bubbleReceived]}
         accessibilityRole="button"
         accessibilityLabel={isSent ? 'Sent message' : 'Received message'}
-        accessibilityHint={
-          isSent ? 'Long press to show delete action' : 'Long press to show report action'
-        }
+        accessibilityHint={isSent ? 'Message from you' : 'Long press to show report action'}
       >
         <Text
           style={[styles.messageText, isSent ? styles.messageTextSent : styles.messageTextReceived]}
@@ -105,25 +98,14 @@ function SwipeableMessageRow({
       </Pressable>
       {isActionOpen ? (
         <View style={styles.messageActionPanel}>
-          {isSent ? (
-            <Pressable
-              style={[styles.messageActionButton, styles.messageDeleteActionButton]}
-              onPress={handleDeletePress}
-              accessibilityRole="button"
-              accessibilityLabel="Delete message"
-            >
-              <Text style={styles.messageActionLabel}>Delete</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.messageActionButton, styles.messageReportActionButton]}
-              onPress={handleReportPress}
-              accessibilityRole="button"
-              accessibilityLabel="Report message"
-            >
-              <Text style={styles.messageActionLabel}>Report</Text>
-            </Pressable>
-          )}
+          <Pressable
+            style={[styles.messageActionButton, styles.messageReportActionButton]}
+            onPress={handleReportPress}
+            accessibilityRole="button"
+            accessibilityLabel="Report message"
+          >
+            <Text style={styles.messageActionLabel}>Report</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -141,14 +123,12 @@ export default function ConversationDetailScreen() {
   const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
   const markMessagesAsRead = useMutation(api.messages.markMessagesAsRead);
-  const deleteMessage = useMutation(api.messages.deleteMessage);
   const blockUser = useMutation(api.blocks.blockUser);
   const unblockUser = useMutation(api.blocks.unblockUser);
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<Id<'messages'> | null>(null);
-  const [deletingMessageId, setDeletingMessageId] = useState<Id<'messages'> | null>(null);
   const [activeMessageActionId, setActiveMessageActionId] = useState<Id<'messages'> | null>(null);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
@@ -351,22 +331,6 @@ export default function ConversationDetailScreen() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: Id<'messages'>) => {
-    if (deletingMessageId === messageId) {
-      return;
-    }
-
-    try {
-      setDeletingMessageId(messageId);
-      await deleteMessage({ messageId });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to delete this message.';
-      Alert.alert('Could not delete message', message);
-    } finally {
-      setDeletingMessageId(null);
-    }
-  };
-
   const handleBackgroundPress = useCallback(() => {
     setActiveMessageActionId(null);
     Keyboard.dismiss();
@@ -487,18 +451,6 @@ export default function ConversationDetailScreen() {
                 receiptLabel={receiptLabel}
                 activeMessageActionId={activeMessageActionId}
                 setActiveMessageActionId={setActiveMessageActionId}
-                onDelete={(messageId) => {
-                  Alert.alert('Delete message', 'Remove this message from the conversation?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => {
-                        void handleDeleteMessage(messageId);
-                      },
-                    },
-                  ]);
-                }}
                 onReport={(messageId) => {
                   Alert.alert(
                     'Report message',
@@ -658,7 +610,6 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   messageRowSent: {
-    flexDirection: 'row-reverse',
     alignSelf: 'flex-end',
     maxWidth: '82%',
   },
@@ -684,9 +635,6 @@ const styles = StyleSheet.create({
   },
   messageReportActionButton: {
     backgroundColor: colors.destructive,
-  },
-  messageDeleteActionButton: {
-    backgroundColor: '#c62828',
   },
   messageActionLabel: {
     ...typography.footnoteMed,
