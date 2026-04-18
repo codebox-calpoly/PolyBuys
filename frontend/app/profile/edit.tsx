@@ -51,7 +51,9 @@ async function uploadImageToConvex(
     httpMethod: 'POST',
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
   });
+  const uploadPromise = task.uploadAsync();
 
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const abortPromise = new Promise<never>((_, reject) => {
     const onAbort = () => {
       void task.cancelAsync().catch(() => undefined);
@@ -67,15 +69,20 @@ async function uploadImageToConvex(
   });
 
   const timeoutPromise = new Promise<never>((_, reject) => {
-    const timeout = setTimeout(() => {
+    timeoutHandle = setTimeout(() => {
       void task.cancelAsync().catch(() => undefined);
       reject(new Error('Image upload timed out. Please try again.'));
     }, timeoutMs);
-
-    void Promise.resolve().finally(() => clearTimeout(timeout));
   });
 
-  const result = await Promise.race([task.uploadAsync(), abortPromise, timeoutPromise]);
+  let result: Awaited<typeof uploadPromise>;
+  try {
+    result = await Promise.race([uploadPromise, abortPromise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle !== null) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 
   if (!result) {
     throw new Error('Image upload was cancelled.');

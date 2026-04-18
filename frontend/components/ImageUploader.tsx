@@ -44,6 +44,11 @@ type PickedImage = {
   isObjectUrl?: boolean;
 };
 
+type PreparedUpload = {
+  uri: string;
+  blob?: Blob;
+};
+
 const IMAGE_UPLOADER_LOG_PREFIX = '[ImageUploader]';
 
 function UploadProgressBar({ progress, compact = false }: { progress: number; compact?: boolean }) {
@@ -201,7 +206,7 @@ export default function ImageUploader({
     };
   }
 
-  async function compressAndValidate(picked: PickedImage) {
+  async function compressAndValidate(picked: PickedImage): Promise<PreparedUpload> {
     let workingUri = picked.uri;
     let originalWidth = picked.width;
     let originalHeight = picked.height;
@@ -230,6 +235,21 @@ export default function ImageUploader({
     });
 
     const maxBytes = maxFileSizeMB * 1024 * 1024;
+    if (Platform.OS === 'web') {
+      const response = await fetch(manipulated.uri);
+      if (!response.ok) {
+        throw new Error(`Unable to read image data (${response.status}).`);
+      }
+      const blob = await response.blob();
+      if (blob.size > maxBytes) {
+        throw new Error(`Image is too large after compression (max ${maxFileSizeMB} MB).`);
+      }
+      return {
+        uri: manipulated.uri,
+        blob,
+      };
+    }
+
     const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
     if (!fileInfo.exists || fileInfo.isDirectory) {
       throw new Error('Compressed image file is missing.');
@@ -243,8 +263,60 @@ export default function ImageUploader({
     };
   }
 
-  async function uploadToConvex(fileUri: string, onProgress: (progress: number) => void) {
+  async function uploadToConvex(
+    fileUri: string,
+    onProgress: (progress: number) => void,
+    blob?: Blob
+  ) {
     const uploadUrl = await generateUploadUrl({});
+    if (Platform.OS === 'web') {
+      if (!blob) {
+        throw new Error('Missing image data for web upload.');
+      }
+
+      return await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Content-Type', blob.type || 'image/jpeg');
+
+        xhr.upload.onprogress = (progressEvent) => {
+          if (!progressEvent.lengthComputable) {
+            return;
+          }
+          onProgress(progressEvent.loaded / progressEvent.total);
+        };
+
+        xhr.onerror = () => reject(new Error('Network error during upload.'));
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            const responseText =
+              typeof xhr.responseText === 'string' ? xhr.responseText.trim().slice(0, 200) : '';
+            reject(
+              new Error(
+                responseText
+                  ? `Upload failed (${xhr.status}): ${responseText}`
+                  : `Upload failed (${xhr.status}).`
+              )
+            );
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(xhr.responseText) as { storageId?: string };
+            if (!parsed.storageId) {
+              reject(new Error('Upload response missing storage ID.'));
+              return;
+            }
+            resolve(parsed.storageId);
+          } catch {
+            reject(new Error('Upload response could not be parsed.'));
+          }
+        };
+
+        xhr.send(blob);
+      });
+    }
+
     const task = FileSystem.createUploadTask(
       uploadUrl,
       fileUri,
@@ -297,11 +369,15 @@ export default function ImageUploader({
   async function startUpload(picked: PickedImage, localId: string) {
     try {
       const compressed = await compressAndValidate(picked);
-      const storageId = await uploadToConvex(compressed.uri, (progress) => {
-        setPendingUploads((prev) =>
-          prev.map((upload) => (upload.localId === localId ? { ...upload, progress } : upload))
-        );
-      });
+      const storageId = await uploadToConvex(
+        compressed.uri,
+        (progress) => {
+          setPendingUploads((prev) =>
+            prev.map((upload) => (upload.localId === localId ? { ...upload, progress } : upload))
+          );
+        },
+        compressed.blob
+      );
 
       setPendingUploads((prev) =>
         prev.map((upload) => (upload.localId === localId ? { ...upload, progress: 1 } : upload))
