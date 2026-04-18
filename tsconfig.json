@@ -8,5 +8,6 @@
     "resolveJsonModule": true,
     "strict": true
   },
-  "exclude": ["node_modules", "dist", "build", ".expo"]
+  "exclude": ["node_modules", "dist", "build", ".expo"],
+  "extends": "expo/tsconfig.base"
 }

@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { getEmailValidationError } from '@polybuys/shared';
@@ -40,74 +41,68 @@ type UploadOptions = {
 
 async function uploadImageToConvex(
   uploadUrl: string,
-  blob: Blob,
+  fileUri: string,
   { signal, timeoutMs = PROFILE_IMAGE_BOUNDS.UPLOAD_TIMEOUT_MS }: UploadOptions = {}
 ): Promise<Id<'_storage'>> {
-  return await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    let settled = false;
+  const task = FileSystem.createUploadTask(uploadUrl, fileUri, {
+    headers: {
+      'Content-Type': 'image/jpeg',
+    },
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+  });
+  const uploadPromise = task.uploadAsync();
 
-    const rejectOnce = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const resolveOnce = (value: Id<'_storage'>) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const abortPromise = new Promise<never>((_, reject) => {
     const onAbort = () => {
-      try {
-        xhr.abort();
-      } catch {
-        // no-op
-      }
-      rejectOnce(new Error('Image upload was cancelled.'));
-    };
-    const cleanup = () => {
-      xhr.onerror = null;
-      xhr.onload = null;
-      xhr.onabort = null;
-      xhr.ontimeout = null;
-      signal?.removeEventListener('abort', onAbort);
+      void task.cancelAsync().catch(() => undefined);
+      reject(new Error('Image upload was cancelled.'));
     };
 
     if (signal?.aborted) {
-      rejectOnce(new Error('Image upload was cancelled.'));
+      onAbort();
       return;
     }
 
-    xhr.open('POST', uploadUrl);
-    xhr.timeout = timeoutMs;
-    xhr.setRequestHeader('Content-Type', blob.type || 'image/jpeg');
-
-    xhr.onerror = () => rejectOnce(new Error('Network error during image upload.'));
-    xhr.onabort = () => rejectOnce(new Error('Image upload was cancelled.'));
-    xhr.ontimeout = () => rejectOnce(new Error('Image upload timed out. Please try again.'));
-    xhr.onload = () => {
-      if (xhr.status < 200 || xhr.status >= 300) {
-        rejectOnce(new Error(`Image upload failed (${xhr.status}).`));
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(xhr.responseText) as { storageId?: Id<'_storage'> };
-        if (!parsed.storageId) {
-          rejectOnce(new Error('Upload response missing storage ID.'));
-          return;
-        }
-        resolveOnce(parsed.storageId);
-      } catch {
-        rejectOnce(new Error('Upload response could not be parsed.'));
-      }
-    };
-
     signal?.addEventListener('abort', onAbort, { once: true });
-    xhr.send(blob);
   });
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      void task.cancelAsync().catch(() => undefined);
+      reject(new Error('Image upload timed out. Please try again.'));
+    }, timeoutMs);
+  });
+
+  let result: Awaited<typeof uploadPromise>;
+  try {
+    result = await Promise.race([uploadPromise, abortPromise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle !== null) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+
+  if (!result) {
+    throw new Error('Image upload was cancelled.');
+  }
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Image upload failed (${result.status}).`);
+  }
+
+  try {
+    const parsed = JSON.parse(result.body) as { storageId?: Id<'_storage'> };
+    if (!parsed.storageId) {
+      throw new Error('Upload response missing storage ID.');
+    }
+    return parsed.storageId;
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Upload response missing storage ID.') {
+      throw error;
+    }
+    throw new Error('Upload response could not be parsed.');
+  }
 }
 
 export default function ProfileEditScreen() {
@@ -210,9 +205,12 @@ export default function ProfileEditScreen() {
         format: SaveFormat.JPEG,
       });
 
-      const blob = await (await fetch(manipulated.uri)).blob();
+      const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
       const maxBytes = PROFILE_IMAGE_BOUNDS.MAX_FILE_SIZE_MB * 1024 * 1024;
-      if (blob.size > maxBytes) {
+      if (!fileInfo.exists || fileInfo.isDirectory) {
+        throw new Error('Prepared profile image file is missing.');
+      }
+      if (fileInfo.size > maxBytes) {
         throw new Error(
           `Profile image is too large after compression (max ${PROFILE_IMAGE_BOUNDS.MAX_FILE_SIZE_MB} MB).`
         );
@@ -268,12 +266,11 @@ export default function ProfileEditScreen() {
       let nextPicture: Id<'_storage'> | null = picture;
 
       if (pendingPictureUri) {
-        const blob = await (await fetch(pendingPictureUri)).blob();
         const uploadUrl = await generateUploadUrl({});
         uploadAbortRef.current?.abort();
         const abortController = new AbortController();
         uploadAbortRef.current = abortController;
-        nextPicture = await uploadImageToConvex(uploadUrl, blob, {
+        nextPicture = await uploadImageToConvex(uploadUrl, pendingPictureUri, {
           signal: abortController.signal,
         });
         uploadAbortRef.current = null;
