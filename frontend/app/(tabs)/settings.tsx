@@ -73,7 +73,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Fsettings' as never);
+      router.replace('/auth/login' as never);
     }
   }, [isAuthenticated, isSessionLoading, isWeb, router]);
 
