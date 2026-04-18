@@ -66,6 +66,11 @@ export default function LoginScreen() {
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
       : '/';
+  const [successRedirect, setSuccessRedirect] = useState<Href>(postAuthRedirect);
+
+  useEffect(() => {
+    setSuccessRedirect(postAuthRedirect);
+  }, [postAuthRedirect]);
 
   useEffect(() => {
     const entryAction = getLoginEntryAction({
@@ -104,6 +109,7 @@ export default function LoginScreen() {
     }
 
     if (currentProfile) {
+      setSuccessRedirect(postAuthRedirect);
       setStep('success');
       return;
     }
@@ -113,17 +119,17 @@ export default function LoginScreen() {
     }
 
     setStep('profile');
-  }, [step, currentProfile, isSessionLoading, isAuthenticated]);
+  }, [step, currentProfile, isSessionLoading, isAuthenticated, postAuthRedirect]);
 
   useEffect(() => {
     if (step !== 'success') {
       return;
     }
     const t = setTimeout(() => {
-      router.replace(postAuthRedirect);
+      router.replace(successRedirect);
     }, 1500);
     return () => clearTimeout(t);
-  }, [step, postAuthRedirect, router]);
+  }, [step, successRedirect, router]);
 
   const handleCheckingRetry = useCallback(() => {
     if (retryTimerRef.current !== null) {
@@ -356,6 +362,7 @@ export default function LoginScreen() {
   }
 
   const finishAndRedirect = () => {
+    setSuccessRedirect('/');
     setStep('success');
   };
 
