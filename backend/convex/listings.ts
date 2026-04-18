@@ -1,6 +1,6 @@
 import { v, ConvexError } from 'convex/values';
 import { query, mutation, action, internalMutation, internalQuery } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
@@ -62,6 +62,48 @@ function validateImages(images: string[]) {
       `Must have ${PAYLOAD_BOUNDS.IMAGES_MIN}-${PAYLOAD_BOUNDS.IMAGES_MAX} images`
     );
   }
+}
+
+async function getReportedConversationListingIdSetForViewer(
+  ctx: QueryCtx
+): Promise<Set<Id<'listings'>>> {
+  const viewerId = await getStableUserId(ctx);
+  if (!viewerId) {
+    return new Set<Id<'listings'>>();
+  }
+
+  const reports = await ctx.db
+    .query('reports')
+    .withIndex('by_reporter', (q) => q.eq('reporterId', viewerId))
+    .collect();
+
+  const reportedConversationIdSet = new Set<Id<'conversations'>>();
+  for (const report of reports) {
+    if (report.targetType !== 'conversation') {
+      continue;
+    }
+    const normalizedConversationId = await ctx.db.normalizeId('conversations', report.targetId);
+    if (normalizedConversationId) {
+      reportedConversationIdSet.add(normalizedConversationId);
+    }
+  }
+
+  if (reportedConversationIdSet.size === 0) {
+    return new Set<Id<'listings'>>();
+  }
+
+  const conversations = await Promise.all(
+    [...reportedConversationIdSet].map((conversationId) => ctx.db.get(conversationId))
+  );
+
+  const listingIdSet = new Set<Id<'listings'>>();
+  for (const conversation of conversations) {
+    if (conversation) {
+      listingIdSet.add(conversation.listingId);
+    }
+  }
+
+  return listingIdSet;
 }
 
 // Category validator for reuse
@@ -155,6 +197,8 @@ export const searchAndFilterListings = query({
     const filters = args.filters ?? {};
     const searchTerm = filters.searchTerm?.trim();
     const sortBy = filters.sortBy ?? 'newest';
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
     // This is acceptable because search results are typically limited by search relevance.
@@ -184,7 +228,9 @@ export const searchAndFilterListings = query({
       }
 
       // Filter out hidden content
-      results = results.filter((l) => l.isHidden !== true);
+      results = results.filter(
+        (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+      );
 
       // Apply sorting
       switch (sortBy) {
@@ -311,9 +357,12 @@ export const searchAndFilterListings = query({
       }
 
       const paginationResult = await dbQuery.paginate(args.paginationOpts);
+      const page = paginationResult.page.filter(
+        (listing) => !reportedConversationListingIdSet.has(listing._id)
+      );
 
       return {
-        page: paginationResult.page,
+        page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
       };
@@ -329,6 +378,7 @@ export const searchAndFilterListings = query({
 
     // Apply remaining filters
     const filtered = allResults.filter((l) => {
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
       if (
         sortBy !== 'price_asc' &&
@@ -397,6 +447,8 @@ export const getListings = query({
     }
 
     const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // Use database indexes with proper ordering
     let query;
@@ -419,9 +471,12 @@ export const getListings = query({
       const paginationResult = await query
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
+      const page = paginationResult.page.filter(
+        (listing) => !reportedConversationListingIdSet.has(listing._id)
+      );
 
       return {
-        page: paginationResult.page,
+        page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
       };
@@ -437,6 +492,7 @@ export const getListings = query({
 
     // Apply price filters
     const filtered = allResults.filter((l) => {
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (args.minPrice !== undefined && l.price < args.minPrice) return false;
       if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
       return true;
@@ -763,6 +819,8 @@ export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
     const MAX_SEARCH_COLLECT = 1000;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
@@ -771,7 +829,9 @@ export const searchListings = query({
       .take(MAX_SEARCH_COLLECT);
 
     // Filter out hidden content
-    return results.filter((l) => l.isHidden !== true);
+    return results.filter(
+      (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+    );
   },
 });
 

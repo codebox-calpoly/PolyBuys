@@ -22,6 +22,13 @@ const REPORT_REASON_VALIDATOR = v.union(
   v.literal('other')
 );
 
+function shouldPreserveHiddenConversationState(
+  hiddenAt: number | undefined,
+  hiddenReason: ConversationInboxHiddenReason | undefined
+) {
+  return hiddenAt !== undefined && hiddenReason === 'reported';
+}
+
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
 }
@@ -73,18 +80,27 @@ export const internalSendMessage = internalMutation({
       throw new ConvexError('Conversation not found');
     }
 
-    const hiddenFieldPatch =
-      conversation.buyerId === args.recipientId
-        ? conversation.buyerInboxHiddenAt !== undefined &&
-          conversation.buyerInboxHiddenReason === 'reported'
-          ? {}
-          : { buyerInboxHiddenAt: undefined, buyerInboxHiddenReason: undefined }
-        : conversation.sellerId === args.recipientId
-          ? conversation.sellerInboxHiddenAt !== undefined &&
-            conversation.sellerInboxHiddenReason === 'reported'
-            ? {}
-            : { sellerInboxHiddenAt: undefined, sellerInboxHiddenReason: undefined }
-          : {};
+    const hiddenFieldPatch: Partial<Doc<'conversations'>> = {};
+
+    if (
+      !shouldPreserveHiddenConversationState(
+        conversation.buyerInboxHiddenAt,
+        conversation.buyerInboxHiddenReason
+      )
+    ) {
+      hiddenFieldPatch.buyerInboxHiddenAt = undefined;
+      hiddenFieldPatch.buyerInboxHiddenReason = undefined;
+    }
+
+    if (
+      !shouldPreserveHiddenConversationState(
+        conversation.sellerInboxHiddenAt,
+        conversation.sellerInboxHiddenReason
+      )
+    ) {
+      hiddenFieldPatch.sellerInboxHiddenAt = undefined;
+      hiddenFieldPatch.sellerInboxHiddenReason = undefined;
+    }
 
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
@@ -569,6 +585,43 @@ export const listUserConversations = query({
   },
 });
 
+export const getReportedConversationListingIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireStableUserId(ctx);
+
+    const reports = await ctx.db
+      .query('reports')
+      .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
+      .collect();
+
+    const reportedConversationIds = [
+      ...new Set(
+        reports
+          .filter((report) => report.targetType === 'conversation')
+          .map((report) => report.targetId as Id<'conversations'>)
+      ),
+    ];
+
+    if (reportedConversationIds.length === 0) {
+      return [] as Id<'listings'>[];
+    }
+
+    const conversations = await Promise.all(
+      reportedConversationIds.map((conversationId) => ctx.db.get(conversationId))
+    );
+
+    const listingIds = new Set<Id<'listings'>>();
+    for (const conversation of conversations) {
+      if (conversation) {
+        listingIds.add(conversation.listingId);
+      }
+    }
+
+    return [...listingIds];
+  },
+});
+
 async function requireConversationScope(
   ctx: MutationCtx | QueryCtx,
   args: {
@@ -882,8 +935,8 @@ export const deleteMessage = mutation({
       throw new ConvexError('Conversation not found');
     }
 
-    if (message.senderId === userId) {
-      throw new ConvexError('You can only delete messages from the other participant');
+    if (message.senderId !== userId) {
+      throw new ConvexError('You can only delete your own messages');
     }
 
     await ctx.db.delete(args.messageId);
