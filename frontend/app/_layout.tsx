@@ -80,6 +80,7 @@ function RootLayout() {
                 contentStyle: { backgroundColor: colors.surface },
               }}
             >
+              <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
               <Stack.Screen
                 name="listings/[id]"

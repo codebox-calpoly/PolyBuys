@@ -201,7 +201,7 @@ export default function HomeScreen() {
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
       if (!isAuthenticated) {
-        router.replace('/auth/login?returnTo=%2F' as never);
+        router.replace('/auth/login?returnTo=%2Fhome' as never);
         return;
       }
 

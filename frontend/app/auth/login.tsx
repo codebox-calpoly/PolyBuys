@@ -65,7 +65,7 @@ export default function LoginScreen() {
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
-      : '/';
+      : '/home';
 
   useEffect(() => {
     const entryAction = getLoginEntryAction({

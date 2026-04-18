@@ -190,7 +190,7 @@ export default function MyListingsScreen() {
         path="/my-listings"
         buttonLabel="Open My Listings in App"
         secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/')}
+        onSecondaryAction={() => router.replace('/home')}
       />
     );
   }
