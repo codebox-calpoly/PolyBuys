@@ -27,9 +27,9 @@ import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
 const MESSAGES_BOTTOM_PADDING = spacing.md;
-const MESSAGE_ACTION_PANEL_WIDTH = 148;
-const MESSAGE_ACTION_BUTTON_WIDTH = MESSAGE_ACTION_PANEL_WIDTH / 2;
-const MESSAGE_ACTION_BUTTON_HEIGHT = 52;
+const MESSAGE_ACTION_PANEL_WIDTH = 74;
+const MESSAGE_ACTION_BUTTON_WIDTH = MESSAGE_ACTION_PANEL_WIDTH;
+const MESSAGE_ACTION_BUTTON_HEIGHT = 44;
 
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
@@ -55,7 +55,7 @@ function SwipeableMessageRow({
   onDelete: (messageId: Id<'messages'>) => void;
   onReport: (messageId: Id<'messages'>) => void;
 }) {
-  const isActionOpen = !isSent && activeMessageActionId === message._id;
+  const isActionOpen = activeMessageActionId === message._id;
 
   const handleDeletePress = useCallback(() => {
     setActiveMessageActionId(null);
@@ -74,10 +74,8 @@ function SwipeableMessageRow({
   }, [isActionOpen, setActiveMessageActionId]);
 
   const handleMessageLongPress = useCallback(() => {
-    if (!isSent) {
-      setActiveMessageActionId(message._id);
-    }
-  }, [isSent, message._id, setActiveMessageActionId]);
+    setActiveMessageActionId(message._id);
+  }, [message._id, setActiveMessageActionId]);
 
   return (
     <View style={[styles.messageRow, isSent ? styles.messageRowSent : styles.messageRowReceived]}>
@@ -89,7 +87,7 @@ function SwipeableMessageRow({
         accessibilityRole="button"
         accessibilityLabel={isSent ? 'Sent message' : 'Received message'}
         accessibilityHint={
-          isSent ? 'Message from you' : 'Long press to show report and delete actions'
+          isSent ? 'Long press to show delete action' : 'Long press to show report action'
         }
       >
         <Text
@@ -107,22 +105,25 @@ function SwipeableMessageRow({
       </Pressable>
       {isActionOpen ? (
         <View style={styles.messageActionPanel}>
-          <Pressable
-            style={[styles.messageActionButton, styles.messageReportActionButton]}
-            onPress={handleReportPress}
-            accessibilityRole="button"
-            accessibilityLabel="Report message"
-          >
-            <Text style={styles.messageActionLabel}>Report</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.messageActionButton, styles.messageDeleteActionButton]}
-            onPress={handleDeletePress}
-            accessibilityRole="button"
-            accessibilityLabel="Delete message"
-          >
-            <Text style={styles.messageActionLabel}>Delete</Text>
-          </Pressable>
+          {isSent ? (
+            <Pressable
+              style={[styles.messageActionButton, styles.messageDeleteActionButton]}
+              onPress={handleDeletePress}
+              accessibilityRole="button"
+              accessibilityLabel="Delete message"
+            >
+              <Text style={styles.messageActionLabel}>Delete</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.messageActionButton, styles.messageReportActionButton]}
+              onPress={handleReportPress}
+              accessibilityRole="button"
+              accessibilityLabel="Report message"
+            >
+              <Text style={styles.messageActionLabel}>Report</Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
     </View>
@@ -616,6 +617,10 @@ export default function ConversationDetailScreen() {
           onClose={() => setReportingMessageId(null)}
           targetId={reportingMessageId ? String(reportingMessageId) : ''}
           targetType="message"
+          onReportSuccess={() => {
+            setActiveMessageActionId(null);
+            router.replace('/inbox' as never);
+          }}
         />
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -702,6 +707,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   messageRowSent: {
+    flexDirection: 'row-reverse',
     alignSelf: 'flex-end',
     maxWidth: '82%',
   },
@@ -726,14 +732,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messageReportActionButton: {
-    backgroundColor: '#4a4a4a',
+    backgroundColor: colors.destructive,
   },
   messageDeleteActionButton: {
     backgroundColor: '#c62828',
   },
   messageActionLabel: {
     ...typography.footnoteMed,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
     color: colors.white,
     textTransform: 'uppercase',

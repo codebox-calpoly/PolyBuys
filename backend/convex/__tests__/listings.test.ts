@@ -417,6 +417,70 @@ describe('Listings queries', () => {
     expect(electronicsListings.page.every((l: any) => l.category === 'electronics')).toBe(true);
   });
 
+  it('hides reported-conversation listing from reporter in getListings only', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+    const asOther = t.withIdentity(otherIdentity);
+
+    const listingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Reported conversation listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId,
+    });
+
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'spam',
+    });
+
+    const buyerFeed = await asBuyer.query(api.listings.getListings, {
+      paginationOpts: defaultPaginationOpts,
+    });
+    const otherFeed = await asOther.query(api.listings.getListings, {
+      paginationOpts: defaultPaginationOpts,
+    });
+
+    expect(buyerFeed.page.map((listing: any) => listing._id)).not.toContain(listingId);
+    expect(otherFeed.page.map((listing: any) => listing._id)).toContain(listingId);
+  });
+
+  it('hides reported-conversation listing from reporter in searchAndFilterListings only', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+    const asOther = t.withIdentity(otherIdentity);
+
+    const listingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Unique Report Search Token',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId,
+    });
+
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'inappropriate',
+    });
+
+    const buyerSearch = await asBuyer.query(api.listings.searchAndFilterListings, {
+      filters: { searchTerm: 'Unique Report Search Token' },
+      paginationOpts: defaultPaginationOpts,
+    });
+    const otherSearch = await asOther.query(api.listings.searchAndFilterListings, {
+      filters: { searchTerm: 'Unique Report Search Token' },
+      paginationOpts: defaultPaginationOpts,
+    });
+
+    expect(buyerSearch.page.map((listing: any) => listing._id)).not.toContain(listingId);
+    expect(otherSearch.page.map((listing: any) => listing._id)).toContain(listingId);
+  });
+
   it('filters by minPrice', async () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);

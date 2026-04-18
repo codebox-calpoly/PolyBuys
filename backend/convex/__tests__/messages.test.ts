@@ -575,10 +575,36 @@ describe('Messages queries and mutations', () => {
       expect(buyerConversations[0]._id).toBe(conversationId);
       expect(buyerConversations[0].lastMessagePreview).toBe('Still available?');
     });
+
+    it('shows the conversation again when the hidden participant sends a new message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
+        listingId,
+        body: 'I am interested again.',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(1);
+      expect(buyerConversations[0]._id).toBe(conversationId);
+      expect(buyerConversations[0].lastMessagePreview).toBe('I am interested again.');
+    });
   });
 
   describe('deleteMessage', () => {
-    it('allows deleting the other participant message and restores the previous lastMessageId', async () => {
+    it('allows deleting your own message and restores the previous lastMessageId', async () => {
       const t = createConvexTest();
 
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
@@ -586,7 +612,6 @@ describe('Messages queries and mutations', () => {
       const listingId = await createTestListing(t, seller.id);
       const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
       const asBuyer = t.withIdentity(buyer.identity);
-      const asSeller = t.withIdentity(seller.identity);
 
       const conversationBeforeSend = await t.run(async (ctx) => ctx.db.get(conversationId));
       const originalLastMessageId = conversationBeforeSend?.lastMessageId;
@@ -597,7 +622,7 @@ describe('Messages queries and mutations', () => {
         body: 'This message should be deleted.',
       });
 
-      await asSeller.mutation(api.messages.deleteMessage, {
+      await asBuyer.mutation(api.messages.deleteMessage, {
         messageId: sent.messageId,
       });
 
@@ -608,14 +633,14 @@ describe('Messages queries and mutations', () => {
       expect(conversationAfterDelete?.lastMessageId).toBe(originalLastMessageId);
     });
 
-    it('rejects deleting your own message', async () => {
+    it('rejects deleting the other participant message', async () => {
       const t = createConvexTest();
 
       const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
       const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
-      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
 
       const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
       const buyerMessageId = conversation?.lastMessageId;
@@ -625,10 +650,10 @@ describe('Messages queries and mutations', () => {
       }
 
       await expect(async () => {
-        await asBuyer.mutation(api.messages.deleteMessage, {
+        await asSeller.mutation(api.messages.deleteMessage, {
           messageId: buyerMessageId,
         });
-      }).rejects.toThrow('You can only delete messages from the other participant');
+      }).rejects.toThrow('You can only delete your own messages');
     });
   });
 
@@ -800,6 +825,56 @@ describe('Messages queries and mutations', () => {
 
       const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
       expect(buyerConversations).toHaveLength(0);
+    });
+  });
+
+  describe('getReportedConversationListingIds', () => {
+    it('returns listing IDs tied to conversations reported by the current user', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const sellerTwo = await createTestUser(t, 'seller-two@calpoly.edu', 'Seller Two');
+      const listingOneId = await createTestListing(t, seller.id);
+      const listingTwoId = await createTestListing(t, sellerTwo.id);
+      const conversationOneId = await createTestConversation(t, listingOneId, buyer.id, seller.id);
+      const conversationTwoId = await createTestConversation(
+        t,
+        listingTwoId,
+        buyer.id,
+        sellerTwo.id
+      );
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId: conversationOneId,
+        reason: 'spam',
+      });
+
+      const buyerHiddenListingIds = await asBuyer.query(
+        api.messages.getReportedConversationListingIds
+      );
+      const sellerHiddenListingIds = await asSeller.query(
+        api.messages.getReportedConversationListingIds
+      );
+
+      expect(buyerHiddenListingIds).toHaveLength(1);
+      expect(buyerHiddenListingIds[0]).toBe(listingOneId);
+      expect(sellerHiddenListingIds).toHaveLength(0);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId: conversationTwoId,
+        reason: 'inappropriate',
+      });
+
+      const buyerHiddenListingIdsAfterSecondReport = await asBuyer.query(
+        api.messages.getReportedConversationListingIds
+      );
+      expect(new Set(buyerHiddenListingIdsAfterSecondReport)).toEqual(
+        new Set([listingOneId, listingTwoId])
+      );
     });
   });
 
