@@ -195,11 +195,18 @@ export default function HomeScreen() {
 
   const savedState = useQuery(
     api.savedListings.getSavedStateForListings,
-    isAuthenticated && listings.length > 0 ? { listingIds: listings.map((l) => l._id) } : 'skip'
+    isAuthenticated && !isWeb && listings.length > 0
+      ? { listingIds: listings.map((l) => l._id) }
+      : 'skip'
   );
 
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
+      if (isWeb) {
+        router.push('/auth/login?returnTo=%2F' as never);
+        return;
+      }
+
       if (!isAuthenticated) {
         router.replace('/auth/login?returnTo=%2F' as never);
         return;
@@ -213,7 +220,7 @@ export default function HomeScreen() {
         Alert.alert('Save failed', message);
       }
     },
-    [isAuthenticated, router, toggleSavedListing]
+    [isAuthenticated, isWeb, router, toggleSavedListing]
   );
 
   const hasActiveFilters =
@@ -254,15 +261,19 @@ export default function HomeScreen() {
   }, [refreshListings]);
 
   const handleCreateListing = () => {
+    if (isWeb) {
+      router.push({
+        pathname: '/auth/login',
+        params: { returnTo: '/listings/new' },
+      } as never);
+      return;
+    }
+
     if (!isAuthenticated) {
-      if (Platform.OS === 'web') {
-        router.replace('/settings');
-      } else {
-        Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.replace('/auth/login') },
-        ]);
-      }
+      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.replace('/auth/login') },
+      ]);
       return;
     }
     router.push('/listings/new');
@@ -394,11 +405,17 @@ export default function HomeScreen() {
               ]}
               onPress={handleCreateListing}
               disabled={isSessionLoading}
-              accessibilityLabel="Create listing"
+              accessibilityLabel={
+                isWeb ? 'Download the Mobile App to Create Listings' : 'Create listing'
+              }
               accessibilityRole="button"
             >
-              <Text style={styles.createChipText}>
-                {isAuthenticated ? '+ Create listing' : 'Sign in to sell'}
+              <Text style={[styles.createChipText, isWeb && styles.webCreateChipText]}>
+                {isWeb
+                  ? 'Download the Mobile App to Create Listings'
+                  : isAuthenticated
+                    ? '+ Create listing'
+                    : 'Sign in to sell'}
               </Text>
             </Pressable>
           </Animated.View>
@@ -438,7 +455,6 @@ export default function HomeScreen() {
                           listing={item}
                           index={row.startIndex + columnOffset}
                           isSaved={savedState?.[item._id] ?? false}
-                          onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
                           density="home"
                           shellStyle="flat"
                         />
@@ -654,8 +670,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   webCreateChip: {
-    minWidth: 172,
+    minWidth: 280,
     alignItems: 'center',
+  },
+  webCreateChipText: {
+    textAlign: 'center',
   },
   homeTopBlock: {
     gap: spacing.md,

@@ -75,6 +75,7 @@ export default function ListingDetailScreen() {
   const router = useRouter();
   const { setFlash } = useFlash();
   const { isAuthenticated } = useAuth();
+  const isWeb = Platform.OS === 'web';
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
 
@@ -84,14 +85,14 @@ export default function ListingDetailScreen() {
   );
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
-    isAuthenticated ? {} : 'skip'
+    isAuthenticated && !isWeb ? {} : 'skip'
   );
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
   const [markingSold, setMarkingSold] = useState(false);
   const isSaved = useQuery(
     api.savedListings.isListingSaved,
-    listingId && isAuthenticated ? { listingId: listingId as Id<'listings'> } : 'skip'
+    listingId && isAuthenticated && !isWeb ? { listingId: listingId as Id<'listings'> } : 'skip'
   );
   const [reportOpen, setReportOpen] = useState(false);
   const [savedOptimistic, setSavedOptimistic] = useState<boolean | null>(null);
@@ -128,6 +129,14 @@ export default function ListingDetailScreen() {
   const onMessageSellerPress = () => {
     if (!listing) return;
 
+    if (isWeb) {
+      router.push({
+        pathname: '/auth/login',
+        params: { returnTo: `/listings/${listing._id}` },
+      } as never);
+      return;
+    }
+
     if (!isAuthenticated) {
       const redirectTo = `/listings/${listing._id}`;
       router.replace(`/auth/login?returnTo=${encodeURIComponent(redirectTo)}` as never);
@@ -142,6 +151,14 @@ export default function ListingDetailScreen() {
 
   const onSavePress = async () => {
     if (!listingId) return;
+
+    if (isWeb) {
+      router.push({
+        pathname: '/auth/login',
+        params: { returnTo: `/listings/${listingId}` },
+      } as never);
+      return;
+    }
 
     if (!isAuthenticated) {
       router.replace(
@@ -234,7 +251,7 @@ export default function ListingDetailScreen() {
     return <ListingUnavailable />;
   }
 
-  if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
+  if (listing === undefined || (!isWeb && isAuthenticated && currentUserSubject === undefined)) {
     return (
       <View style={styles.loadingContainer}>
         <ScreenState variant="loading" title="Loading listing..." />
@@ -551,7 +568,7 @@ export default function ListingDetailScreen() {
           </View>
         )}
 
-        {!isOwner && (
+        {!isOwner && !isWeb && (
           <Pressable
             style={({ pressed }) => [styles.reportLink, pressed && styles.buttonPressed]}
             onPress={() => setReportOpen(true)}

@@ -1,4 +1,12 @@
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
@@ -27,6 +35,7 @@ export default function PublicProfileScreen() {
   const router = useRouter();
   const { setFlash } = useFlash();
   const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { user, isAuthenticated } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   let resolvedUserId: string | null = null;
@@ -55,7 +64,7 @@ export default function PublicProfileScreen() {
   const avatarUrl = avatarUrls[0];
   const isWideLayout = width >= 980;
   const canReportProfile =
-    isAuthenticated && resolvedUserId !== null && user?._id !== resolvedUserId;
+    !isWeb && isAuthenticated && resolvedUserId !== null && user?._id !== resolvedUserId;
 
   if (!resolvedUserId) {
     return (
