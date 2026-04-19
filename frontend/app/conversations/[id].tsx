@@ -38,7 +38,7 @@ function formatMessageTimestamp(timestamp: number) {
   }).format(new Date(timestamp));
 }
 
-function SwipeableMessageRow({
+function ReportableMessageRow({
   message,
   isSent,
   receiptLabel,
@@ -488,7 +488,7 @@ export default function ConversationDetailScreen() {
             const isSent = currentUserId !== null && item.senderId === currentUserId;
             const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
             return (
-              <SwipeableMessageRow
+              <ReportableMessageRow
                 message={item}
                 isSent={isSent}
                 receiptLabel={receiptLabel}
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
   },
   messageActionLabel: {
     ...typography.footnoteMed,
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.white,
     textTransform: 'uppercase',

@@ -481,6 +481,79 @@ describe('Listings queries', () => {
     expect(otherSearch.page.map((listing: any) => listing._id)).toContain(listingId);
   });
 
+  it('getListings keeps pages filled after excluding reported conversation listings', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Visible older listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Visible middle listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const reportedListingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Reported newest listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId: reportedListingId,
+    });
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'spam',
+    });
+
+    const page = await asBuyer.query(api.listings.getListings, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(2);
+    expect(page.page.map((listing: any) => listing._id)).not.toContain(reportedListingId);
+  });
+
+  it('searchAndFilterListings keeps pages filled after excluding reported conversation listings', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search visible older listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search visible middle listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const reportedListingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search reported newest listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId: reportedListingId,
+    });
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'inappropriate',
+    });
+
+    const page = await asBuyer.query(api.listings.searchAndFilterListings, {
+      filters: { sortBy: 'newest' },
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(2);
+    expect(page.page.map((listing: any) => listing._id)).not.toContain(reportedListingId);
+  });
+
   it('filters by minPrice', async () => {
     const t = await setupTestWithProfiles();
     const asUser = t.withIdentity(aliceIdentity);

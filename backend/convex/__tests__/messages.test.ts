@@ -601,6 +601,37 @@ describe('Messages queries and mutations', () => {
       expect(buyerConversations[0]._id).toBe(conversationId);
       expect(buyerConversations[0].lastMessagePreview).toBe('I am interested again.');
     });
+
+    it('does not overwrite a reported hidden reason when hideConversationFromInbox is called', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      expect(conversation?.buyerInboxHiddenReason).toBe('reported');
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'New message after report',
+      });
+
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+    });
   });
 
   describe('deleteMessage', () => {

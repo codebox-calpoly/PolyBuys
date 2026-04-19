@@ -90,8 +90,19 @@ function ConversationRow({
   const lastMessageAt = item.lastMessageAt ?? item.updatedAt ?? Date.now();
 
   const translateX = useRef(new Animated.Value(0)).current;
+  const translateXValueRef = useRef(0);
   const swipeStartOffset = useRef(0);
   const isLeftOpenRef = useRef(false);
+
+  useEffect(() => {
+    const listenerId = translateX.addListener(({ value }) => {
+      translateXValueRef.current = value;
+    });
+
+    return () => {
+      translateX.removeListener(listenerId);
+    };
+  }, [translateX]);
 
   const animateTo = useCallback(
     (toValue: number, onComplete?: () => void) => {
@@ -170,9 +181,8 @@ function ConversationRow({
           return gestureState.dx < -8 || gestureState.dx > 8;
         },
         onPanResponderGrant: () => {
-          translateX.stopAnimation((currentValue) => {
-            swipeStartOffset.current = currentValue;
-          });
+          swipeStartOffset.current = translateXValueRef.current;
+          translateX.stopAnimation();
         },
         onPanResponderMove: (_, gestureState) => {
           if (Math.abs(gestureState.dy) > Math.abs(gestureState.dx)) {

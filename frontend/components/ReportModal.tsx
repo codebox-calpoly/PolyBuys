@@ -63,24 +63,25 @@ export function ReportModal({
     setSubmitting(true);
     try {
       const trimmedNotes = notes.trim() ? notes.trim() : undefined;
+      const reportPayload = {
+        reason,
+        notes: trimmedNotes,
+      };
       if (targetType === 'conversation') {
         await reportConversation({
           conversationId: targetId as Id<'conversations'>,
-          reason,
-          notes: trimmedNotes,
+          ...reportPayload,
         });
       } else if (targetType === 'message') {
         await reportMessage({
           messageId: targetId as Id<'messages'>,
-          reason,
-          notes: trimmedNotes,
+          ...reportPayload,
         });
       } else {
         await createReport({
           targetId,
           targetType,
-          reason,
-          notes: trimmedNotes,
+          ...reportPayload,
         });
       }
       if (onReportSuccess) {
