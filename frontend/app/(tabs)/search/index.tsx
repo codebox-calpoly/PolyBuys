@@ -72,10 +72,17 @@ export default function SearchScreen() {
     }, [])
   );
 
+  /** Clears the text field and the debounced query in one update so the UI leaves “results” immediately. */
+  const clearSearchTextOnly = useCallback(() => {
+    Keyboard.dismiss();
+    setSearchInput('');
+    setSearchTerm('');
+  }, []);
+
   const clearSearchAndBrowse = useCallback(() => {
     setCategoryFilter(null);
-    setSearchInput('');
-  }, []);
+    clearSearchTextOnly();
+  }, [clearSearchTextOnly]);
 
   useEffect(() => {
     filterVersionRef.current += 1;
@@ -397,7 +404,7 @@ export default function SearchScreen() {
               />
               {searchInput.length > 0 ? (
                 <Pressable
-                  onPress={() => setSearchInput('')}
+                  onPress={clearSearchTextOnly}
                   style={[
                     styles.searchClearButton,
                     { backgroundColor: searchChrome.clearButtonBackground },
