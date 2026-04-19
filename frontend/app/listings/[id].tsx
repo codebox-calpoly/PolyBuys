@@ -490,12 +490,14 @@ export default function ListingDetailScreen() {
           />
         </View>
 
-        <Text style={styles.descriptionLabel}>Description</Text>
-        <Text style={styles.description}>{listing.description}</Text>
+        <View style={styles.sectionBlock}>
+          <Text style={styles.descriptionLabel}>Description</Text>
+          <Text style={styles.description}>{listing.description}</Text>
+        </View>
 
         {sellerProfile && (
           <Pressable
-            style={styles.sellerBlock}
+            style={[styles.sellerBlock, styles.sectionBlock]}
             onPress={() => router.push(`/profile/${encodeURIComponent(listing.sellerId)}` as never)}
             accessibilityLabel={`View ${sellerProfile.name}'s profile`}
             accessibilityRole="button"
@@ -596,17 +598,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 980,
     alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + spacing.sm,
   },
   webBannerContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.sm,
     backgroundColor: colors.infoBg,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
     borderColor: colors.infoBorder,
-    padding: 12,
+    padding: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -614,7 +616,7 @@ const styles = StyleSheet.create({
   },
   webBannerTextWrap: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xs,
   },
   webBannerSubtext: {
     color: colors.infoText,
@@ -643,12 +645,13 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: spacing.xl,
+    gap: spacing.lg,
     overflow: 'hidden',
+    boxShadow: '0 16px 36px rgba(14, 107, 83, 0.08)',
   },
   imageSection: {
-    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   heroImageWrap: {
     height: 280,
@@ -664,7 +667,7 @@ const styles = StyleSheet.create({
   imageIndicator: {
     alignItems: 'center',
     marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     gap: spacing.xs,
   },
   imageIndicatorText: {
@@ -726,7 +729,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
   },
   placeholderText: {
     color: colors.text,
@@ -736,8 +738,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: spacing.md,
-    marginTop: spacing.xs,
+    gap: spacing.lg,
   },
   title: {
     ...typography.title1,
@@ -755,6 +756,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   messageButton: {
     flex: 1,
@@ -785,12 +787,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+  },
+  sectionBlock: {
+    gap: spacing.sm,
   },
   descriptionLabel: {
     ...typography.heading,
     color: colors.textDark,
-    marginTop: spacing.sm,
   },
   description: {
     ...typography.body,
@@ -800,13 +803,12 @@ const styles = StyleSheet.create({
   sellerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceBrand,
     borderRadius: borderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.md,
-    marginTop: spacing.sm,
   },
   sellerAvatar: {
     width: 44,
@@ -821,6 +823,7 @@ const styles = StyleSheet.create({
   },
   sellerInfo: {
     flex: 1,
+    gap: 2,
   },
   sellerName: {
     ...typography.subhead,
@@ -833,7 +836,6 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     gap: spacing.sm,
-    marginTop: spacing.sm,
   },
   markSoldButton: {
     backgroundColor: colors.primary,
@@ -851,7 +853,7 @@ const styles = StyleSheet.create({
   editButton: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceWarm,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: 'center',
@@ -864,7 +866,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   reportLink: {
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     paddingVertical: spacing.sm,
     alignSelf: 'flex-start',
   },

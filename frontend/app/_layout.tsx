@@ -70,14 +70,14 @@ function RootLayout() {
             <Stack
               screenOptions={{
                 headerBackButtonDisplayMode: 'minimal',
-                headerStyle: { backgroundColor: colors.surface },
+                headerStyle: { backgroundColor: colors.background },
                 headerTintColor: colors.textDark,
                 headerTitleStyle: {
                   ...typography.heading,
                   color: colors.textDark,
                 },
                 headerShadowVisible: false,
-                contentStyle: { backgroundColor: colors.surface },
+                contentStyle: { backgroundColor: colors.background },
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />

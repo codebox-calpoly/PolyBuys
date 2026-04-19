@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
@@ -132,6 +134,8 @@ export default function ProfileEditScreen() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { mappedUrls: pictureUrls } = useResolvedImageUrls(picture ? [picture] : []);
   const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 420;
 
   useEffect(() => {
     if (!isAuthenticated || profile === undefined) return;
@@ -323,117 +327,132 @@ export default function ProfileEditScreen() {
 
   return (
     <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.field}>
-        <Text style={styles.label}>Profile picture</Text>
-        <View style={styles.pictureRow}>
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Profile picture</Text>
+        <View style={[styles.pictureRow, isCompactLayout && styles.pictureRowCompact]}>
           <ProfileAvatar uri={pictureUrl} name={name} size={84} style={styles.avatar} />
           <View style={styles.pictureActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.pictureButton,
-                pressed && styles.buttonPressed,
-                isPreparingPicture && styles.buttonDisabled,
-              ]}
-              onPress={() => void handlePickPicture()}
-              disabled={isPreparingPicture || isSubmitting}
-              accessibilityRole="button"
-              accessibilityLabel={pictureUrl ? 'Change profile picture' : 'Add profile picture'}
-            >
-              {isPreparingPicture ? (
-                <ActivityIndicator color={colors.primary} size="small" />
-              ) : (
-                <Text style={styles.pictureButtonText}>
-                  {pictureUrl ? 'Change photo' : 'Upload photo'}
-                </Text>
-              )}
-            </Pressable>
-            {pictureUrl ? (
+            <Text style={styles.helperText}>
+              Add a clear square photo so buyers can recognize you quickly.
+            </Text>
+            <View style={styles.pictureButtonRow}>
               <Pressable
-                onPress={handleRemovePicture}
-                disabled={isPreparingPicture || isSubmitting}
                 style={({ pressed }) => [
-                  styles.removeButton,
+                  styles.pictureButton,
                   pressed && styles.buttonPressed,
-                  (isPreparingPicture || isSubmitting) && styles.buttonDisabled,
+                  isPreparingPicture && styles.buttonDisabled,
                 ]}
+                onPress={() => void handlePickPicture()}
+                disabled={isPreparingPicture || isSubmitting}
                 accessibilityRole="button"
-                accessibilityLabel="Remove profile picture"
+                accessibilityLabel={pictureUrl ? 'Change profile picture' : 'Add profile picture'}
               >
-                <Text style={styles.removeButtonText}>Remove photo</Text>
+                {isPreparingPicture ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <Text style={styles.pictureButtonText}>
+                    {pictureUrl ? 'Change photo' : 'Upload photo'}
+                  </Text>
+                )}
               </Pressable>
-            ) : null}
+              {pictureUrl ? (
+                <Pressable
+                  onPress={handleRemovePicture}
+                  disabled={isPreparingPicture || isSubmitting}
+                  style={({ pressed }) => [
+                    styles.removeButton,
+                    pressed && styles.buttonPressed,
+                    (isPreparingPicture || isSubmitting) && styles.buttonDisabled,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove profile picture"
+                >
+                  <Text style={styles.removeButtonText}>Remove photo</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
       </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Name *</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Your full name"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-        />
+
+      <View style={[styles.sectionCard, styles.sectionCardBrand]}>
+        <Text style={styles.sectionTitle}>Basic information</Text>
+        <View style={styles.field}>
+          <Text style={styles.label}>Name *</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Your full name"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Email *</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@calpoly.edu"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Bio</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={bio}
+            onChangeText={setBio}
+            placeholder="Tell others about yourself"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            multiline
+            numberOfLines={4}
+          />
+        </View>
       </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Email *</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@calpoly.edu"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Bio</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={bio}
-          onChangeText={setBio}
-          placeholder="Tell others about yourself"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          multiline
-        />
-      </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Major *</Text>
-        <TextInput
-          style={styles.input}
-          value={major}
-          onChangeText={setMajor}
-          placeholder="Computer Science"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-        />
-      </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Graduation year *</Text>
-        <TextInput
-          style={styles.input}
-          value={year}
-          onChangeText={setYear}
-          placeholder="2026"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="number-pad"
-        />
+
+      <View style={[styles.sectionCard, styles.sectionCardWarm]}>
+        <Text style={styles.sectionTitle}>School details</Text>
+        <View style={styles.field}>
+          <Text style={styles.label}>Major *</Text>
+          <TextInput
+            style={styles.input}
+            value={major}
+            onChangeText={setMajor}
+            placeholder="Computer Science"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Graduation year *</Text>
+          <TextInput
+            style={styles.input}
+            value={year}
+            onChangeText={setYear}
+            placeholder="2026"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            keyboardType="number-pad"
+          />
+        </View>
       </View>
 
       <Pressable
         style={({ pressed }) => [
           styles.saveButton,
+          isCompactLayout && styles.saveButtonCompact,
           pressed && styles.buttonPressed,
           (isSubmitting || isPreparingPicture) && styles.buttonDisabled,
         ]}
@@ -465,30 +484,64 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.lg,
     paddingBottom: spacing.xxl,
   },
+  sectionCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    boxShadow: '0 14px 30px rgba(14, 107, 83, 0.06)',
+  },
+  sectionCardBrand: {
+    backgroundColor: colors.surfaceBrand,
+  },
+  sectionCardWarm: {
+    backgroundColor: colors.surfaceWarm,
+  },
+  sectionTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
   field: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   pictureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.lg,
+  },
+  pictureRowCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   pictureActions: {
     flex: 1,
-    gap: spacing.xs,
+    gap: spacing.sm,
+  },
+  pictureButtonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   avatar: {
     width: 84,
     height: 84,
     borderRadius: 42,
   },
+  helperText: {
+    ...typography.footnote,
+    color: colors.text,
+    maxWidth: 320,
+  },
   pictureButton: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     minHeight: 44,
     paddingHorizontal: spacing.md,
@@ -526,10 +579,12 @@ const styles = StyleSheet.create({
     ...typography.body,
     backgroundColor: colors.white,
     color: colors.textDark,
+    minHeight: 52,
   },
   textArea: {
-    minHeight: 90,
+    minHeight: 112,
     textAlignVertical: 'top',
+    paddingTop: Platform.OS === 'ios' ? spacing.md : spacing.smPlus,
   },
   saveButton: {
     backgroundColor: colors.primary,
@@ -538,6 +593,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+    marginTop: spacing.xs,
+  },
+  saveButtonCompact: {
     marginTop: spacing.sm,
   },
   saveButtonText: {

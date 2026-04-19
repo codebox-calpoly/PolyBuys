@@ -4,7 +4,7 @@ import { CATEGORY_LABELS, LISTING_SORT_SHORT } from '../types/filters';
 import type { Category, Filters, ListingSortBy } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { formatPrice } from '../lib/formatPrice';
-import { colors, borderRadius } from '../theme/tokens';
+import { colors, borderRadius, spacing, typography } from '../theme/tokens';
 
 export type { Category, Filters };
 
@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
+    paddingVertical: 2,
   },
   chip: {
     flexDirection: 'row',
@@ -159,11 +160,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: 8,
-    paddingLeft: 14,
-    paddingRight: 10,
+    paddingVertical: spacing.sm,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
     minHeight: 44,
-    gap: 6,
+    gap: spacing.xs,
   },
   chipActive: {
     backgroundColor: colors.location,
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   chipText: {
-    fontSize: 14,
+    ...typography.footnoteMed,
     color: colors.text,
     fontWeight: '500',
   },
@@ -195,14 +196,14 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   clearAll: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     minHeight: 44,
     justifyContent: 'center',
   },
   clearAllText: {
-    fontSize: 14,
+    ...typography.footnoteMed,
     color: colors.primary,
     fontWeight: '600',
   },

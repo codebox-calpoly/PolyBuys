@@ -365,30 +365,30 @@ const LISTING_IMAGE_HEIGHT = 220;
 
 const styles = StyleSheet.create({
   listingCardWrapper: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     flex: 1,
     minWidth: 0,
   },
   listingCardWrapperHome: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   cardContainer: {
     position: 'relative',
   },
   listingCard: {
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
-    boxShadow: '0 8px 20px rgba(21, 71, 52, 0.07)',
+    boxShadow: '0 12px 28px rgba(14, 107, 83, 0.09)',
   },
   listingCardFlat: {
     backgroundColor: 'transparent',
     boxShadow: 'none',
   },
   listingCardHover: {
-    boxShadow: '0 18px 36px rgba(21, 71, 52, 0.14)',
+    boxShadow: '0 22px 40px rgba(14, 107, 83, 0.16)',
     transform: [{ translateY: -2 }],
   },
   listingCardPressed: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     height: LISTING_IMAGE_HEIGHT,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceWarm,
     borderRadius: borderRadius.sm,
     overflow: 'hidden',
     position: 'relative',
@@ -518,19 +518,19 @@ const styles = StyleSheet.create({
   },
   cardDetails: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   cardDetailsHome: {
     paddingHorizontal: spacing.smPlus,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
-    gap: 2,
+    gap: spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.xs,
   },
   listingTitle: {
@@ -552,6 +552,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     color: colors.gray,
     fontWeight: '500',
+    marginTop: 1,
   },
   listingConditionHome: {
     fontSize: 12,
@@ -561,11 +562,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.accent,
-    marginTop: spacing.xs,
+    letterSpacing: 0.28,
   },
   listingPriceHome: {
     fontSize: 17,
-    marginTop: spacing.xs,
   },
   footer: {
     marginTop: spacing.sm,
