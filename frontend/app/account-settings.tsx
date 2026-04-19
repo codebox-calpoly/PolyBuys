@@ -521,7 +521,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
   },
   unblockButtonText: {
     ...typography.footnote,
@@ -548,6 +549,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(179, 38, 30, 0.06)',
+    boxShadow: '0 10px 20px rgba(179, 38, 30, 0.08)',
   },
   deleteButtonPressed: {
     opacity: 0.92,
@@ -561,13 +563,15 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.white,
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   secondaryButtonText: {
     ...typography.subhead,

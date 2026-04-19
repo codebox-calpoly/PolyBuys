@@ -449,6 +449,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   closeButtonPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
@@ -492,6 +494,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   arrowLeft: {
     left: 16,
@@ -541,14 +545,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
   },
   dotActive: {
     backgroundColor: colors.white,
+    borderColor: colors.white,
   },
   dotInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
 });

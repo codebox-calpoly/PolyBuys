@@ -23,7 +23,7 @@ import MyListingActionsSheet, {
 import { useAuth } from '../../hooks/useAuth';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
-import { FilterChips, ScreenHeader, type FilterChipOption } from '../../components/ui';
+import { FilterChips, type FilterChipOption } from '../../components/ui';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'sold';
 
@@ -178,6 +178,7 @@ export default function MyListingsScreen() {
   }
 
   const isCompactLayout = width < 760;
+  const isNarrowPhone = width < 430;
   const columnCount = 2;
   const contentPadding = width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
@@ -247,28 +248,35 @@ export default function MyListingsScreen() {
     <View style={styles.page}>
       <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <ScreenHeader
-          title="My Listings"
-          subtitle={subtitleText}
-          action={
-            manageableListings.length > 0 ? (
-              <Pressable
-                style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-                onPress={() => router.push('/listings/new')}
-                accessibilityLabel="Create listing"
-                accessibilityRole="button"
-              >
-                <Text style={styles.createChipText}>+ Create listing</Text>
-              </Pressable>
-            ) : null
-          }
-        />
+        <View style={[styles.headerBlock, isNarrowPhone && styles.headerBlockStacked]}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerTitle}>My Listings</Text>
+            <Text style={styles.headerSubtitle}>{subtitleText}</Text>
+          </View>
+          {manageableListings.length > 0 ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.createChip,
+                isNarrowPhone && styles.createChipCompact,
+                pressed && styles.createChipPressed,
+              ]}
+              onPress={() => router.push('/listings/new')}
+              accessibilityLabel="Create listing"
+              accessibilityRole="button"
+            >
+              <Text style={styles.createChipText}>
+                {isNarrowPhone ? '+ Create' : '+ Create listing'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         {manageableListings.length > 0 && (
           <FilterChips
             options={filterOptionsWithCounts}
             value={statusFilter}
             onChange={setStatusFilter}
+            wrap={isNarrowPhone}
           />
         )}
 
@@ -355,6 +363,28 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.text,
   },
+  headerBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  headerBlockStacked: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerTitle: {
+    ...typography.title1,
+    color: colors.textDark,
+  },
+  headerSubtitle: {
+    ...typography.footnoteMed,
+    color: colors.text,
+    marginTop: 2,
+  },
   createChip: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
@@ -363,6 +393,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  createChipCompact: {
+    alignSelf: 'flex-start',
   },
   createChipPressed: {
     opacity: 0.9,

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 export interface FilterChipOption<T extends string = string> {
@@ -10,20 +10,27 @@ interface FilterChipsProps<T extends string = string> {
   options: FilterChipOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  wrap?: boolean;
 }
 
 export function FilterChips<T extends string = string>({
   options,
   value,
   onChange,
+  wrap = false,
 }: FilterChipsProps<T>) {
+  const Container = wrap ? View : ScrollView;
+  const containerProps = wrap
+    ? { style: styles.wrapBar }
+    : {
+        horizontal: true,
+        showsHorizontalScrollIndicator: false,
+        contentContainerStyle: styles.row,
+        style: styles.bar,
+      };
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.bar}
-    >
+    <Container {...containerProps}>
       {options.map((option) => {
         const isSelected = option.value === value;
         return (
@@ -44,7 +51,7 @@ export function FilterChips<T extends string = string>({
           </Pressable>
         );
       })}
-    </ScrollView>
+    </Container>
   );
 }
 
@@ -58,29 +65,37 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 2,
   },
+  wrapBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingVertical: 2,
+  },
   chip: {
-    height: 38,
+    minHeight: 44,
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.lg,
     justifyContent: 'center',
     backgroundColor: colors.white,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.location,
+    borderColor: colors.locationDark,
   },
   chipText: {
     ...typography.footnoteMed,
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: '600',
   },
   chipTextActive: {
-    color: colors.white,
+    color: colors.textDark,
   },
   chipPressed: {
-    opacity: 0.88,
+    opacity: 0.95,
+    transform: [{ scale: 0.98 }],
   },
 });
 

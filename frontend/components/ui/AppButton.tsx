@@ -19,7 +19,7 @@ export function AppButton({
   children,
   accessibilityLabel,
 }: AppButtonProps) {
-  const textColorKey = variant === 'primary' || variant === 'secondary' ? 'white' : 'text';
+  const textColorKey = variant === 'primary' ? 'white' : 'text';
 
   return (
     <AppPressable
