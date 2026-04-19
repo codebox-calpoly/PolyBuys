@@ -174,7 +174,7 @@ export default function NewConversationScreen() {
             textAlignVertical="top"
           />
           <View style={styles.composerFooter}>
-            <Text style={styles.characterCount}>{messageBody.trim().length}/2000</Text>
+            <Text style={styles.characterCount}>{messageBody.length}/2000</Text>
             <Pressable
               onPress={() => void onSend()}
               style={({ pressed }) => [

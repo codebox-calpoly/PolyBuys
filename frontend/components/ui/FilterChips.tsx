@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { ScrollViewProps, ViewProps } from 'react-native';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 export interface FilterChipOption<T extends string = string> {
@@ -19,18 +20,46 @@ export function FilterChips<T extends string = string>({
   onChange,
   wrap = false,
 }: FilterChipsProps<T>) {
-  const Container = wrap ? View : ScrollView;
-  const containerProps = wrap
-    ? { style: styles.wrapBar }
-    : {
-        horizontal: true,
-        showsHorizontalScrollIndicator: false,
-        contentContainerStyle: styles.row,
-        style: styles.bar,
-      };
+  if (wrap) {
+    const viewProps: ViewProps = {
+      style: styles.wrapBar,
+    };
+
+    return (
+      <View {...viewProps}>
+        {options.map((option) => {
+          const isSelected = option.value === value;
+          return (
+            <Pressable
+              key={option.value}
+              style={({ pressed }) => [
+                styles.chip,
+                isSelected && styles.chipActive,
+                pressed && styles.chipPressed,
+              ]}
+              onPress={() => onChange(option.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+            >
+              <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
+
+  const scrollProps: ScrollViewProps = {
+    horizontal: true,
+    showsHorizontalScrollIndicator: false,
+    contentContainerStyle: styles.row,
+    style: styles.bar,
+  };
 
   return (
-    <Container {...containerProps}>
+    <ScrollView {...scrollProps}>
       {options.map((option) => {
         const isSelected = option.value === value;
         return (
@@ -51,7 +80,7 @@ export function FilterChips<T extends string = string>({
           </Pressable>
         );
       })}
-    </Container>
+    </ScrollView>
   );
 }
 

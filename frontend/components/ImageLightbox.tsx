@@ -400,6 +400,7 @@ export default function ImageLightbox({
               <Pressable
                 key={i}
                 onPress={() => setCurrentIndex(i)}
+                hitSlop={10}
                 style={[styles.dot, i === currentIndex ? styles.dotActive : styles.dotInactive]}
                 accessibilityLabel={`Go to image ${i + 1}`}
                 accessibilityRole="button"

@@ -275,6 +275,7 @@ export default function SearchScreen() {
 
   const browseLanding = showBrowseLanding ? (
     <ScrollView
+      style={styles.contentScroll}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
@@ -287,7 +288,11 @@ export default function SearchScreen() {
     >
       <SectionCard
         title="Browse categories"
-        subtitle="Tap a category to see the newest campus listings, or use a quick search below."
+        subtitle={
+          USE_NATIVE_SEARCH_BAR
+            ? 'Tap a category to see the newest campus listings.'
+            : 'Tap a category to see the newest campus listings, or use a quick search below.'
+        }
         style={styles.browseCard}
       >
         <View style={styles.categoryGrid}>
@@ -324,29 +329,31 @@ export default function SearchScreen() {
           ))}
         </View>
       </SectionCard>
-      <SectionCard
-        title="Popular searches"
-        subtitle="Try one of these common searches to get to good listings faster."
-        style={styles.quickSearchCard}
-      >
-        <View style={styles.quickSearchGrid}>
-          {QUICK_SEARCHES.map((query) => (
-            <Pressable
-              key={query}
-              onPress={() => handleQuickSearchPress(query)}
-              style={({ pressed }) => [
-                styles.quickSearchChip,
-                pressed && styles.quickSearchChipPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Search for ${query}`}
-            >
-              <Feather name="search" size={14} color={colors.primary} />
-              <Text style={styles.quickSearchText}>{query}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </SectionCard>
+      {!USE_NATIVE_SEARCH_BAR && (
+        <SectionCard
+          title="Popular searches"
+          subtitle="Try one of these common searches to get to good listings faster."
+          style={styles.quickSearchCard}
+        >
+          <View style={styles.quickSearchGrid}>
+            {QUICK_SEARCHES.map((query) => (
+              <Pressable
+                key={query}
+                onPress={() => handleQuickSearchPress(query)}
+                style={({ pressed }) => [
+                  styles.quickSearchChip,
+                  pressed && styles.quickSearchChipPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Search for ${query}`}
+              >
+                <Feather name="search" size={14} color={colors.primary} />
+                <Text style={styles.quickSearchText}>{query}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </SectionCard>
+      )}
     </ScrollView>
   ) : null;
 
@@ -649,6 +656,9 @@ const styles = StyleSheet.create({
   filterBannerClear: {
     color: colors.primary,
     fontWeight: '600',
+  },
+  contentScroll: {
+    flex: 1,
   },
   content: {
     paddingTop: spacing.lg,

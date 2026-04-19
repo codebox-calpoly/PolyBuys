@@ -693,14 +693,14 @@ export default function ListingDetailScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.messageComposerKeyboardWrap}
           >
-            <GestureDetector gesture={messageComposerPanGesture}>
-              <Reanimated.View
-                style={[
-                  styles.messageComposerSheet,
-                  messageComposerAnimatedStyle,
-                  { paddingBottom: insets.bottom + spacing.lg },
-                ]}
-              >
+            <Reanimated.View
+              style={[
+                styles.messageComposerSheet,
+                messageComposerAnimatedStyle,
+                { paddingBottom: insets.bottom + spacing.lg },
+              ]}
+            >
+              <GestureDetector gesture={messageComposerPanGesture}>
                 <View style={styles.messageComposerDragRegion}>
                   <View style={styles.messageComposerHandleArea}>
                     <View style={styles.messageComposerGrabber} />
@@ -741,52 +741,54 @@ export default function ListingDetailScreen() {
                     </View>
                   </View>
                 </View>
-                <TextInput
-                  value={messageBody}
-                  onChangeText={setMessageBody}
-                  placeholder="Hi! Is this still available?"
-                  placeholderTextColor={colors.muted}
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                  style={styles.messageComposerInput}
-                  multiline
-                  maxLength={2000}
-                  editable={!isSendingMessage}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-                <View style={styles.messageComposerFooter}>
-                  <Text style={styles.messageComposerCount}>{messageBody.trim().length}/2000</Text>
-                  <View style={styles.messageComposerActions}>
-                    <Pressable
-                      onPress={closeMessageComposer}
-                      style={({ pressed }) => [
-                        styles.messageComposerSecondaryButton,
-                        pressed && styles.buttonPressed,
-                      ]}
-                      disabled={isSendingMessage}
-                    >
-                      <Text style={styles.messageComposerSecondaryButtonText}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => void onSendFirstMessage()}
-                      style={({ pressed }) => [
-                        styles.messageComposerPrimaryButton,
-                        (!messageBody.trim() || isSendingMessage) && styles.buttonDisabled,
-                        pressed && styles.buttonPressed,
-                      ]}
-                      disabled={!messageBody.trim() || isSendingMessage}
-                    >
-                      {isSendingMessage ? (
-                        <ActivityIndicator size="small" color={colors.white} />
-                      ) : (
-                        <Text style={styles.messageComposerPrimaryButtonText}>Send</Text>
-                      )}
-                    </Pressable>
-                  </View>
+              </GestureDetector>
+              <TextInput
+                value={messageBody}
+                onChangeText={setMessageBody}
+                placeholder="Hi! Is this still available?"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                style={styles.messageComposerInput}
+                multiline
+                maxLength={2000}
+                editable={!isSendingMessage}
+                textAlignVertical="top"
+                autoFocus
+              />
+              <View style={styles.messageComposerFooter}>
+                <Text style={styles.messageComposerCount}>
+                  {Math.min(messageBody.length, 2000)}/2000
+                </Text>
+                <View style={styles.messageComposerActions}>
+                  <Pressable
+                    onPress={closeMessageComposer}
+                    style={({ pressed }) => [
+                      styles.messageComposerSecondaryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    disabled={isSendingMessage}
+                  >
+                    <Text style={styles.messageComposerSecondaryButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void onSendFirstMessage()}
+                    style={({ pressed }) => [
+                      styles.messageComposerPrimaryButton,
+                      (!messageBody.trim() || isSendingMessage) && styles.buttonDisabled,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    disabled={!messageBody.trim() || isSendingMessage}
+                  >
+                    {isSendingMessage ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Text style={styles.messageComposerPrimaryButtonText}>Send</Text>
+                    )}
+                  </Pressable>
                 </View>
-              </Reanimated.View>
-            </GestureDetector>
+              </View>
+            </Reanimated.View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
