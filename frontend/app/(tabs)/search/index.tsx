@@ -73,8 +73,9 @@ export default function SearchScreen() {
   );
 
   const clearSearchAndBrowse = useCallback(() => {
-    setCategoryFilter(null);
     setSearchInput('');
+    setSearchTerm('');
+    setCategoryFilter(null);
   }, []);
 
   useEffect(() => {
@@ -162,7 +163,7 @@ export default function SearchScreen() {
     [router]
   );
 
-  const hasActiveQuery = searchTerm.length > 0 || categoryFilter !== null;
+  const hasActiveQuery = searchInput.trim().length > 0 || categoryFilter !== null;
   const isSearching = hasActiveQuery;
   const isInitialLoading =
     isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
@@ -397,7 +398,7 @@ export default function SearchScreen() {
               />
               {searchInput.length > 0 ? (
                 <Pressable
-                  onPress={() => setSearchInput('')}
+                  onPress={clearSearchAndBrowse}
                   style={[
                     styles.searchClearButton,
                     { backgroundColor: searchChrome.clearButtonBackground },
