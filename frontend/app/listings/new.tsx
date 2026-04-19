@@ -17,6 +17,7 @@ import ImageUploader from '@/components/ImageUploader';
 import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
 import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
 
@@ -60,11 +61,12 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function NewListingScreen() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const { setFlash } = useFlash();
   const createListing = useAction(api.listings.createListing);
   const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -77,11 +79,24 @@ export default function NewListingScreen() {
   const submittingRef = useRef(false);
 
   useEffect(() => {
-    if (!isSessionLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       showAlert('Sign In Required', 'Please sign in to create a listing');
       router.replace('/auth/login');
     }
-  }, [isAuthenticated, isSessionLoading, router]);
+  }, [isAuthenticated, isSessionLoading, isWeb, router]);
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Create listings in the mobile app"
+        body="Posting items is available in the PolyBuys mobile app."
+        path="/listings/new"
+        buttonLabel="Open Create Listing in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   async function onSubmit() {
     if (submittingRef.current) {

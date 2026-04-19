@@ -16,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -29,15 +30,19 @@ export default function NewConversationScreen() {
 
   const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
   );
 
-  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+  const listing = useQuery(
+    api.listings.getListing,
+    !isWeb && listingId ? { id: listingId } : 'skip'
+  );
   const sellerProfile = useQuery(
     api.profiles.getProfileByUserId,
-    listing?.sellerId ? { userId: listing.sellerId } : 'skip'
+    !isWeb && listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
   const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
     sellerProfile?.picture ? [sellerProfile.picture] : []
@@ -70,11 +75,26 @@ export default function NewConversationScreen() {
   };
 
   useEffect(() => {
-    if (!isSessionLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       const returnTo = listingId ? `/conversations/new?listingId=${listingId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as Href);
     }
-  }, [isSessionLoading, isAuthenticated, listingId, router]);
+  }, [isSessionLoading, isAuthenticated, isWeb, listingId, router]);
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Start conversations in the mobile app"
+        body="Messaging is available in the PolyBuys mobile app."
+        path={listingId ? `/conversations/new?listingId=${listingId}` : '/inbox'}
+        buttonLabel="Open Messaging in App"
+        secondaryActionLabel="Back to listing"
+        onSecondaryAction={() =>
+          listingId ? router.replace(`/listings/${listingId}` as never) : router.replace('/')
+        }
+      />
+    );
+  }
 
   if (!listingId) {
     return (
