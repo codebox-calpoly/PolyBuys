@@ -25,6 +25,13 @@ const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
 const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
 
+type FieldErrors = {
+  title?: string;
+  description?: string;
+  price?: string;
+  images?: string;
+};
+
 function showAlert(title: string, message: string, onAck?: () => void) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${title}\n\n${message}`);
@@ -57,6 +64,19 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
     message: rawMessage,
   };
 }
+function RequiredLabel({ text }: { text: string }) {
+  return (
+    <Text style={styles.label}>
+      {text}
+      <Text style={styles.requiredAsterisk}> *</Text>
+    </Text>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <Text style={styles.fieldError}>{message}</Text>;
+}
 
 export default function NewListingScreen() {
   const router = useRouter();
@@ -74,6 +94,8 @@ export default function NewListingScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
@@ -83,10 +105,81 @@ export default function NewListingScreen() {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  // Clear field errors as user types
+  const handleTitleChange = (text: string) => {
+    setTitle(text);
+    if (fieldErrors.title) {
+      setFieldErrors((prev) => ({ ...prev, title: undefined }));
+    }
+  };
+
+  const handleDescriptionChange = (text: string) => {
+    setDescription(text);
+    if (fieldErrors.description) {
+      setFieldErrors((prev) => ({ ...prev, description: undefined }));
+    }
+  };
+
+  const handlePriceChange = (text: string) => {
+    const filtered = text.replace(/[^0-9.]/g, '');
+    const parts = filtered.split('.');
+    if (parts.length > 2) return;
+    if (parts[1]?.length > 2) return;
+    setPrice(filtered);
+    if (fieldErrors.price) {
+      setFieldErrors((prev) => ({ ...prev, price: undefined }));
+    }
+  };
+
+  const handleImagesChange = (newImages: string[]) => {
+    setImages(newImages);
+    if (fieldErrors.images) {
+      setFieldErrors((prev) => ({ ...prev, images: undefined }));
+    }
+  };
+
+  function validateFields(): FieldErrors {
+    const errors: FieldErrors = {};
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+
+    if (!trimmedTitle) {
+      errors.title = 'Title is required.';
+    } else if (trimmedTitle.length < 5) {
+      errors.title = 'Title must be at least 5 characters.';
+    } else if (trimmedTitle.length > 100) {
+      errors.title = 'Title must be 100 characters or less.';
+    }
+
+    if (!trimmedDescription) {
+      errors.description = 'Description is required.';
+    }
+
+    const trimmedPrice = price.trim();
+    if (!trimmedPrice) {
+      errors.price = 'Price is required.';
+    } else {
+      const parsedPrice = Number(trimmedPrice);
+      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+        errors.price = 'Enter a valid non-negative price.';
+      }
+    }
+
+    if (images.length < 1) {
+      errors.images = 'At least 1 photo is required.';
+    } else if (images.length > 8) {
+      errors.images = 'Maximum 8 photos allowed.';
+    }
+
+    return errors;
+  }
+
   async function onSubmit() {
     if (submittingRef.current) {
       return;
     }
+
+    setHasAttemptedSubmit(true);
 
     if (profile === undefined) {
       showAlert('Please wait', 'Your profile is still loading. Please try again in a moment.');
@@ -101,35 +194,21 @@ export default function NewListingScreen() {
       return;
     }
 
-    const trimmedTitle = title.trim();
-    const trimmedDescription = description.trim();
-
-    if (!trimmedTitle || trimmedTitle.length < 5) {
-      showAlert('Missing fields', 'Title must be at least 5 characters.');
-      return;
-    }
-
-    if (!trimmedDescription) {
-      showAlert('Missing fields', 'Description is required.');
-      return;
-    }
-
-    const trimmed = price.trim();
-    const parsedPrice = trimmed === '' ? NaN : Number(trimmed);
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      showAlert('Invalid price', 'Please enter a valid non-negative price in dollars.');
-      return;
-    }
-
     if (hasPendingUploads) {
       showAlert('Uploads in progress', 'Please wait for image uploads to finish.');
       return;
     }
 
-    if (images.length < 1 || images.length > 8) {
-      showAlert('Invalid images', 'Please upload between 1 and 8 images.');
+    const errors = validateFields();
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
       return;
     }
+
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    const parsedPrice = Number(price.trim());
 
     try {
       submittingRef.current = true;
@@ -187,15 +266,16 @@ export default function NewListingScreen() {
         </Text>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Photos</Text>
+          <RequiredLabel text="Photos" />
           <Text style={styles.labelHint}>
             Add 1–8 photos. Listings with clear photos sell faster.
           </Text>
           <ImageUploader
             images={images}
-            onImagesChange={setImages}
+            onImagesChange={handleImagesChange}
             onPendingChange={setHasPendingUploads}
           />
+          <FieldError message={fieldErrors.images} />
         </View>
 
         {profile === null && (
@@ -213,51 +293,50 @@ export default function NewListingScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.label}>Title</Text>
+          <RequiredLabel text="Title" />
           <TextInput
-            style={styles.input}
+            style={[styles.input, fieldErrors.title && styles.inputError]}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={handleTitleChange}
             placeholder="Enter listing title"
-            accessibilityLabel="Listing title"
+            accessibilityLabel="Listing title (required)"
             placeholderTextColor={colors.muted}
             maxLength={100}
           />
+          <FieldError message={fieldErrors.title} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
+          <RequiredLabel text="Description" />
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[styles.input, styles.textArea, fieldErrors.description && styles.inputError]}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={handleDescriptionChange}
             placeholder="Describe your item"
             placeholderTextColor={colors.muted}
             multiline
             numberOfLines={4}
+            accessibilityLabel="Description (required)"
           />
+          <FieldError message={fieldErrors.description} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Price</Text>
-          <View style={styles.priceInputWrap}>
+          <RequiredLabel text="Price" />
+          <View style={[styles.priceInputWrap, fieldErrors.price && styles.priceInputWrapError]}>
             <Text style={styles.pricePrefix}>$</Text>
             <TextInput
               style={[styles.input, styles.priceInput]}
               value={price}
-              onChangeText={(text) => {
-                const filtered = text.replace(/[^0-9.]/g, '');
-                const parts = filtered.split('.');
-                if (parts.length > 2) return;
-                if (parts[1]?.length > 2) return;
-                setPrice(filtered);
-              }}
+              onChangeText={handlePriceChange}
               placeholder="15"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
+              accessibilityLabel="Price (required)"
             />
           </View>
-          <Text style={styles.helperText}>Enter amount in dollars</Text>
+          <FieldError message={fieldErrors.price} />
+          {!fieldErrors.price && <Text style={styles.helperText}>Enter amount in dollars</Text>}
         </View>
 
         <View style={styles.section}>
@@ -314,6 +393,12 @@ export default function NewListingScreen() {
           <Text style={styles.label}>Tags</Text>
           <TagInput tags={tags} onChange={setTags} />
         </View>
+
+        {hasAttemptedSubmit && Object.keys(fieldErrors).length > 0 && (
+          <View style={styles.formErrorBanner}>
+            <Text style={styles.formErrorText}>Please fix the errors above before submitting.</Text>
+          </View>
+        )}
 
         <View style={styles.buttonContainer}>
           <Pressable
@@ -406,6 +491,10 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     marginBottom: 4,
   },
+  requiredAsterisk: {
+    color: colors.errorText,
+    fontWeight: '700',
+  },
   labelHint: {
     ...typography.footnote,
     color: colors.muted,
@@ -420,6 +509,9 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     backgroundColor: colors.white,
   },
+  inputError: {
+    borderColor: colors.errorText,
+  },
   textArea: {
     minHeight: 112,
     textAlignVertical: 'top',
@@ -431,6 +523,9 @@ const styles = StyleSheet.create({
     borderColor: colors.muted,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.white,
+  },
+  priceInputWrapError: {
+    borderColor: colors.errorText,
   },
   pricePrefix: {
     ...typography.body,
@@ -446,6 +541,24 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.muted,
     marginTop: spacing.xs,
+  },
+  fieldError: {
+    ...typography.footnote,
+    color: colors.errorText,
+    marginTop: spacing.xs,
+  },
+  formErrorBanner: {
+    backgroundColor: colors.errorBg,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  formErrorText: {
+    ...typography.footnote,
+    color: colors.errorText,
+    textAlign: 'center',
   },
   optionsContainer: {
     flexDirection: 'row',
