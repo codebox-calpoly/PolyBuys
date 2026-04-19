@@ -21,6 +21,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { getLoginEntryAction, type LoginStep } from './loginRedirect';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -34,6 +35,7 @@ function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp'
 
 export default function LoginScreen() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
   const { isAuthenticated, isSessionLoading } = useAuth();
@@ -44,7 +46,10 @@ export default function LoginScreen() {
     api.users.updateMessageNotificationsEnabled
   );
 
-  const currentProfile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const currentProfile = useQuery(
+    api.profiles.getCurrentProfile,
+    isAuthenticated && !isWeb ? {} : 'skip'
+  );
 
   const [step, setStep] = useState<LoginStep>('welcome');
   const [email, setEmail] = useState('');
@@ -295,6 +300,19 @@ export default function LoginScreen() {
   const isPushStep = step === 'push';
   const isSuccessStep = step === 'success';
   const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Sign in on mobile"
+        body="Login is only available in the PolyBuys mobile app."
+        path={String(postAuthRedirect)}
+        buttonLabel="Open PolyBuys App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   if (isWelcomeStep) {
     return (

@@ -16,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import type { Id } from 'convex/_generated/dataModel';
 import ImageUploader from '@/components/ImageUploader';
 import ListingUnavailable from '../../../components/ListingUnavailable';
+import OpenInAppPrompt from '../../../components/OpenInAppPrompt';
 import { useFlash } from '../../../contexts/FlashContext';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
 import { KeyboardAwareScreen, ScreenHeader } from '../../../components/ui';
@@ -52,12 +53,13 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
 export default function EditListingScreen() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const { setFlash } = useFlash();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const listing = useQuery(
     api.listings.getListing,
-    listingId ? { id: listingId as Id<'listings'> } : 'skip'
+    !isWeb && listingId ? { id: listingId as Id<'listings'> } : 'skip'
   );
   const updateListing = useAction(api.listings.updateListing);
   const entranceStyle = useEntranceAnimation();
@@ -86,6 +88,19 @@ export default function EditListingScreen() {
     setImages(listing.images);
     setHasInitialized(true);
   }, [hasInitialized, listing]);
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Edit listings in the mobile app"
+        body="Listing management is available in the PolyBuys mobile app."
+        path={listingId ? `/listings/${listingId}/edit` : '/my-listings'}
+        buttonLabel="Open Listing Editor in App"
+        secondaryActionLabel="Back to listing"
+        onSecondaryAction={() => router.replace(listingId ? `/listings/${listingId}` : '/')}
+      />
+    );
+  }
 
   async function onSubmit() {
     if (submittingRef.current || !listingId) {

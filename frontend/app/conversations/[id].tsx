@@ -18,6 +18,7 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
@@ -38,6 +39,7 @@ export default function ConversationDetailScreen() {
     typeof id === 'string' && id.trim().length > 0 ? (id as ConversationId) : null;
 
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { user, isAuthenticated, isSessionLoading } = useAuth();
@@ -54,11 +56,11 @@ export default function ConversationDetailScreen() {
 
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
-    isAuthenticated ? {} : 'skip'
+    isAuthenticated && !isWeb ? {} : 'skip'
   );
   const conversationList = useQuery(
     api.messages.listUserConversations,
-    isAuthenticated ? {} : 'skip'
+    isAuthenticated && !isWeb ? {} : 'skip'
   );
 
   const conversation = useMemo(() => {
@@ -84,21 +86,25 @@ export default function ConversationDetailScreen() {
   const otherUserId = conversation?.canonicalOtherUserId ?? null;
   const isBlockingOther = useQuery(
     api.blocks.isBlocking,
-    isAuthenticated && otherUserId ? { blockedId: otherUserId } : 'skip'
+    isAuthenticated && !isWeb && otherUserId ? { blockedId: otherUserId } : 'skip'
   );
   const isBlockedByOther = useQuery(
     api.blocks.isBlockedBy,
-    isAuthenticated && otherUserId ? { blockerId: otherUserId } : 'skip'
+    isAuthenticated && !isWeb && otherUserId ? { blockerId: otherUserId } : 'skip'
   );
   const isBlockStatusLoading =
     isAuthenticated &&
+    !isWeb &&
     otherUserId !== null &&
     (isBlockingOther === undefined || isBlockedByOther === undefined);
 
   const listingId = (conversation?.listing?.id ??
     conversation?.listingId ??
     null) as Id<'listings'> | null;
-  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+  const listing = useQuery(
+    api.listings.getListing,
+    !isWeb && listingId ? { id: listingId } : 'skip'
+  );
   const headerOtherUserPicture = conversation?.otherUser?.picture ?? null;
   const { mappedUrls: headerAvatarMappedUrls } = useResolvedImageUrls(
     headerOtherUserPicture ? [headerOtherUserPicture] : []
@@ -111,7 +117,7 @@ export default function ConversationDetailScreen() {
 
   const messages = useQuery(
     api.messages.messagesByConversation,
-    isAuthenticated && conversationId && conversation
+    isAuthenticated && !isWeb && conversationId && conversation
       ? {
           conversationId,
           siblingConversationIds:
@@ -135,11 +141,11 @@ export default function ConversationDetailScreen() {
   };
 
   useEffect(() => {
-    if (!isSessionLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       const returnTo = conversationId ? `/conversations/${conversationId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as never);
     }
-  }, [isSessionLoading, conversationId, isAuthenticated, router]);
+  }, [isSessionLoading, conversationId, isAuthenticated, isWeb, router]);
 
   useEffect(() => {
     if (!messages) {
@@ -159,6 +165,7 @@ export default function ConversationDetailScreen() {
     if (
       !conversationId ||
       !isAuthenticated ||
+      isWeb ||
       unreadIncomingCount === 0 ||
       !siblingConversationIds
     ) {
@@ -184,6 +191,7 @@ export default function ConversationDetailScreen() {
   }, [
     conversationId,
     isAuthenticated,
+    isWeb,
     markMessagesAsRead,
     siblingConversationIds,
     unreadIncomingCount,
@@ -254,6 +262,19 @@ export default function ConversationDetailScreen() {
       <View style={styles.centeredState}>
         <Text style={styles.stateTitle}>Conversation not found</Text>
       </View>
+    );
+  }
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Open this conversation in the mobile app"
+        body="Messaging is only available in the PolyBuys mobile app."
+        path={`/conversations/${conversationId}`}
+        buttonLabel="Open Conversation in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
     );
   }
 
