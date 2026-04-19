@@ -153,31 +153,41 @@ export default function NewConversationScreen() {
             </Text>
           </View>
         </View>
-        <Text style={styles.prompt}>Send a message about &quot;{listing.title}&quot;</Text>
-        <TextInput
-          value={messageBody}
-          onChangeText={setMessageBody}
-          placeholder="Type your message..."
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          style={styles.input}
-          multiline
-          maxLength={2000}
-          editable={!isSending}
-          textAlignVertical="top"
-        />
-        <Pressable
-          onPress={() => void onSend()}
-          style={({ pressed }) => [
-            styles.sendButton,
-            (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-          disabled={!messageBody.trim() || isSending}
-        >
-          <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
-        </Pressable>
+        <View style={styles.composerCard}>
+          <View style={styles.composerHeader}>
+            <Text style={styles.prompt}>Message about &quot;{listing.title}&quot;</Text>
+            <Text style={styles.promptHint}>
+              Ask about condition, pickup timing, or anything else before you buy.
+            </Text>
+          </View>
+          <TextInput
+            value={messageBody}
+            onChangeText={setMessageBody}
+            placeholder="Hi! Is this still available?"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            style={styles.input}
+            multiline
+            maxLength={2000}
+            editable={!isSending}
+            textAlignVertical="top"
+          />
+          <View style={styles.composerFooter}>
+            <Text style={styles.characterCount}>{messageBody.trim().length}/2000</Text>
+            <Pressable
+              onPress={() => void onSend()}
+              style={({ pressed }) => [
+                styles.sendButton,
+                (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              disabled={!messageBody.trim() || isSending}
+            >
+              <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send message'}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -206,8 +216,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     padding: spacing.md,
+    boxShadow: '0 8px 24px rgba(21, 71, 52, 0.06)',
   },
   sellerCopy: {
     flex: 1,
@@ -224,20 +235,45 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   prompt: {
-    ...typography.subhead,
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  promptHint: {
+    ...typography.footnote,
     color: colors.text,
+  },
+  composerCard: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    gap: spacing.md,
+    boxShadow: '0 10px 28px rgba(21, 71, 52, 0.06)',
+  },
+  composerHeader: {
+    gap: spacing.xs,
   },
   input: {
     flex: 1,
-    minHeight: 120,
+    minHeight: 220,
     borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: '#FCFFFE',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     ...typography.subhead,
     color: colors.textDark,
+  },
+  composerFooter: {
+    gap: spacing.sm,
+  },
+  characterCount: {
+    ...typography.footnote,
+    color: colors.text,
+    textAlign: 'right',
   },
   sendButton: {
     backgroundColor: colors.primary,

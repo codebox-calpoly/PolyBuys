@@ -281,7 +281,7 @@ export default function MyListingsScreen() {
         )}
 
         {manageableListings.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, styles.emptyStateCentered]}>
             <Text style={styles.emptyTitle}>No listings yet</Text>
             <Text style={styles.emptyText}>Create your first listing to get started.</Text>
             <Pressable
@@ -413,11 +413,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   emptyState: {
-    paddingTop: spacing.xxl * 2,
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  emptyStateCentered: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingBottom: spacing.xxl * 2,
   },
   emptyTitle: {
     ...typography.heading,
