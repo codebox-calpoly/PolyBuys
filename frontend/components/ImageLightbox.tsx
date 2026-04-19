@@ -77,8 +77,8 @@ export default function ImageLightbox({
     const frameHeight = screenHeight * 0.85;
     const limit =
       axis === 'x'
-        ? ((frameWidth * scale) - frameWidth) / 2
-        : ((frameHeight * scale) - frameHeight) / 2;
+        ? (frameWidth * scale - frameWidth) / 2
+        : (frameHeight * scale - frameHeight) / 2;
 
     if (limit <= 0) {
       return 0;
@@ -233,6 +233,8 @@ export default function ImageLightbox({
     if (visible) {
       setCurrentIndex(initialIndex);
       resetZoom();
+    } else {
+      resetZoom();
     }
   }, [visible, initialIndex, resetZoom]);
 
@@ -378,7 +380,10 @@ export default function ImageLightbox({
       )}
 
       {Platform.OS !== 'web' && (
-        <View style={[styles.zoomHint, { top: Math.max(insets.top + 64, 76) }]}>
+        <View
+          pointerEvents="none"
+          style={[styles.zoomHint, { top: Math.max(insets.top + 64, 76) }]}
+        >
           <Text style={styles.zoomHintText}>
             {isZoomed ? 'Drag to inspect details' : 'Pinch to zoom'}
           </Text>
