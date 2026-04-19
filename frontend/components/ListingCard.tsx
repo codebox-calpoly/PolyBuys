@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
+import { formatRelativeDate } from '../lib/formatDate';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -32,6 +33,8 @@ interface ListingCardProps {
     description: string;
     tags?: string[];
     images?: string[];
+    postedOn?: number;
+    createdAt?: number;
   };
   index?: number;
   isSaved?: boolean;
@@ -172,6 +175,11 @@ export default function ListingCard({
               ${formatPrice(listing.price)}
             </Text>
           </View>
+          {(listing.postedOn || listing.createdAt) && (
+            <Text style={[styles.listingDate, isHomeDensity && styles.listingDateHome]}>
+              {formatRelativeDate(listing.postedOn ?? listing.createdAt!)}
+            </Text>
+          )}
         </Pressable>
         {onToggleSave && (
           <Pressable
@@ -321,6 +329,16 @@ const styles = StyleSheet.create({
   },
   listingPriceHome: {
     fontSize: 16,
+  },
+  listingDate: {
+    ...typography.footnote,
+    color: colors.muted,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  listingDateHome: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.md,
   },
   footer: {
     marginTop: spacing.sm,

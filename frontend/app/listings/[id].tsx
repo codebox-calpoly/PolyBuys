@@ -31,6 +31,7 @@ import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
+import { formatRelativeDate } from '../../lib/formatDate';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
@@ -490,6 +491,10 @@ export default function ListingDetailScreen() {
           ))}
         </View>
 
+        <Text style={styles.postedDate}>
+          Posted {formatRelativeDate(listing.postedOn ?? listing.createdAt)}
+        </Text>
+
         <Text style={styles.descriptionLabel}>Description</Text>
         <Text style={styles.description}>{listing.description}</Text>
 
@@ -779,6 +784,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
     marginBottom: spacing.xl,
+  },
+  postedDate: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginBottom: spacing.lg,
   },
   descriptionLabel: {
     ...typography.heading,
