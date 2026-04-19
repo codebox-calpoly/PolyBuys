@@ -100,6 +100,10 @@ function RootLayout() {
               options={{ title: 'Profile', headerBackTitle: 'Back' }}
             />
             <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="admin/moderation"
+              options={{ title: 'Moderation', headerBackTitle: 'Back' }}
+            />
           </Stack>
         </ThemeProvider>
       </ConvexAuthProvider>

@@ -33,3 +33,15 @@ export async function requireAuthUserId(
 export async function getStableUserId(ctx: AuthCtx): Promise<Id<'users'> | null> {
   return await getAuthUserId(ctx);
 }
+
+/**
+ * Requires the current user to be an admin. Throws if not authenticated or not admin.
+ */
+export async function requireAdmin(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
+  const userId = await requireAuthUserId(ctx, 'Not authenticated');
+  const user = await ctx.db.get(userId);
+  if (!user || user.isAdmin !== true) {
+    throw new ConvexError('Admin access required');
+  }
+  return userId;
+}

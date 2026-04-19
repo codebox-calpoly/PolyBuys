@@ -58,6 +58,7 @@ export default function SettingsScreen() {
   const avatarUrl = avatarUrls[0];
 
   const listingsCount = myListings?.filter((l) => l.status === 'active').length ?? 0;
+  const isAdmin = useQuery(api.admin.isCurrentUserAdmin, isAuthenticated ? {} : 'skip');
   const itemsSoldCount = myListings?.filter((l) => l.status === 'sold').length ?? 0;
   const displayListings: Doc<'listings'>[] =
     myListings?.filter((l): l is Doc<'listings'> => l.status !== 'deleted') ?? [];
@@ -212,6 +213,21 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.settingsRowChevron}>›</Text>
       </Pressable>
+
+      {isAdmin && (
+        <Pressable
+          style={({ pressed }) => [styles.settingsRowCard, pressed && styles.buttonPressed]}
+          onPress={() => router.push('/admin/moderation' as never)}
+          accessibilityRole="button"
+          accessibilityLabel="Open moderation dashboard"
+        >
+          <View style={styles.settingsRowTextBlock}>
+            <Text style={styles.settingsRowLabel}>Moderation</Text>
+            <Text style={styles.settingsRowSubtext}>Review reports and manage content</Text>
+          </View>
+          <Text style={styles.settingsRowChevron}>›</Text>
+        </Pressable>
+      )}
 
       <View style={styles.tabs}>
         <Pressable
