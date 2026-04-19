@@ -36,12 +36,13 @@ export function ScreenHeader({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: spacing.md,
   },
   copy: {
     flex: 1,
     minWidth: 0,
+    gap: spacing.xs,
   },
   title: {
     ...typography.title1,
@@ -50,10 +51,10 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.footnoteMed,
     color: colors.text,
-    marginTop: 2,
   },
   actionSlot: {
     flexShrink: 0,
+    marginBottom: 2,
   },
 });
 

@@ -5,55 +5,61 @@
 
 export const colors = {
   /** Primary brand green - header, nav, primary buttons */
-  primary: '#154734',
+  primary: '#0E6B53',
   /** Light page background */
-  background: '#E8FCEF',
+  background: '#F2FBF4',
   /** Accent - prices, highlights */
-  accent: '#E2A84A',
+  accent: '#F4A62A',
   /** Card/content surfaces */
-  surface: '#F9FFFD',
+  surface: '#FBFFFD',
+  /** Brand-tinted surface for hero sections */
+  surfaceBrand: '#E3F7ED',
+  /** Warm surface for supportive secondary sections */
+  surfaceWarm: '#FFF4E1',
+  /** Soft coral tint for alerts and visual punctuation */
+  surfaceCoral: '#FFE9E3',
   /** Body text */
-  text: '#4A4A48',
+  text: '#41514A',
   /** Dark headings */
-  textDark: '#1E1E1E',
+  textDark: '#11261F',
   /** Secondary borders, dividers */
-  border: '#D9EBE4',
+  border: '#CCE7DB',
   /** Seller block, location chip background */
-  muted: '#8DB1A3',
+  muted: '#739788',
   /** Category chip (e.g. Housing) */
-  category: '#FF6E5E',
+  category: '#FF715B',
   /** Location chip background */
-  location: '#ACDDCA',
+  location: '#C5F0D7',
   /** White for content areas */
   white: '#FFFFFF',
   /** Light green for inactive nav */
-  navInactive: '#D9EBE4',
+  navInactive: '#C4E5D7',
   /** Info banner (web app prompt) */
-  infoBg: '#e8f4ff',
-  infoBorder: '#cae3ff',
-  infoText: '#1f4e80',
-  infoButton: '#1f6fb2',
+  infoBg: '#E6F5FF',
+  infoBorder: '#B8DFFF',
+  infoText: '#17537F',
+  infoButton: '#1178C8',
   /** Error/destructive states */
-  errorBg: '#fff0f0',
-  errorBorder: '#f6cdcd',
-  errorText: '#ad2020',
-  destructive: '#b3261e',
+  errorBg: '#FFF1F0',
+  errorBorder: '#F7C7C2',
+  errorText: '#B93024',
+  destructive: '#C0392B',
   /** Neutral grays for placeholders, secondary text */
-  gray: '#666666',
-  grayLight: '#eaeaea',
+  gray: '#66756E',
+  grayLight: '#E7EFEA',
   /** Shadow */
   shadow: '#000000',
   /** Warning/alert banner (e.g. hidden listing) */
-  warningBg: '#fff9eb',
-  warningBorder: '#f0d37a',
-  warningText: '#6c4f20',
-  warningTextMuted: '#8d6e0a',
-  warningLink: '#8a5a00',
-  locationDark: '#6ea48e',
-  overlayLight: 'rgba(0,0,0,0.08)',
+  warningBg: '#FFF4DD',
+  warningBorder: '#F2C66B',
+  warningText: '#7A4D12',
+  warningTextMuted: '#9A6C1F',
+  warningLink: '#A25D00',
+  locationDark: '#1E8A67',
+  overlayLight: 'rgba(14, 107, 83, 0.12)',
   /** Placeholder/empty state surfaces */
-  placeholderBg: '#f3f7f5',
-  placeholderBorder: '#d8e6df',
+  placeholderBg: '#EEF7F2',
+  placeholderBorder: '#D4E5DD',
 } as const;
 
 export const spacing = {

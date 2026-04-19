@@ -336,6 +336,7 @@ export default function HomeScreen() {
     </View>
   ) : null;
   const webRows = buildWebRows(listings, homeColumns);
+  const trustPoints = ['Verified students', 'Fast local pickup', 'No shipping hassle'];
 
   if (isWeb) {
     return (
@@ -377,14 +378,24 @@ export default function HomeScreen() {
 
           <Animated.View style={[styles.webToolbarRow, entranceStyle]}>
             <View style={styles.webToolbarCopy}>
+              <Text style={styles.heroEyebrow}>Campus marketplace</Text>
               <Text style={styles.webToolbarTitle}>
                 {hasSearchQuery ? `Results for "${searchQuery}"` : 'Latest listings'}
               </Text>
               <Text style={styles.webToolbarBody}>
                 {hasSearchQuery
                   ? 'Use filters to narrow the results further.'
-                  : 'Fresh campus listings from the PolyBuys marketplace.'}
+                  : 'Buy and sell with Cal Poly students in a marketplace built for quick, trusted handoffs.'}
               </Text>
+              {!hasSearchQuery ? (
+                <View style={styles.trustRow}>
+                  {trustPoints.map((point) => (
+                    <View key={point} style={styles.trustPill}>
+                      <Text style={styles.trustPillText}>{point}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
             <Pressable
               style={({ pressed }) => [
@@ -480,7 +491,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.homeTopBlock, entranceStyle]}>
           <ScreenHeader
             title="Browse"
-            subtitle="Fresh listings from campus"
+            subtitle="Fresh campus listings with fast, local pickup"
             action={
               <Pressable
                 style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
@@ -493,6 +504,13 @@ export default function HomeScreen() {
               </Pressable>
             }
           />
+          <View style={styles.trustRow}>
+            {trustPoints.map((point) => (
+              <View key={point} style={styles.trustPill}>
+                <Text style={styles.trustPillText}>{point}</Text>
+              </View>
+            ))}
+          </View>
           <FilterBar
             filters={filters}
             sortBy={sortBy}
@@ -598,37 +616,67 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 1120,
     alignSelf: 'center',
-    paddingTop: spacing.lg,
-    gap: spacing.md,
+    paddingTop: spacing.xl,
+    gap: spacing.lg,
   },
   webScrollView: {
     width: '100%',
     alignSelf: 'center',
   },
   webScrollContent: {
-    paddingTop: spacing.lg,
-    gap: spacing.lg,
+    paddingTop: spacing.xl,
+    gap: spacing.xl,
   },
   webToolbarRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: spacing.lg,
+    backgroundColor: colors.surfaceBrand,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
   },
   webToolbarCopy: {
     flex: 1,
     minWidth: 0,
     gap: spacing.xs,
+    maxWidth: 720,
   },
   webToolbarTitle: {
     ...typography.title1,
     color: colors.textDark,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 34,
   },
   webToolbarBody: {
     ...typography.subhead,
     color: colors.text,
+    lineHeight: 21,
+  },
+  heroEyebrow: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  trustPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  trustPillText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
   },
   webGrid: {
     gap: spacing.lg,
@@ -658,7 +706,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   homeTopBlock: {
-    gap: spacing.md,
+    gap: spacing.lg,
+    backgroundColor: colors.surfaceBrand,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
   },
   createChip: {
     backgroundColor: colors.primary,
@@ -668,6 +721,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    boxShadow: '0 10px 24px rgba(14, 107, 83, 0.18)',
   },
   createChipPressed: {
     opacity: 0.9,
@@ -690,10 +744,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: spacing.xxl,
     paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   stateContainer: {
     flex: 1,
-    minHeight: 180,
+    minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
@@ -701,21 +756,23 @@ const styles = StyleSheet.create({
   stateCard: {
     width: '100%',
     maxWidth: 560,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.lg,
+    padding: spacing.xl,
+    gap: spacing.xs,
+    boxShadow: '0 14px 32px rgba(14, 107, 83, 0.08)',
   },
   listContainer: {
-    paddingTop: spacing.xs,
-    paddingBottom: 26,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
   },
   listContainerDesktop: {
-    paddingTop: spacing.xs,
+    paddingTop: spacing.sm,
   },
   footerLoader: {
-    paddingVertical: 20,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
