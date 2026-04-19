@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -46,7 +45,7 @@ export default function ImageLightbox({
   const minScale = 1;
   const maxScale = 4;
 
-  const resetZoom = () => {
+  const resetZoom = useCallback(() => {
     scaleRef.current = 1;
     translateRef.current = { x: 0, y: 0 };
     setIsZoomed(false);
@@ -67,7 +66,7 @@ export default function ImageLightbox({
         bounciness: 0,
       }),
     ]).start();
-  };
+  }, [imageScale, imageTranslateX, imageTranslateY]);
 
   const clampTranslate = (value: number, axis: 'x' | 'y', scale: number) => {
     if (scale <= minScale) {
@@ -235,11 +234,11 @@ export default function ImageLightbox({
       setCurrentIndex(initialIndex);
       resetZoom();
     }
-  }, [visible, initialIndex]);
+  }, [visible, initialIndex, resetZoom]);
 
   useEffect(() => {
     resetZoom();
-  }, [currentIndex]);
+  }, [currentIndex, resetZoom]);
 
   useEffect(() => {
     if (visible && Platform.OS === 'web') {
