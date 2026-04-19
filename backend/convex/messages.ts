@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { hasBlockBetween } from './blocks';
 import { requireAuthUserId } from './lib/authIdentity';
+import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
@@ -589,36 +590,8 @@ export const getReportedConversationListingIds = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireStableUserId(ctx);
-
-    const reports = await ctx.db
-      .query('reports')
-      .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
-      .collect();
-
-    const reportedConversationIds = [
-      ...new Set(
-        reports
-          .filter((report) => report.targetType === 'conversation')
-          .map((report) => report.targetId as Id<'conversations'>)
-      ),
-    ];
-
-    if (reportedConversationIds.length === 0) {
-      return [] as Id<'listings'>[];
-    }
-
-    const conversations = await Promise.all(
-      reportedConversationIds.map((conversationId) => ctx.db.get(conversationId))
-    );
-
-    const listingIds = new Set<Id<'listings'>>();
-    for (const conversation of conversations) {
-      if (conversation) {
-        listingIds.add(conversation.listingId);
-      }
-    }
-
-    return [...listingIds];
+    const listingIdSet = await getReportedConversationListingIdSetByReporter(ctx, userId);
+    return [...listingIdSet];
   },
 });
 
@@ -955,9 +928,19 @@ export const hideConversationFromInbox = mutation({
     const now = Date.now();
 
     await Promise.all(
-      conversationScope.map(({ conversation }) =>
-        hideConversationForParticipant(ctx, conversation, userId, 'deleted', now)
-      )
+      conversationScope.map(({ conversation, isBuyer, isSeller }) => {
+        const currentHiddenReason = isBuyer
+          ? conversation.buyerInboxHiddenReason
+          : isSeller
+            ? conversation.sellerInboxHiddenReason
+            : undefined;
+
+        if (currentHiddenReason === 'reported') {
+          return Promise.resolve();
+        }
+
+        return hideConversationForParticipant(ctx, conversation, userId, 'deleted', now);
+      })
     );
 
     return { ok: true };
@@ -1011,6 +994,8 @@ export const reportMessage = mutation({
       createdAt: Date.now(),
     });
 
+    // Intentionally hide only the primary conversation here; siblingConversationIds handling
+    // exists in reportConversation/hideConversationFromInbox where those args are available.
     await hideConversationForParticipant(ctx, conversation, userId, 'reported', Date.now());
 
     return { reportId };

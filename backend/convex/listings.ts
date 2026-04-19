@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
+import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -71,39 +72,7 @@ async function getReportedConversationListingIdSetForViewer(
   if (!viewerId) {
     return new Set<Id<'listings'>>();
   }
-
-  const reports = await ctx.db
-    .query('reports')
-    .withIndex('by_reporter', (q) => q.eq('reporterId', viewerId))
-    .collect();
-
-  const reportedConversationIdSet = new Set<Id<'conversations'>>();
-  for (const report of reports) {
-    if (report.targetType !== 'conversation') {
-      continue;
-    }
-    const normalizedConversationId = await ctx.db.normalizeId('conversations', report.targetId);
-    if (normalizedConversationId) {
-      reportedConversationIdSet.add(normalizedConversationId);
-    }
-  }
-
-  if (reportedConversationIdSet.size === 0) {
-    return new Set<Id<'listings'>>();
-  }
-
-  const conversations = await Promise.all(
-    [...reportedConversationIdSet].map((conversationId) => ctx.db.get(conversationId))
-  );
-
-  const listingIdSet = new Set<Id<'listings'>>();
-  for (const conversation of conversations) {
-    if (conversation) {
-      listingIdSet.add(conversation.listingId);
-    }
-  }
-
-  return listingIdSet;
+  return await getReportedConversationListingIdSetByReporter(ctx, viewerId);
 }
 
 // Category validator for reuse
@@ -348,7 +317,9 @@ export const searchAndFilterListings = query({
     }
 
     // If no post-filtering needed, use direct pagination (most efficient)
-    if (!needsPostFiltering) {
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = needsPostFiltering || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
 
       // Apply maxPrice filter at database level for price-sorted queries
@@ -357,12 +328,9 @@ export const searchAndFilterListings = query({
       }
 
       const paginationResult = await dbQuery.paginate(args.paginationOpts);
-      const page = paginationResult.page.filter(
-        (listing) => !reportedConversationListingIdSet.has(listing._id)
-      );
 
       return {
-        page,
+        page: paginationResult.page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
       };
@@ -467,16 +435,15 @@ export const getListings = query({
     }
 
     // If no price filters, use direct pagination (most efficient)
-    if (!hasPriceFilters) {
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = hasPriceFilters || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       const paginationResult = await query
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
-      const page = paginationResult.page.filter(
-        (listing) => !reportedConversationListingIdSet.has(listing._id)
-      );
 
       return {
-        page,
+        page: paginationResult.page,
         continueCursor: paginationResult.continueCursor,
         isDone: paginationResult.isDone,
       };
