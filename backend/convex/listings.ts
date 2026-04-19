@@ -1,9 +1,10 @@
 import { v, ConvexError } from 'convex/values';
 import { query, mutation, action, internalMutation, internalQuery } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
+import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -62,6 +63,16 @@ function validateImages(images: string[]) {
       `Must have ${PAYLOAD_BOUNDS.IMAGES_MIN}-${PAYLOAD_BOUNDS.IMAGES_MAX} images`
     );
   }
+}
+
+async function getReportedConversationListingIdSetForViewer(
+  ctx: QueryCtx
+): Promise<Set<Id<'listings'>>> {
+  const viewerId = await getStableUserId(ctx);
+  if (!viewerId) {
+    return new Set<Id<'listings'>>();
+  }
+  return await getReportedConversationListingIdSetByReporter(ctx, viewerId);
 }
 
 // Category validator for reuse
@@ -155,6 +166,8 @@ export const searchAndFilterListings = query({
     const filters = args.filters ?? {};
     const searchTerm = filters.searchTerm?.trim();
     const sortBy = filters.sortBy ?? 'newest';
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
     // This is acceptable because search results are typically limited by search relevance.
@@ -184,7 +197,9 @@ export const searchAndFilterListings = query({
       }
 
       // Filter out hidden content
-      results = results.filter((l) => l.isHidden !== true);
+      results = results.filter(
+        (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+      );
 
       // Apply sorting
       switch (sortBy) {
@@ -302,7 +317,9 @@ export const searchAndFilterListings = query({
     }
 
     // If no post-filtering needed, use direct pagination (most efficient)
-    if (!needsPostFiltering) {
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = needsPostFiltering || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
 
       // Apply maxPrice filter at database level for price-sorted queries
@@ -329,6 +346,7 @@ export const searchAndFilterListings = query({
 
     // Apply remaining filters
     const filtered = allResults.filter((l) => {
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
       if (
         sortBy !== 'price_asc' &&
@@ -397,6 +415,8 @@ export const getListings = query({
     }
 
     const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // Use database indexes with proper ordering
     let query;
@@ -415,7 +435,9 @@ export const getListings = query({
     }
 
     // If no price filters, use direct pagination (most efficient)
-    if (!hasPriceFilters) {
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = hasPriceFilters || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       const paginationResult = await query
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
@@ -437,6 +459,7 @@ export const getListings = query({
 
     // Apply price filters
     const filtered = allResults.filter((l) => {
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (args.minPrice !== undefined && l.price < args.minPrice) return false;
       if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
       return true;
@@ -763,6 +786,8 @@ export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
     const MAX_SEARCH_COLLECT = 1000;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
@@ -771,7 +796,9 @@ export const searchListings = query({
       .take(MAX_SEARCH_COLLECT);
 
     // Filter out hidden content
-    return results.filter((l) => l.isHidden !== true);
+    return results.filter(
+      (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+    );
   },
 });
 

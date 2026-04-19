@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { colors } from '../theme/tokens';
 import { useMutation } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import type { Id } from 'convex/_generated/dataModel';
 import {
   REPORT_SUBMITTED_ALERT_BODY,
   REPORT_SUBMITTED_ALERT_TITLE,
@@ -14,7 +15,7 @@ type ReportModalProps = {
   isVisible: boolean;
   onClose: () => void;
   targetId: string;
-  targetType: 'listing' | 'profile';
+  targetType: 'listing' | 'profile' | 'conversation' | 'message';
   /** When set, success uses this instead of a blocking alert (e.g. in-app flash banner). */
   onReportSuccess?: () => void;
 };
@@ -36,6 +37,8 @@ export function ReportModal({
   onReportSuccess,
 }: ReportModalProps) {
   const createReport = useMutation(api.reports.createReport);
+  const reportConversation = useMutation(api.messages.reportConversation);
+  const reportMessage = useMutation(api.messages.reportMessage);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -59,12 +62,28 @@ export function ReportModal({
     }
     setSubmitting(true);
     try {
-      await createReport({
-        targetId,
-        targetType,
+      const trimmedNotes = notes.trim() ? notes.trim() : undefined;
+      const reportPayload = {
         reason,
-        notes: notes.trim() ? notes.trim() : undefined,
-      });
+        notes: trimmedNotes,
+      };
+      if (targetType === 'conversation') {
+        await reportConversation({
+          conversationId: targetId as Id<'conversations'>,
+          ...reportPayload,
+        });
+      } else if (targetType === 'message') {
+        await reportMessage({
+          messageId: targetId as Id<'messages'>,
+          ...reportPayload,
+        });
+      } else {
+        await createReport({
+          targetId,
+          targetType,
+          ...reportPayload,
+        });
+      }
       if (onReportSuccess) {
         onReportSuccess();
       } else {
@@ -83,7 +102,13 @@ export function ReportModal({
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={styles.card} onPress={() => {}}>
           <Text style={styles.title}>
-            {targetType === 'profile' ? 'Report profile' : 'Report listing'}
+            {targetType === 'profile'
+              ? 'Report profile'
+              : targetType === 'message'
+                ? 'Report message'
+                : targetType === 'conversation'
+                  ? 'Report conversation'
+                  : 'Report listing'}
           </Text>
           <Text style={styles.subtitle}>Select a reason (required)</Text>
 
