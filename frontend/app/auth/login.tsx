@@ -337,7 +337,7 @@ export default function LoginScreen() {
           ) : (
             <>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.stateText}>Setting up your account...</Text>
+              <Text style={styles.stateText}>Signing you in...</Text>
             </>
           )}
         </View>
@@ -543,11 +543,11 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Animated.View style={[styles.content, panelEntrance]}>
-            <Text style={styles.eyebrow}>PolyBuys Access</Text>
-            <Text style={styles.title}>{isEmailStep ? 'Welcome back' : 'Check your inbox'}</Text>
+            <Text style={styles.eyebrow}>PolyBuys</Text>
+            <Text style={styles.title}>{isEmailStep ? 'Sign in' : 'Check your inbox'}</Text>
             <Text style={styles.subtitle}>
               {isEmailStep
-                ? 'Sign in with your Cal Poly email to continue.'
+                ? 'Enter your Cal Poly email to continue.'
                 : 'Enter the 8-digit code we sent to your email.'}
             </Text>
 
