@@ -5,10 +5,30 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { hasBlockBetween } from './blocks';
 import { requireAuthUserId } from './lib/authIdentity';
+import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export const PAYLOAD_BOUNDS = {
   MESSAGE_MAX: 2000,
 };
+
+const MAX_REPORTS_PER_DAY = 10;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_REPORT_NOTES_LENGTH = 500;
+type ConversationInboxHiddenReason = 'deleted' | 'reported';
+type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
+const REPORT_REASON_VALIDATOR = v.union(
+  v.literal('scam'),
+  v.literal('inappropriate'),
+  v.literal('spam'),
+  v.literal('other')
+);
+
+function shouldPreserveHiddenConversationState(
+  hiddenAt: number | undefined,
+  hiddenReason: ConversationInboxHiddenReason | undefined
+) {
+  return hiddenAt !== undefined && hiddenReason === 'reported';
+}
 
 function isRemoteUrl(value: string) {
   return value.startsWith('http://') || value.startsWith('https://');
@@ -56,6 +76,33 @@ export const internalSendMessage = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    const hiddenFieldPatch: Partial<Doc<'conversations'>> = {};
+
+    if (
+      !shouldPreserveHiddenConversationState(
+        conversation.buyerInboxHiddenAt,
+        conversation.buyerInboxHiddenReason
+      )
+    ) {
+      hiddenFieldPatch.buyerInboxHiddenAt = undefined;
+      hiddenFieldPatch.buyerInboxHiddenReason = undefined;
+    }
+
+    if (
+      !shouldPreserveHiddenConversationState(
+        conversation.sellerInboxHiddenAt,
+        conversation.sellerInboxHiddenReason
+      )
+    ) {
+      hiddenFieldPatch.sellerInboxHiddenAt = undefined;
+      hiddenFieldPatch.sellerInboxHiddenReason = undefined;
+    }
+
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
       listingId: args.listingId,
@@ -70,6 +117,7 @@ export const internalSendMessage = internalMutation({
     await ctx.db.patch(args.conversationId, {
       updatedAt: now,
       lastMessageId: messageId,
+      ...hiddenFieldPatch,
     });
 
     return { messageId };
@@ -342,6 +390,12 @@ export const listUserConversations = query({
       .filter((conversation): conversation is Doc<'conversations'> => conversation !== null)
       .filter((conversation) => conversation.buyerId === userId || conversation.sellerId === userId)
       .filter((conversation) => conversation.lastMessageId !== undefined)
+      .filter((conversation) => {
+        if (conversation.buyerId === userId) {
+          return conversation.buyerInboxHiddenAt === undefined;
+        }
+        return conversation.sellerInboxHiddenAt === undefined;
+      })
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     // One conversation per listing (stable IDs, no sibling merging needed)
@@ -532,6 +586,15 @@ export const listUserConversations = query({
   },
 });
 
+export const getReportedConversationListingIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireStableUserId(ctx);
+    const listingIdSet = await getReportedConversationListingIdSetByReporter(ctx, userId);
+    return [...listingIdSet];
+  },
+});
+
 async function requireConversationScope(
   ctx: MutationCtx | QueryCtx,
   args: {
@@ -612,6 +675,87 @@ async function collectMessagesForConversationScope(
   );
 
   return messageBatches.flat().sort((left, right) => left.createdAt - right.createdAt);
+}
+
+function normalizeAndValidateReportNotes(reason: ReportReason, notes?: string) {
+  const trimmedNotes = notes?.trim();
+  if (trimmedNotes && trimmedNotes.length > MAX_REPORT_NOTES_LENGTH) {
+    throw new ConvexError(`Notes must be ${MAX_REPORT_NOTES_LENGTH} characters or less`);
+  }
+
+  if (reason === 'other' && (!trimmedNotes || trimmedNotes.length === 0)) {
+    throw new ConvexError('Please provide details when selecting "Other" as the reason');
+  }
+
+  return trimmedNotes;
+}
+
+async function enforceReportRateLimit(ctx: MutationCtx, userId: Id<'users'>) {
+  const oneDayAgo = Date.now() - ONE_DAY_MS;
+  const recentReports = await ctx.db
+    .query('reports')
+    .withIndex('by_reporter', (q) => q.eq('reporterId', userId))
+    .filter((q) => q.gt(q.field('createdAt'), oneDayAgo))
+    .collect();
+
+  if (recentReports.length >= MAX_REPORTS_PER_DAY) {
+    throw new ConvexError('Report limit reached. Please try again later.');
+  }
+}
+
+async function hideConversationForParticipant(
+  ctx: MutationCtx,
+  conversation: Doc<'conversations'>,
+  userId: Id<'users'>,
+  reason: ConversationInboxHiddenReason,
+  hiddenAt: number
+) {
+  if (conversation.buyerId === userId) {
+    await ctx.db.patch(conversation._id, {
+      buyerInboxHiddenAt: hiddenAt,
+      buyerInboxHiddenReason: reason,
+    });
+    return;
+  }
+
+  if (conversation.sellerId === userId) {
+    await ctx.db.patch(conversation._id, {
+      sellerInboxHiddenAt: hiddenAt,
+      sellerInboxHiddenReason: reason,
+    });
+    return;
+  }
+
+  throw new ConvexError('Forbidden');
+}
+
+async function updateConversationAfterDeletedMessage(
+  ctx: MutationCtx,
+  conversation: Doc<'conversations'>,
+  deletedMessageId: Id<'messages'>
+) {
+  if (conversation.lastMessageId !== deletedMessageId) {
+    return;
+  }
+
+  const latestRemainingMessage = await ctx.db
+    .query('messages')
+    .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
+    .order('desc')
+    .first();
+
+  if (!latestRemainingMessage) {
+    await ctx.db.patch(conversation._id, {
+      lastMessageId: undefined,
+      updatedAt: conversation.createdAt,
+    });
+    return;
+  }
+
+  await ctx.db.patch(conversation._id, {
+    lastMessageId: latestRemainingMessage._id,
+    updatedAt: latestRemainingMessage.createdAt,
+  });
 }
 
 // Internal: create conversation if not exists (used by createConversationAndSendFirstMessage)
@@ -743,6 +887,163 @@ export const markMessagesAsRead = mutation({
     );
 
     return { ok: true };
+  },
+});
+
+export const deleteMessage = mutation({
+  args: {
+    messageId: v.id('messages'),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new ConvexError('Message not found');
+    }
+
+    const { userId, conversationScope } = await requireConversationScope(ctx, {
+      conversationId: message.conversationId,
+    });
+    const conversation = conversationScope[0]?.conversation;
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    if (message.senderId !== userId) {
+      throw new ConvexError('You can only delete your own messages');
+    }
+
+    await ctx.db.delete(args.messageId);
+    await updateConversationAfterDeletedMessage(ctx, conversation, args.messageId);
+    return { ok: true };
+  },
+});
+
+export const hideConversationFromInbox = mutation({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+  },
+  handler: async (ctx, args) => {
+    const { conversationScope, userId } = await requireConversationScope(ctx, args);
+    const now = Date.now();
+
+    await Promise.all(
+      conversationScope.map(({ conversation, isBuyer, isSeller }) => {
+        const currentHiddenReason = isBuyer
+          ? conversation.buyerInboxHiddenReason
+          : isSeller
+            ? conversation.sellerInboxHiddenReason
+            : undefined;
+
+        if (currentHiddenReason === 'reported') {
+          return Promise.resolve();
+        }
+
+        return hideConversationForParticipant(ctx, conversation, userId, 'deleted', now);
+      })
+    );
+
+    return { ok: true };
+  },
+});
+
+export const reportMessage = mutation({
+  args: {
+    messageId: v.id('messages'),
+    reason: REPORT_REASON_VALIDATOR,
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new ConvexError('Message not found');
+    }
+
+    const { userId, conversationScope } = await requireConversationScope(ctx, {
+      conversationId: message.conversationId,
+    });
+    const conversation = conversationScope[0]?.conversation;
+    if (!conversation) {
+      throw new ConvexError('Conversation not found');
+    }
+
+    if (message.senderId === userId) {
+      throw new ConvexError('You can only report messages from the other participant');
+    }
+
+    const trimmedNotes = normalizeAndValidateReportNotes(args.reason, args.notes);
+
+    const existingReport = await ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) => q.eq('targetId', args.messageId).eq('targetType', 'message'))
+      .filter((q) => q.eq(q.field('reporterId'), userId))
+      .first();
+
+    if (existingReport) {
+      throw new ConvexError('You have already reported this message');
+    }
+
+    await enforceReportRateLimit(ctx, userId);
+
+    const reportId = await ctx.db.insert('reports', {
+      targetId: args.messageId,
+      targetType: 'message',
+      reporterId: userId,
+      reason: args.reason,
+      notes: trimmedNotes,
+      createdAt: Date.now(),
+    });
+
+    // Intentionally hide only the primary conversation here; siblingConversationIds handling
+    // exists in reportConversation/hideConversationFromInbox where those args are available.
+    await hideConversationForParticipant(ctx, conversation, userId, 'reported', Date.now());
+
+    return { reportId };
+  },
+});
+
+export const reportConversation = mutation({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    reason: REPORT_REASON_VALIDATOR,
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { userId, conversationScope } = await requireConversationScope(ctx, args);
+    const trimmedNotes = normalizeAndValidateReportNotes(args.reason, args.notes);
+
+    const existingReport = await ctx.db
+      .query('reports')
+      .withIndex('by_target', (q) =>
+        q.eq('targetId', args.conversationId).eq('targetType', 'conversation')
+      )
+      .filter((q) => q.eq(q.field('reporterId'), userId))
+      .first();
+
+    if (existingReport) {
+      throw new ConvexError('You have already reported this conversation');
+    }
+
+    await enforceReportRateLimit(ctx, userId);
+
+    const reportId = await ctx.db.insert('reports', {
+      targetId: args.conversationId,
+      targetType: 'conversation',
+      reporterId: userId,
+      reason: args.reason,
+      notes: trimmedNotes,
+      createdAt: Date.now(),
+    });
+
+    const now = Date.now();
+    await Promise.all(
+      conversationScope.map(({ conversation }) =>
+        hideConversationForParticipant(ctx, conversation, userId, 'reported', now)
+      )
+    );
+
+    return { reportId };
   },
 });
 

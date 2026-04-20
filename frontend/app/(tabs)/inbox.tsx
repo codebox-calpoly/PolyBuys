@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Keyboard,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,7 +18,7 @@ import { BlurView } from 'expo-blur';
 import Feather from '@expo/vector-icons/Feather';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -26,16 +28,23 @@ import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { ScreenHeader } from '../../components/ui';
+import { ReportModal } from '../../components/ReportModal';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import { nativeChrome } from '../../theme/nativeChrome';
 
+const SWIPE_LEFT_ACTION_WIDTH = 176;
+const SWIPE_LEFT_OPEN_THRESHOLD = 84;
+const SWIPE_RIGHT_OPEN_CHAT_THRESHOLD = 64;
+const SWIPE_RIGHT_MAX_TRANSLATE = 90;
+
 type ConversationRowItem = {
-  _id: string;
+  _id: Id<'conversations'>;
   updatedAt?: number;
   hasUnread?: boolean;
   unreadCount?: number;
   lastMessagePreview?: string;
   lastMessageAt?: number;
+  siblingConversationIds?: Id<'conversations'>[];
   otherUser?: {
     name?: string;
     picture?: string;
@@ -56,50 +65,238 @@ function ConversationRow({
   index,
   avatarUrl,
   entranceStyle,
+  activeSwipeConversationId,
+  setActiveSwipeConversationId,
   onPress,
+  onDelete,
+  onReport,
   formatTimestamp,
 }: {
   item: ConversationRowItem;
   index: number;
   avatarUrl: string | null;
   entranceStyle: object;
+  activeSwipeConversationId: Id<'conversations'> | null;
+  setActiveSwipeConversationId: (conversationId: Id<'conversations'> | null) => void;
   onPress: () => void;
+  onDelete: () => void;
+  onReport: () => void;
   formatTimestamp: (timestamp: number) => string;
 }) {
   const hasUnread = Boolean(item.hasUnread);
   const otherUserName = item.otherUser?.name ?? 'User';
   const listingTitle = item.listing?.title ?? 'Listing unavailable';
-
   const lastMessagePreview = item.lastMessagePreview ?? 'Conversation started';
   const lastMessageAt = item.lastMessageAt ?? item.updatedAt ?? Date.now();
 
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateXValueRef = useRef(0);
+  const swipeStartOffset = useRef(0);
+  const isLeftOpenRef = useRef(false);
+
+  useEffect(() => {
+    const listenerId = translateX.addListener(({ value }) => {
+      translateXValueRef.current = value;
+    });
+
+    return () => {
+      translateX.removeListener(listenerId);
+    };
+  }, [translateX]);
+
+  const animateTo = useCallback(
+    (toValue: number, onComplete?: () => void) => {
+      Animated.spring(translateX, {
+        toValue,
+        damping: 22,
+        stiffness: 260,
+        mass: 0.55,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished && onComplete) {
+          onComplete();
+        }
+      });
+    },
+    [translateX]
+  );
+
+  const closeSwipeActions = useCallback(
+    (animated: boolean) => {
+      if (animated) {
+        animateTo(0);
+      } else {
+        translateX.setValue(0);
+      }
+      if (activeSwipeConversationId === item._id) {
+        setActiveSwipeConversationId(null);
+      }
+      isLeftOpenRef.current = false;
+    },
+    [activeSwipeConversationId, animateTo, item._id, setActiveSwipeConversationId, translateX]
+  );
+
+  useEffect(() => {
+    if (activeSwipeConversationId !== item._id && isLeftOpenRef.current) {
+      closeSwipeActions(true);
+    }
+  }, [activeSwipeConversationId, closeSwipeActions, item._id]);
+
+  const openLeftActions = useCallback(() => {
+    isLeftOpenRef.current = true;
+    setActiveSwipeConversationId(item._id);
+    animateTo(-SWIPE_LEFT_ACTION_WIDTH);
+  }, [animateTo, item._id, setActiveSwipeConversationId]);
+
+  const triggerOpenChat = useCallback(() => {
+    setActiveSwipeConversationId(null);
+    isLeftOpenRef.current = false;
+    Animated.sequence([
+      Animated.timing(translateX, {
+        toValue: 34,
+        duration: 90,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 110,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onPress();
+    });
+  }, [onPress, setActiveSwipeConversationId, translateX]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          const isHorizontal =
+            Math.abs(gestureState.dx) > 10 &&
+            Math.abs(gestureState.dy) < 12 &&
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4;
+          if (!isHorizontal) {
+            return false;
+          }
+          return gestureState.dx < -8 || gestureState.dx > 8;
+        },
+        onPanResponderGrant: () => {
+          swipeStartOffset.current = translateXValueRef.current;
+          translateX.stopAnimation();
+        },
+        onPanResponderMove: (_, gestureState) => {
+          if (Math.abs(gestureState.dy) > Math.abs(gestureState.dx)) {
+            return;
+          }
+          const next = Math.max(
+            -SWIPE_LEFT_ACTION_WIDTH,
+            Math.min(SWIPE_RIGHT_MAX_TRANSLATE, swipeStartOffset.current + gestureState.dx)
+          );
+          translateX.setValue(next);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const resolvedOffset = swipeStartOffset.current + gestureState.dx;
+          const shouldOpenChat =
+            resolvedOffset >= SWIPE_RIGHT_OPEN_CHAT_THRESHOLD ||
+            (gestureState.vx > 0.65 && gestureState.dx > 20);
+          if (shouldOpenChat) {
+            triggerOpenChat();
+            return;
+          }
+
+          const shouldOpenLeftActions =
+            resolvedOffset <= -SWIPE_LEFT_OPEN_THRESHOLD ||
+            (gestureState.vx < -0.65 && gestureState.dx < -20);
+          if (shouldOpenLeftActions) {
+            openLeftActions();
+            return;
+          }
+
+          closeSwipeActions(true);
+        },
+        onPanResponderTerminate: () => {
+          closeSwipeActions(true);
+        },
+      }),
+    [closeSwipeActions, openLeftActions, translateX, triggerOpenChat]
+  );
+
+  const handleDeletePress = useCallback(() => {
+    closeSwipeActions(true);
+    onDelete();
+  }, [closeSwipeActions, onDelete]);
+
+  const handleReportPress = useCallback(() => {
+    closeSwipeActions(true);
+    onReport();
+  }, [closeSwipeActions, onReport]);
+
+  const handleRowPress = useCallback(() => {
+    if (isLeftOpenRef.current) {
+      closeSwipeActions(true);
+      return;
+    }
+    onPress();
+  }, [closeSwipeActions, onPress]);
+
   return (
     <Animated.View style={index === 0 ? entranceStyle : null}>
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`Conversation with ${otherUserName} about ${listingTitle}`}
-      >
-        <ProfileAvatar uri={avatarUrl} name={otherUserName} size={56} style={styles.avatar} />
-        <View style={styles.rowBody}>
-          <View style={styles.rowTop}>
-            <Text style={[styles.otherUserName, hasUnread && styles.unreadText]} numberOfLines={1}>
-              {otherUserName}
-            </Text>
-            <Text style={styles.timestamp}>{formatTimestamp(lastMessageAt)}</Text>
-          </View>
-          <Text style={styles.listingTitle} numberOfLines={1}>
-            {listingTitle}
-          </Text>
-          <View style={styles.previewRow}>
-            <Text style={[styles.messagePreview, hasUnread && styles.unreadText]} numberOfLines={1}>
-              {lastMessagePreview}
-            </Text>
-            {hasUnread && <View style={styles.unreadDot} />}
-          </View>
+      <View style={styles.swipeRowShell}>
+        <View style={styles.rightSwipeActions}>
+          <Pressable
+            style={[styles.swipeActionButton, styles.reportActionButton]}
+            onPress={handleReportPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Report conversation with ${otherUserName}`}
+          >
+            <Text style={styles.swipeActionLabel}>Report</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.swipeActionButton, styles.deleteActionButton]}
+            onPress={handleDeletePress}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete conversation with ${otherUserName}`}
+          >
+            <Text style={styles.swipeActionLabel}>Delete</Text>
+          </Pressable>
         </View>
-      </Pressable>
+        <Animated.View
+          style={[styles.swipeCard, { transform: [{ translateX }] }]}
+          {...panResponder.panHandlers}
+        >
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.buttonPressed]}
+            onPress={handleRowPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Conversation with ${otherUserName} about ${listingTitle}`}
+          >
+            <ProfileAvatar uri={avatarUrl} name={otherUserName} size={56} style={styles.avatar} />
+            <View style={styles.rowBody}>
+              <View style={styles.rowTop}>
+                <Text
+                  style={[styles.otherUserName, hasUnread && styles.unreadText]}
+                  numberOfLines={1}
+                >
+                  {otherUserName}
+                </Text>
+                <Text style={styles.timestamp}>{formatTimestamp(lastMessageAt)}</Text>
+              </View>
+              <Text style={styles.listingTitle} numberOfLines={1}>
+                {listingTitle}
+              </Text>
+              <View style={styles.previewRow}>
+                <Text
+                  style={[styles.messagePreview, hasUnread && styles.unreadText]}
+                  numberOfLines={1}
+                >
+                  {lastMessagePreview}
+                </Text>
+                {hasUnread && <View style={styles.unreadDot} />}
+              </View>
+            </View>
+          </Pressable>
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 }
@@ -110,12 +307,68 @@ export default function InboxScreen() {
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
+  const hideConversationFromInbox = useMutation(api.messages.hideConversationFromInbox);
   const conversations = useQuery(
     api.messages.listUserConversations,
     isAuthenticated && !isWeb ? {} : 'skip'
   );
   const [searchText, setSearchText] = useState('');
+  const [activeSwipeConversationId, setActiveSwipeConversationId] =
+    useState<Id<'conversations'> | null>(null);
+  const [reportingConversation, setReportingConversation] = useState<ConversationRowItem | null>(
+    null
+  );
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
+
+  const openConversation = useCallback(
+    (conversationId: Id<'conversations'>) => {
+      router.push({
+        pathname: '/conversations/[id]',
+        params: { id: String(conversationId) },
+      } as never);
+    },
+    [router]
+  );
+
+  const hideConversation = useCallback(
+    async (item: ConversationRowItem) => {
+      try {
+        await hideConversationFromInbox({
+          conversationId: item._id,
+          siblingConversationIds: item.siblingConversationIds,
+        });
+      } catch (error) {
+        const message = String((error as Error)?.message ?? 'Unable to delete this conversation.');
+        Alert.alert('Delete failed', message);
+      }
+    },
+    [hideConversationFromInbox]
+  );
+
+  const promptDeleteConversation = useCallback(
+    (item: ConversationRowItem) => {
+      Alert.alert(
+        'Delete conversation?',
+        'This hides the thread from your inbox until a new message arrives.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void hideConversation(item);
+            },
+          },
+        ]
+      );
+    },
+    [hideConversation]
+  );
+
+  const handleBackgroundPress = useCallback(() => {
+    setActiveSwipeConversationId(null);
+    Keyboard.dismiss();
+  }, []);
 
   const formatter = useMemo(
     () =>
@@ -172,6 +425,7 @@ export default function InboxScreen() {
     conversations?.filter(
       (conversation) => Boolean(conversation.hasUnread) || (conversation.unreadCount ?? 0) > 0
     ).length ?? 0;
+
   const otherUserPictureIds = useMemo(
     () =>
       (conversations ?? [])
@@ -182,7 +436,9 @@ export default function InboxScreen() {
         ),
     [conversations]
   );
+
   const { resolvedUrls: resolvedOtherUserAvatarUrls } = useResolvedImageUrls(otherUserPictureIds);
+
   const filteredConversations = useMemo(() => {
     if (!conversations) return [];
     const query = searchText.trim().toLowerCase();
@@ -244,7 +500,7 @@ export default function InboxScreen() {
   const isSearching = searchText.trim().length > 0;
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback onPress={handleBackgroundPress} accessible={false}>
       <View style={styles.page}>
         <View style={styles.content}>
           {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
@@ -293,7 +549,7 @@ export default function InboxScreen() {
           </View>
           <FlatList
             data={filteredConversations}
-            keyExtractor={(item) => item._id}
+            keyExtractor={(item) => String(item._id)}
             style={styles.list}
             contentContainerStyle={[
               styles.listContent,
@@ -301,6 +557,10 @@ export default function InboxScreen() {
             ]}
             contentInsetAdjustmentBehavior="automatic"
             keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={() => {
+              setActiveSwipeConversationId(null);
+              Keyboard.dismiss();
+            }}
             ListEmptyComponent={
               <View style={styles.emptyCard}>
                 <ScreenState
@@ -321,25 +581,31 @@ export default function InboxScreen() {
                   ? conversation.otherUser.picture
                   : null;
               const avatarUrl = pictureId ? (resolvedOtherUserAvatarUrls[pictureId] ?? null) : null;
+
               return (
                 <ConversationRow
                   item={conversation}
                   index={index}
                   avatarUrl={avatarUrl}
                   entranceStyle={entranceStyle}
+                  activeSwipeConversationId={activeSwipeConversationId}
+                  setActiveSwipeConversationId={setActiveSwipeConversationId}
                   formatTimestamp={formatTimestamp}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/conversations/[id]',
-                      params: { id: String(item._id) },
-                    } as never)
-                  }
+                  onPress={() => openConversation(item._id)}
+                  onDelete={() => promptDeleteConversation(conversation)}
+                  onReport={() => setReportingConversation(conversation)}
                 />
               );
             }}
             ItemSeparatorComponent={ItemSeparator}
           />
         </View>
+        <ReportModal
+          isVisible={reportingConversation !== null}
+          onClose={() => setReportingConversation(null)}
+          targetId={reportingConversation ? String(reportingConversation._id) : ''}
+          targetType="conversation"
+        />
       </View>
     </TouchableWithoutFeedback>
   );
@@ -425,6 +691,40 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     gap: spacing.sm,
   },
+  swipeRowShell: {
+    position: 'relative',
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  swipeCard: {
+    borderRadius: borderRadius.lg,
+  },
+  rightSwipeActions: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: SWIPE_LEFT_ACTION_WIDTH,
+    flexDirection: 'row',
+  },
+  swipeActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportActionButton: {
+    backgroundColor: colors.text,
+  },
+  deleteActionButton: {
+    backgroundColor: colors.destructive,
+  },
+  swipeActionLabel: {
+    ...typography.footnoteMed,
+    fontWeight: '700',
+    color: colors.white,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   row: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
@@ -499,7 +799,6 @@ const styles = StyleSheet.create({
     height: spacing.sm,
   },
   buttonPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.99 }],
+    backgroundColor: colors.surface,
   },
 });

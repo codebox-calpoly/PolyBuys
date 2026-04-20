@@ -55,7 +55,7 @@ export default function AccountSettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Faccount-settings' as never);
+      router.replace('/auth/login' as never);
     }
   }, [isAuthenticated, isLoading, isWeb, router]);
 
@@ -67,7 +67,7 @@ export default function AccountSettingsScreen() {
 
   const handleSignOut = async () => {
     if (!isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Faccount-settings' as never);
+      router.replace('/auth/login' as never);
       return;
     }
 

@@ -525,6 +525,390 @@ describe('Messages queries and mutations', () => {
     });
   });
 
+  describe('hideConversationFromInbox', () => {
+    it('hides the conversation for the caller but not the other participant', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+
+      expect(buyerConversations).toHaveLength(0);
+      expect(sellerConversations).toHaveLength(1);
+      expect(sellerConversations[0]._id).toBe(conversationId);
+    });
+
+    it('shows the conversation again when a new incoming message is received', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Still available?',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(1);
+      expect(buyerConversations[0]._id).toBe(conversationId);
+      expect(buyerConversations[0].lastMessagePreview).toBe('Still available?');
+    });
+
+    it('shows the conversation again when the hidden participant sends a new message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
+        listingId,
+        body: 'I am interested again.',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(1);
+      expect(buyerConversations[0]._id).toBe(conversationId);
+      expect(buyerConversations[0].lastMessagePreview).toBe('I am interested again.');
+    });
+
+    it('does not overwrite a reported hidden reason when hideConversationFromInbox is called', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      await asBuyer.mutation(api.messages.hideConversationFromInbox, {
+        conversationId,
+      });
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      expect(conversation?.buyerInboxHiddenReason).toBe('reported');
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'New message after report',
+      });
+
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('allows deleting your own message and restores the previous lastMessageId', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      const conversationBeforeSend = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const originalLastMessageId = conversationBeforeSend?.lastMessageId;
+      expect(originalLastMessageId).toBeDefined();
+
+      const sent = await asBuyer.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'This message should be deleted.',
+      });
+
+      await asBuyer.mutation(api.messages.deleteMessage, {
+        messageId: sent.messageId,
+      });
+
+      const deletedMessage = await t.run(async (ctx) => ctx.db.get(sent.messageId));
+      const conversationAfterDelete = await t.run(async (ctx) => ctx.db.get(conversationId));
+
+      expect(deletedMessage).toBeNull();
+      expect(conversationAfterDelete?.lastMessageId).toBe(originalLastMessageId);
+    });
+
+    it('rejects deleting the other participant message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const buyerMessageId = conversation?.lastMessageId;
+      expect(buyerMessageId).toBeDefined();
+      if (!buyerMessageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await expect(async () => {
+        await asSeller.mutation(api.messages.deleteMessage, {
+          messageId: buyerMessageId,
+        });
+      }).rejects.toThrow('You can only delete your own messages');
+    });
+  });
+
+  describe('reportMessage', () => {
+    it('creates a report for a specific message and hides the conversation for the reporter', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      const { reportId } = await asSeller.mutation(api.messages.reportMessage, {
+        messageId,
+        reason: 'spam',
+      });
+
+      const report = await t.run(async (ctx) => ctx.db.get(reportId));
+      expect(report).toMatchObject({
+        targetId: messageId,
+        targetType: 'message',
+        reporterId: seller.id,
+        reason: 'spam',
+      });
+
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(sellerConversations).toHaveLength(0);
+      expect(buyerConversations).toHaveLength(1);
+    });
+
+    it('rejects duplicate reports from the same user for the same message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asSeller = t.withIdentity(seller.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await asSeller.mutation(api.messages.reportMessage, {
+        messageId,
+        reason: 'inappropriate',
+      });
+
+      await expect(async () => {
+        await asSeller.mutation(api.messages.reportMessage, {
+          messageId,
+          reason: 'spam',
+        });
+      }).rejects.toThrow('You have already reported this message');
+    });
+
+    it('rejects reporting your own message', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      const messageId = conversation?.lastMessageId;
+      expect(messageId).toBeDefined();
+      if (!messageId) {
+        throw new Error('Expected seeded conversation to have a last message');
+      }
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.reportMessage, {
+          messageId,
+          reason: 'spam',
+        });
+      }).rejects.toThrow('You can only report messages from the other participant');
+    });
+  });
+
+  describe('reportConversation', () => {
+    it('creates a conversation report and hides the thread for the reporter', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+      const { reportId } = await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      const report = await t.run(async (ctx) => ctx.db.get(reportId));
+      expect(report).toMatchObject({
+        targetId: conversationId,
+        targetType: 'conversation',
+        reporterId: buyer.id,
+        reason: 'spam',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      const sellerConversations = await asSeller.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(0);
+      expect(sellerConversations).toHaveLength(1);
+    });
+
+    it('rejects duplicate reports from the same user for the same conversation', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'spam',
+      });
+
+      await expect(async () => {
+        await asBuyer.mutation(api.messages.reportConversation, {
+          conversationId,
+          reason: 'scam',
+        });
+      }).rejects.toThrow('You have already reported this conversation');
+    });
+
+    it('keeps the conversation hidden after report when new messages arrive', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId,
+        reason: 'inappropriate',
+      });
+      expect(await asBuyer.query(api.messages.listUserConversations)).toHaveLength(0);
+
+      await asSeller.action(api.messages.sendMessage, {
+        conversationId,
+        body: 'Following up on this.',
+      });
+
+      const buyerConversations = await asBuyer.query(api.messages.listUserConversations);
+      expect(buyerConversations).toHaveLength(0);
+    });
+  });
+
+  describe('getReportedConversationListingIds', () => {
+    it('returns listing IDs tied to conversations reported by the current user', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const sellerTwo = await createTestUser(t, 'seller-two@calpoly.edu', 'Seller Two');
+      const listingOneId = await createTestListing(t, seller.id);
+      const listingTwoId = await createTestListing(t, sellerTwo.id);
+      const conversationOneId = await createTestConversation(t, listingOneId, buyer.id, seller.id);
+      const conversationTwoId = await createTestConversation(
+        t,
+        listingTwoId,
+        buyer.id,
+        sellerTwo.id
+      );
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const asSeller = t.withIdentity(seller.identity);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId: conversationOneId,
+        reason: 'spam',
+      });
+
+      const buyerHiddenListingIds = await asBuyer.query(
+        api.messages.getReportedConversationListingIds
+      );
+      const sellerHiddenListingIds = await asSeller.query(
+        api.messages.getReportedConversationListingIds
+      );
+
+      expect(buyerHiddenListingIds).toHaveLength(1);
+      expect(buyerHiddenListingIds[0]).toBe(listingOneId);
+      expect(sellerHiddenListingIds).toHaveLength(0);
+
+      await asBuyer.mutation(api.messages.reportConversation, {
+        conversationId: conversationTwoId,
+        reason: 'inappropriate',
+      });
+
+      const buyerHiddenListingIdsAfterSecondReport = await asBuyer.query(
+        api.messages.getReportedConversationListingIds
+      );
+      expect(new Set(buyerHiddenListingIdsAfterSecondReport)).toEqual(
+        new Set([listingOneId, listingTwoId])
+      );
+    });
+  });
+
   describe('getOrCreateConversation', () => {
     it('throws error when user tries to message themselves', async () => {
       const t = createConvexTest();

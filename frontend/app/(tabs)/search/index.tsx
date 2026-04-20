@@ -73,8 +73,9 @@ export default function SearchScreen() {
   );
 
   const clearSearchAndBrowse = useCallback(() => {
-    setCategoryFilter(null);
     setSearchInput('');
+    setSearchTerm('');
+    setCategoryFilter(null);
   }, []);
 
   useEffect(() => {
@@ -135,20 +136,25 @@ export default function SearchScreen() {
 
   const savedState = useQuery(
     api.savedListings.getSavedStateForListings,
-    isAuthenticated && allListings.length > 0
+    isAuthenticated && !isWeb && allListings.length > 0
       ? { listingIds: allListings.map((l) => l._id) }
       : 'skip'
   );
 
   const handleToggleSave = useCallback(
     (listingId: Id<'listings'>) => {
+      if (isWeb) {
+        router.push('/auth/login?returnTo=%2Fsearch' as never);
+        return;
+      }
+
       if (!isAuthenticated) {
         router.replace('/auth/login?returnTo=%2Fsearch' as never);
         return;
       }
       void toggleSavedListing({ listingId });
     },
-    [isAuthenticated, router, toggleSavedListing]
+    [isAuthenticated, isWeb, router, toggleSavedListing]
   );
 
   const handleCategoryPress = useCallback((category: Category) => {
@@ -162,7 +168,7 @@ export default function SearchScreen() {
     [router]
   );
 
-  const hasActiveQuery = searchTerm.length > 0 || categoryFilter !== null;
+  const hasActiveQuery = searchInput.trim().length > 0 || categoryFilter !== null;
   const isSearching = hasActiveQuery;
   const isInitialLoading =
     isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
@@ -258,7 +264,7 @@ export default function SearchScreen() {
           listing={item}
           index={index}
           isSaved={savedState?.[item._id] ?? false}
-          onToggleSave={() => handleToggleSave(item._id)}
+          onToggleSave={isWeb ? undefined : () => handleToggleSave(item._id)}
           onPress={() => handleListingPress(item)}
         />
       )}
@@ -397,7 +403,7 @@ export default function SearchScreen() {
               />
               {searchInput.length > 0 ? (
                 <Pressable
-                  onPress={() => setSearchInput('')}
+                  onPress={clearSearchAndBrowse}
                   style={[
                     styles.searchClearButton,
                     { backgroundColor: searchChrome.clearButtonBackground },
