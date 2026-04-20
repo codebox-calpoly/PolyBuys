@@ -203,7 +203,7 @@ export default function HomeScreen() {
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
       if (isWeb) {
-        router.push('/auth/login?returnTo=%2F' as never);
+        Alert.alert('Open in the PolyBuys app', 'Saving listings is available in the mobile app.');
         return;
       }
 
@@ -262,10 +262,7 @@ export default function HomeScreen() {
 
   const handleCreateListing = () => {
     if (isWeb) {
-      router.push({
-        pathname: '/auth/login',
-        params: { returnTo: '/listings/new' },
-      } as never);
+      Alert.alert('Open in the PolyBuys app', 'Creating listings is available in the mobile app.');
       return;
     }
 

@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import {
   Image,
   Linking,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_STORE_URL } from '../constants/app';
+import qrDownloadPng from '../assets/images/polybuys-download-qr.png';
 import { AppButton, AppText, SectionCard } from './ui';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
@@ -23,10 +24,6 @@ const APP_STORE_BADGE_URI =
   'https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83';
 
 const LAYOUT_BREAKPOINT = 768;
-
-function qrCodeImageUri(targetUrl: string) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(targetUrl)}`;
-}
 
 function openDownloadLinkEmail() {
   const subject = encodeURIComponent('PolyBuys — download link');
@@ -55,7 +52,6 @@ export default function LandingScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= LAYOUT_BREAKPOINT;
-  const qrUri = qrCodeImageUri(APP_STORE_URL);
 
   return (
     <>
@@ -70,7 +66,15 @@ export default function LandingScreen() {
       ) : null}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <Text style={styles.brandMark}>PolyBuys</Text>
+          <Link href="/home" asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Go to marketplace"
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.brandMark}>PolyBuys</Text>
+            </Pressable>
+          </Link>
         </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -121,7 +125,7 @@ export default function LandingScreen() {
               <View style={styles.getAppDesktop}>
                 <View style={styles.qrBlock}>
                   <Image
-                    source={{ uri: qrUri }}
+                    source={qrDownloadPng}
                     style={styles.qrImage}
                     accessibilityLabel="QR code linking to the PolyBuys download page"
                   />
@@ -141,19 +145,41 @@ export default function LandingScreen() {
               </View>
             ) : (
               <View style={styles.getAppMobile}>
-                <Pressable
-                  onPress={() => void Linking.openURL(APP_STORE_URL)}
-                  accessibilityRole="link"
-                  accessibilityLabel="Download on the App Store"
-                  style={({ pressed }) => [styles.badgePressable, pressed && styles.pressed]}
-                >
-                  <Image
-                    source={{ uri: APP_STORE_BADGE_URI }}
-                    style={styles.appStoreBadge}
-                    resizeMode="contain"
-                    accessibilityIgnoresInvertColors
-                  />
-                </Pressable>
+                {Platform.OS === 'web' ? (
+                  <Link
+                    href={APP_STORE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    accessibilityLabel="Download on the App Store"
+                    asChild
+                  >
+                    <Pressable
+                      accessibilityRole="link"
+                      style={({ pressed }) => [styles.badgePressable, pressed && styles.pressed]}
+                    >
+                      <Image
+                        source={{ uri: APP_STORE_BADGE_URI }}
+                        style={styles.appStoreBadge}
+                        resizeMode="contain"
+                        accessibilityIgnoresInvertColors
+                      />
+                    </Pressable>
+                  </Link>
+                ) : (
+                  <Pressable
+                    onPress={() => void Linking.openURL(APP_STORE_URL)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Download on the App Store"
+                    style={({ pressed }) => [styles.badgePressable, pressed && styles.pressed]}
+                  >
+                    <Image
+                      source={{ uri: APP_STORE_BADGE_URI }}
+                      style={styles.appStoreBadge}
+                      resizeMode="contain"
+                      accessibilityIgnoresInvertColors
+                    />
+                  </Pressable>
+                )}
                 <AppText variant="footnote" color="muted" style={styles.badgeFootnote}>
                   Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and
                   other countries. App Store is a service mark of Apple Inc.
