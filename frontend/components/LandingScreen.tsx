@@ -39,7 +39,7 @@ function openDownloadLinkEmail() {
 const VALUE_POINTS = [
   {
     title: 'Students only',
-    body: 'Sign in with your Cal Poly email so listings stay in the campus community.',
+    body: 'Cal Poly email sign-in runs in the iOS app so listings stay in the campus community.',
   },
   {
     title: 'Built for how you actually buy',
@@ -71,16 +71,6 @@ export default function LandingScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
           <Text style={styles.brandMark}>PolyBuys</Text>
-          <Pressable
-            onPress={() => router.push('/auth/login')}
-            accessibilityRole="link"
-            accessibilityLabel="Sign in or sign up"
-            style={({ pressed }) => [styles.topBarLinkWrap, pressed && styles.pressed]}
-          >
-            <AppText variant="subhead" color="primary" style={styles.topBarLink}>
-              Sign in
-            </AppText>
-          </Pressable>
         </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -105,14 +95,6 @@ export default function LandingScreen() {
               >
                 Browse marketplace
               </AppButton>
-              <AppButton
-                variant="secondary"
-                size="lg"
-                onPress={() => router.push('/auth/login')}
-                accessibilityLabel="Sign up or sign in"
-              >
-                Sign up
-              </AppButton>
             </View>
           </View>
 
@@ -133,7 +115,7 @@ export default function LandingScreen() {
 
           <SectionCard
             title="Get the app"
-            subtitle="Use PolyBuys on the web here, or install on your iPhone for the full mobile experience."
+            subtitle="Browse listings on the web. Download the app to post, message sellers, and sign in with your Cal Poly email."
           >
             {isDesktopWeb ? (
               <View style={styles.getAppDesktop}>
@@ -198,7 +180,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     maxWidth: 960,
@@ -210,13 +192,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 32,
     color: colors.primary,
-  },
-  topBarLinkWrap: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-  },
-  topBarLink: {
-    fontWeight: '700',
   },
   pressed: {
     opacity: 0.85,
