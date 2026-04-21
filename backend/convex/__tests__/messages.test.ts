@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 jest.mock('@convex-dev/expo-push-notifications', () => {
   const sendPushNotificationMock = jest.fn().mockResolvedValue('push-id');
   return {
@@ -13,6 +11,7 @@ jest.mock('@convex-dev/expo-push-notifications', () => {
 });
 
 import { api, internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import {
   createConvexTest,
   createTestProfile,
@@ -30,15 +29,59 @@ function getSendPushNotificationMock(): jest.Mock {
   ).__private.sendPushNotificationMock;
 }
 
-// Mock global fetch for OpenAI Moderation API calls
-const originalFetch = global.fetch;
-beforeEach(() => {
-  global.fetch = jest.fn().mockResolvedValue({
+type ConvexTestInstance = ReturnType<typeof createConvexTest>;
+
+const MESSAGE_SEED_START = 1_700_000_000_000;
+
+function buildModerationFetchResponse(): Response {
+  return {
     ok: true,
     json: async () => ({
       results: [{ flagged: false, categories: {}, category_scores: {} }],
     }),
-  }) as any;
+  } as Response;
+}
+
+async function seedConversationMessages(
+  t: ConvexTestInstance,
+  {
+    conversationId,
+    listingId,
+    buyerId,
+    sellerId,
+    bodies,
+    startAt = MESSAGE_SEED_START,
+  }: {
+    conversationId: Id<'conversations'>;
+    listingId: Id<'listings'>;
+    buyerId: Id<'users'>;
+    sellerId: Id<'users'>;
+    bodies: string[];
+    startAt?: number;
+  }
+) {
+  await t.run(async (ctx) => {
+    for (const [index, body] of bodies.entries()) {
+      const senderId = index % 2 === 0 ? buyerId : sellerId;
+      const recipientId = index % 2 === 0 ? sellerId : buyerId;
+      await ctx.db.insert('messages', {
+        conversationId,
+        listingId,
+        senderId,
+        recipientId,
+        type: 'text',
+        body,
+        createdAt: startAt + index,
+        readAt: 0,
+      });
+    }
+  });
+}
+
+// Mock global fetch for OpenAI Moderation API calls
+const originalFetch = global.fetch;
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue(buildModerationFetchResponse()) as typeof fetch;
 });
 
 afterEach(() => {
@@ -60,12 +103,12 @@ describe('Messages queries and mutations', () => {
 
       const asOther = t.withIdentity(other.identity);
 
-      await expect(async () => {
-        await asOther.action(api.messages.sendMessage, {
+      await expect(
+        asOther.action(api.messages.sendMessage, {
           conversationId,
           body: 'Hello',
-        });
-      }).rejects.toThrow('Forbidden');
+        })
+      ).rejects.toThrow('Forbidden');
     });
 
     it('rejects whitespace-only message bodies', async () => {
@@ -77,12 +120,12 @@ describe('Messages queries and mutations', () => {
       const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
 
       const asBuyer = t.withIdentity(buyer.identity);
-      await expect(async () => {
-        await asBuyer.action(api.messages.sendMessage, {
+      await expect(
+        asBuyer.action(api.messages.sendMessage, {
           conversationId,
           body: '   \n\t  ',
-        });
-      }).rejects.toThrow('Message cannot be empty');
+        })
+      ).rejects.toThrow('Message cannot be empty');
     });
 
     it('successfully sends message from buyer to seller', async () => {
@@ -102,9 +145,7 @@ describe('Messages queries and mutations', () => {
 
       expect(result.messageId).toBeDefined();
 
-      const message = await t.run(async (ctx) => {
-        return await ctx.db.get(result.messageId as any);
-      });
+      const message = await t.run(async (ctx) => await ctx.db.get(result.messageId));
 
       expect(message).toMatchObject({
         conversationId,
@@ -131,9 +172,7 @@ describe('Messages queries and mutations', () => {
         body: 'Hello buyer!',
       });
 
-      const message = await t.run(async (ctx) => {
-        return await ctx.db.get(result.messageId as any);
-      });
+      const message = await t.run(async (ctx) => await ctx.db.get(result.messageId));
 
       expect(message?.senderId).toBe(seller.id);
       expect(message?.recipientId).toBe(buyer.id);
@@ -149,24 +188,20 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
 
-      const conversationBefore = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          updatedAt: 1,
+        });
       });
-      const oldUpdatedAt = conversationBefore!.updatedAt;
-
-      // Wait a bit to ensure timestamp difference
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
       await asBuyer.action(api.messages.sendMessage, {
         conversationId,
         body: 'Test message',
       });
 
-      const conversationAfter = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
-      });
+      const conversationAfter = await t.run(async (ctx) => await ctx.db.get(conversationId));
 
-      expect(conversationAfter!.updatedAt).toBeGreaterThan(oldUpdatedAt);
+      expect(conversationAfter!.updatedAt).toBeGreaterThan(1);
     });
 
     it('sends a push notification to the recipient when a new message is created', async () => {
@@ -213,12 +248,12 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
       await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
-      await expect(async () => {
-        await asBuyer.action(api.messages.sendMessage, {
+      await expect(
+        asBuyer.action(api.messages.sendMessage, {
           conversationId,
           body: 'Hello',
-        });
-      }).rejects.toThrow('You cannot message this user');
+        })
+      ).rejects.toThrow('You cannot message this user');
     });
 
     it('sendMessage throws when recipient has blocked sender', async () => {
@@ -231,12 +266,12 @@ describe('Messages queries and mutations', () => {
 
       const asSeller = t.withIdentity(seller.identity);
       await asSeller.mutation(api.blocks.blockUser, { blockedId: buyer.id });
-      await expect(async () => {
-        await asSeller.action(api.messages.sendMessage, {
+      await expect(
+        asSeller.action(api.messages.sendMessage, {
           conversationId,
           body: 'Hello',
-        });
-      }).rejects.toThrow('You cannot message this user');
+        })
+      ).rejects.toThrow('You cannot message this user');
     });
   });
 
@@ -253,11 +288,11 @@ describe('Messages queries and mutations', () => {
 
       const asOther = t.withIdentity(other.identity);
 
-      await expect(async () => {
-        await asOther.query(api.messages.getConversationHistory, {
+      await expect(
+        asOther.query(api.messages.getConversationHistory, {
           conversationId,
-        });
-      }).rejects.toThrow('Forbidden');
+        })
+      ).rejects.toThrow('Forbidden');
     });
 
     it('returns empty array when no messages exist', async () => {
@@ -340,19 +375,12 @@ describe('Messages queries and mutations', () => {
       const listingId = await createTestListing(t, seller.id);
       const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
-      await t.run(async (ctx: any) => {
-        for (let index = 0; index < 5; index += 1) {
-          await ctx.db.insert('messages', {
-            conversationId,
-            listingId,
-            senderId: index % 2 === 0 ? buyer.id : seller.id,
-            recipientId: index % 2 === 0 ? seller.id : buyer.id,
-            type: 'text',
-            body: `Message ${index + 1}`,
-            createdAt: Date.now() + index,
-            readAt: 0,
-          });
-        }
+      await seedConversationMessages(t, {
+        conversationId,
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        bodies: ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5'],
       });
 
       const asBuyer = t.withIdentity(buyer.identity);
@@ -373,9 +401,7 @@ describe('Messages queries and mutations', () => {
     it('throws error when user is not authenticated', async () => {
       const t = createConvexTest();
 
-      await expect(async () => {
-        await t.query(api.messages.listUserConversations);
-      }).rejects.toThrow('Unauthorized');
+      await expect(t.query(api.messages.listUserConversations)).rejects.toThrow('Unauthorized');
     });
 
     it('returns empty array when user has no conversations', async () => {
@@ -428,7 +454,7 @@ describe('Messages queries and mutations', () => {
       const listingId2 = await createTestListing(t, seller.id, { title: 'Listing 2' });
 
       // Create older conversation with message
-      await t.run(async (ctx: any) => {
+      await t.run(async (ctx) => {
         const now = Date.now();
         const convId1 = await ctx.db.insert('conversations', {
           listingId: listingId1,
@@ -454,7 +480,7 @@ describe('Messages queries and mutations', () => {
       });
 
       // Create newer conversation with message
-      await t.run(async (ctx: any) => {
+      await t.run(async (ctx) => {
         const now = Date.now();
         const convId2 = await ctx.db.insert('conversations', {
           listingId: listingId2,
@@ -517,7 +543,7 @@ describe('Messages queries and mutations', () => {
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
       const listingId = await createTestListing(t, seller.id);
 
-      await t.run(async (ctx: any) => {
+      await t.run(async (ctx) => {
         const now = Date.now();
         await ctx.db.insert('conversations', {
           listingId,
@@ -758,11 +784,11 @@ describe('Messages queries and mutations', () => {
         throw new Error('Expected seeded conversation to have a last message');
       }
 
-      await expect(async () => {
-        await asSeller.mutation(api.messages.deleteMessage, {
+      await expect(
+        asSeller.mutation(api.messages.deleteMessage, {
           messageId: buyerMessageId,
-        });
-      }).rejects.toThrow('You can only delete your own messages');
+        })
+      ).rejects.toThrow('You can only delete your own messages');
     });
   });
 
@@ -824,12 +850,12 @@ describe('Messages queries and mutations', () => {
         reason: 'inappropriate',
       });
 
-      await expect(async () => {
-        await asSeller.mutation(api.messages.reportMessage, {
+      await expect(
+        asSeller.mutation(api.messages.reportMessage, {
           messageId,
           reason: 'spam',
-        });
-      }).rejects.toThrow('You have already reported this message');
+        })
+      ).rejects.toThrow('You have already reported this message');
     });
 
     it('rejects reporting your own message', async () => {
@@ -848,12 +874,12 @@ describe('Messages queries and mutations', () => {
         throw new Error('Expected seeded conversation to have a last message');
       }
 
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.reportMessage, {
+      await expect(
+        asBuyer.mutation(api.messages.reportMessage, {
           messageId,
           reason: 'spam',
-        });
-      }).rejects.toThrow('You can only report messages from the other participant');
+        })
+      ).rejects.toThrow('You can only report messages from the other participant');
     });
   });
 
@@ -902,12 +928,12 @@ describe('Messages queries and mutations', () => {
         reason: 'spam',
       });
 
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.reportConversation, {
+      await expect(
+        asBuyer.mutation(api.messages.reportConversation, {
           conversationId,
           reason: 'scam',
-        });
-      }).rejects.toThrow('You have already reported this conversation');
+        })
+      ).rejects.toThrow('You have already reported this conversation');
     });
 
     it('keeps the conversation hidden after report when new messages arrive', async () => {
@@ -995,11 +1021,11 @@ describe('Messages queries and mutations', () => {
 
       const asSeller = t.withIdentity(seller.identity);
 
-      await expect(async () => {
-        await asSeller.mutation(api.messages.getOrCreateConversation, {
+      await expect(
+        asSeller.mutation(api.messages.getOrCreateConversation, {
           listingId,
-        });
-      }).rejects.toThrow("You can't message yourself");
+        })
+      ).rejects.toThrow("You can't message yourself");
     });
 
     it('creates new conversation when none exists', async () => {
@@ -1059,11 +1085,11 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
 
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      await expect(
+        asBuyer.mutation(api.messages.getOrCreateConversation, {
           listingId,
-        });
-      }).rejects.toThrow('Listing is not active');
+        })
+      ).rejects.toThrow('Listing is not active');
     });
 
     it('throws error when buyer has blocked seller', async () => {
@@ -1076,11 +1102,11 @@ describe('Messages queries and mutations', () => {
       const asBuyer = t.withIdentity(buyer.identity);
       await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
 
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      await expect(
+        asBuyer.mutation(api.messages.getOrCreateConversation, {
           listingId,
-        });
-      }).rejects.toThrow('You cannot message this user');
+        })
+      ).rejects.toThrow('You cannot message this user');
     });
 
     it('throws error when seller has blocked buyer', async () => {
@@ -1094,11 +1120,11 @@ describe('Messages queries and mutations', () => {
       await asSeller.mutation(api.blocks.blockUser, { blockedId: buyer.id });
 
       const asBuyer = t.withIdentity(buyer.identity);
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      await expect(
+        asBuyer.mutation(api.messages.getOrCreateConversation, {
           listingId,
-        });
-      }).rejects.toThrow('You cannot message this user');
+        })
+      ).rejects.toThrow('You cannot message this user');
     });
 
     it('throws error when listing is hidden', async () => {
@@ -1108,7 +1134,7 @@ describe('Messages queries and mutations', () => {
       const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
 
       // Create listing and manually mark it as hidden
-      const listingId = await t.run(async (ctx: any) => {
+      const listingId = await t.run(async (ctx) => {
         return await ctx.db.insert('listings', {
           sellerId: seller.id,
           title: 'Hidden Listing',
@@ -1128,11 +1154,11 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
 
-      await expect(async () => {
-        await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      await expect(
+        asBuyer.mutation(api.messages.getOrCreateConversation, {
           listingId,
-        });
-      }).rejects.toThrow('Listing is not available');
+        })
+      ).rejects.toThrow('Listing is not available');
     });
   });
 
@@ -1149,11 +1175,11 @@ describe('Messages queries and mutations', () => {
 
       const asOther = t.withIdentity(other.identity);
 
-      await expect(async () => {
-        await asOther.mutation(api.messages.markMessagesAsRead, {
+      await expect(
+        asOther.mutation(api.messages.markMessagesAsRead, {
           conversationId,
-        });
-      }).rejects.toThrow('Forbidden');
+        })
+      ).rejects.toThrow('Forbidden');
     });
 
     it('updates buyerLastReadAt when buyer marks as read', async () => {
@@ -1166,13 +1192,11 @@ describe('Messages queries and mutations', () => {
 
       const asBuyer = t.withIdentity(buyer.identity);
 
-      const conversationBefore = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          buyerLastReadAt: 1,
+        });
       });
-      const oldBuyerLastReadAt = conversationBefore!.buyerLastReadAt;
-
-      // Wait to ensure timestamp difference
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const result = await asBuyer.mutation(api.messages.markMessagesAsRead, {
         conversationId,
@@ -1180,11 +1204,9 @@ describe('Messages queries and mutations', () => {
 
       expect(result.ok).toBe(true);
 
-      const conversationAfter = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
-      });
+      const conversationAfter = await t.run(async (ctx) => await ctx.db.get(conversationId));
 
-      expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(oldBuyerLastReadAt);
+      expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(1);
     });
 
     it('updates sellerLastReadAt when seller marks as read', async () => {
@@ -1197,22 +1219,19 @@ describe('Messages queries and mutations', () => {
 
       const asSeller = t.withIdentity(seller.identity);
 
-      const conversationBefore = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          sellerLastReadAt: 1,
+        });
       });
-      const oldSellerLastReadAt = conversationBefore!.sellerLastReadAt;
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
       await asSeller.mutation(api.messages.markMessagesAsRead, {
         conversationId,
       });
 
-      const conversationAfter = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
-      });
+      const conversationAfter = await t.run(async (ctx) => await ctx.db.get(conversationId));
 
-      expect(conversationAfter!.sellerLastReadAt).toBeGreaterThan(oldSellerLastReadAt);
+      expect(conversationAfter!.sellerLastReadAt).toBeGreaterThan(1);
     });
 
     it('does not update conversation updatedAt when marking messages as read', async () => {
@@ -1224,18 +1243,18 @@ describe('Messages queries and mutations', () => {
       const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
 
       const asBuyer = t.withIdentity(buyer.identity);
-      const conversationBefore = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          buyerLastReadAt: 1,
+        });
       });
+      const conversationBefore = await t.run(async (ctx) => await ctx.db.get(conversationId));
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
       await asBuyer.mutation(api.messages.markMessagesAsRead, {
         conversationId,
       });
 
-      const conversationAfter = await t.run(async (ctx) => {
-        return await ctx.db.get(conversationId);
-      });
+      const conversationAfter = await t.run(async (ctx) => await ctx.db.get(conversationId));
 
       expect(conversationAfter!.updatedAt).toBe(conversationBefore!.updatedAt);
       expect(conversationAfter!.buyerLastReadAt).toBeGreaterThan(
@@ -1358,11 +1377,11 @@ describe('Messages queries and mutations', () => {
 
       const asOther = t.withIdentity(other.identity);
 
-      await expect(async () => {
-        await asOther.query(api.messages.messagesByConversation, {
+      await expect(
+        asOther.query(api.messages.messagesByConversation, {
           conversationId,
-        });
-      }).rejects.toThrow('Forbidden');
+        })
+      ).rejects.toThrow('Forbidden');
     });
 
     it('returns all messages in the conversation', async () => {
@@ -1373,28 +1392,12 @@ describe('Messages queries and mutations', () => {
       const listingId = await createTestListing(t, seller.id);
       const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
-      await t.run(async (ctx: any) => {
-        await ctx.db.insert('messages', {
-          conversationId,
-          listingId,
-          senderId: buyer.id,
-          recipientId: seller.id,
-          type: 'text',
-          body: 'Message 1',
-          createdAt: Date.now(),
-          readAt: 0,
-        });
-
-        await ctx.db.insert('messages', {
-          conversationId,
-          listingId,
-          senderId: seller.id,
-          recipientId: buyer.id,
-          type: 'text',
-          body: 'Message 2',
-          createdAt: Date.now() + 1000,
-          readAt: 0,
-        });
+      await seedConversationMessages(t, {
+        conversationId,
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        bodies: ['Message 1', 'Message 2'],
       });
 
       const asBuyer = t.withIdentity(buyer.identity);
@@ -1415,19 +1418,12 @@ describe('Messages queries and mutations', () => {
       const listingId = await createTestListing(t, seller.id);
       const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
 
-      await t.run(async (ctx: any) => {
-        for (let index = 0; index < 4; index += 1) {
-          await ctx.db.insert('messages', {
-            conversationId,
-            listingId,
-            senderId: index % 2 === 0 ? buyer.id : seller.id,
-            recipientId: index % 2 === 0 ? seller.id : buyer.id,
-            type: 'text',
-            body: `Body ${index + 1}`,
-            createdAt: Date.now() + index,
-            readAt: 0,
-          });
-        }
+      await seedConversationMessages(t, {
+        conversationId,
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        bodies: ['Body 1', 'Body 2', 'Body 3', 'Body 4'],
       });
 
       const asBuyer = t.withIdentity(buyer.identity);
@@ -1437,6 +1433,130 @@ describe('Messages queries and mutations', () => {
       });
 
       expect(messages.map((message) => message.body)).toEqual(['Body 3', 'Body 4']);
+    });
+  });
+
+  describe('messagesByConversationPage', () => {
+    it('returns the latest page in chronological order with a continue cursor', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+
+      await seedConversationMessages(t, {
+        conversationId,
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        bodies: [
+          'Page message 1',
+          'Page message 2',
+          'Page message 3',
+          'Page message 4',
+          'Page message 5',
+        ],
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const page = await asBuyer.query(api.messages.messagesByConversationPage, {
+        conversationId,
+        paginationOpts: { numItems: 2, cursor: null },
+      });
+
+      expect(page.page.map((message) => message.body)).toEqual([
+        'Page message 4',
+        'Page message 5',
+      ]);
+      expect(page.continueCursor).toBeTruthy();
+      expect(page.isDone).toBe(false);
+    });
+
+    it('returns older pages when a continue cursor is provided', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer-two@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller-two@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+
+      await seedConversationMessages(t, {
+        conversationId,
+        listingId,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        bodies: [
+          'Older message 1',
+          'Older message 2',
+          'Older message 3',
+          'Older message 4',
+          'Older message 5',
+        ],
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const firstPage = await asBuyer.query(api.messages.messagesByConversationPage, {
+        conversationId,
+        paginationOpts: { numItems: 2, cursor: null },
+      });
+      const secondPage = await asBuyer.query(api.messages.messagesByConversationPage, {
+        conversationId,
+        paginationOpts: { numItems: 2, cursor: firstPage.continueCursor },
+      });
+
+      expect(secondPage.page.map((message) => message.body)).toEqual([
+        'Older message 2',
+        'Older message 3',
+      ]);
+      expect(secondPage.continueCursor).toBeTruthy();
+      expect(secondPage.isDone).toBe(false);
+    });
+  });
+
+  describe('backfillMessagingFieldsBatch', () => {
+    it('patches missing conversation state and message types in bounded batches', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'batch-buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'batch-seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+
+      const messageId = await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          participantIds: undefined,
+        });
+
+        return await ctx.db.insert('messages', {
+          conversationId,
+          listingId,
+          senderId: buyer.id,
+          recipientId: seller.id,
+          body: 'Backfill me',
+          createdAt: Date.now(),
+          readAt: 0,
+        });
+      });
+
+      const conversationResult = await t.mutation(internal.messages.backfillMessagingFieldsBatch, {
+        conversationPagination: { numItems: 10, cursor: null },
+      });
+      const messageResult = await t.mutation(internal.messages.backfillMessagingFieldsBatch, {
+        messagePagination: { numItems: 10, cursor: null },
+      });
+
+      const [conversation, message] = await Promise.all([
+        t.run(async (ctx) => ctx.db.get(conversationId)),
+        t.run(async (ctx) => ctx.db.get(messageId)),
+      ]);
+
+      expect(conversationResult.conversationPatches).toBeGreaterThanOrEqual(1);
+      expect(messageResult.messagePatches).toBeGreaterThanOrEqual(1);
+      expect(conversation?.participantIds).toEqual([buyer.id, seller.id]);
+      expect(conversation?.lastMessagePreview).toBe('Backfill me');
+      expect(conversation?.sellerUnreadCount).toBe(1);
+      expect(message?.type).toBe('text');
     });
   });
 
@@ -1457,9 +1577,7 @@ describe('Messages queries and mutations', () => {
 
       expect(result.conversationId).toBeDefined();
 
-      const conversation = await t.run(async (ctx: any) => {
-        return await ctx.db.get(result.conversationId);
-      });
+      const conversation = await t.run(async (ctx) => await ctx.db.get(result.conversationId));
       expect(conversation).toMatchObject({
         listingId,
         buyerId: buyer.id,
@@ -1467,10 +1585,10 @@ describe('Messages queries and mutations', () => {
       });
       expect(conversation!.lastMessageId).toBeDefined();
 
-      const messages = await t.run(async (ctx: any) => {
+      const messages = await t.run(async (ctx) => {
         return await ctx.db
           .query('messages')
-          .withIndex('by_conversation_createdAt', (q: any) =>
+          .withIndex('by_conversation_createdAt', (q) =>
             q.eq('conversationId', result.conversationId)
           )
           .collect();
@@ -1489,12 +1607,12 @@ describe('Messages queries and mutations', () => {
       const asBuyer = t.withIdentity(buyer.identity);
       await asBuyer.mutation(api.blocks.blockUser, { blockedId: seller.id });
 
-      await expect(async () => {
-        await asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
+      await expect(
+        asBuyer.action(api.messages.createConversationAndSendFirstMessage, {
           listingId,
           body: 'Hello',
-        });
-      }).rejects.toThrow('You cannot message this user');
+        })
+      ).rejects.toThrow('You cannot message this user');
     });
   });
 

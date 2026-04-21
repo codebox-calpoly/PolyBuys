@@ -31,12 +31,28 @@ type ConversationId = Id<'conversations'>;
 const MESSAGE_ACTION_PANEL_WIDTH = 74;
 const MESSAGE_ACTION_BUTTON_WIDTH = MESSAGE_ACTION_PANEL_WIDTH;
 const MESSAGE_ACTION_BUTTON_HEIGHT = 44;
+const MESSAGE_PAGE_SIZE = 40;
 
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(timestamp));
+}
+
+function mergeMessagesChronologically(messages: Doc<'messages'>[]) {
+  const dedupedMessages = new Map<Id<'messages'>, Doc<'messages'>>();
+  for (const message of messages) {
+    dedupedMessages.set(message._id, message);
+  }
+
+  return [...dedupedMessages.values()].sort((left, right) => {
+    if (left.createdAt !== right.createdAt) {
+      return left.createdAt - right.createdAt;
+    }
+
+    return left._id.localeCompare(right._id);
+  });
 }
 
 function ReportableMessageRow({
@@ -134,6 +150,11 @@ export default function ConversationDetailScreen() {
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
   const isMarkingReadRef = useRef(false);
+  const messageLoadDirectionRef = useRef<'initial' | 'older' | 'newer'>('initial');
+  const olderCursorRequestRef = useRef<string | null>(null);
+  const [loadedMessageLimit, setLoadedMessageLimit] = useState(MESSAGE_PAGE_SIZE);
+  const [nextOlderCursor, setNextOlderCursor] = useState<string | null>(null);
+  const [pendingOlderCursor, setPendingOlderCursor] = useState<string | null>(null);
 
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
@@ -196,8 +217,7 @@ export default function ConversationDetailScreen() {
   const headerListingTitle =
     conversation?.listing?.title ?? listing?.title ?? 'Listing unavailable';
 
-  const messages = useQuery(
-    api.messages.messagesByConversation,
+  const messageScopeArgs =
     isAuthenticated && !isWeb && conversationId && conversation
       ? {
           conversationId,
@@ -206,20 +226,59 @@ export default function ConversationDetailScreen() {
               ? siblingConversationIds
               : undefined,
         }
+      : null;
+
+  const messages = useQuery(
+    api.messages.messagesByConversation,
+    messageScopeArgs
+      ? {
+          ...messageScopeArgs,
+          limit: loadedMessageLimit,
+        }
       : 'skip'
   );
+  const latestMessagePage = useQuery(
+    api.messages.messagesByConversationPage,
+    messageScopeArgs
+      ? {
+          ...messageScopeArgs,
+          paginationOpts: { numItems: MESSAGE_PAGE_SIZE, cursor: null },
+        }
+      : 'skip'
+  );
+  const olderMessagePage = useQuery(
+    api.messages.messagesByConversationPage,
+    messageScopeArgs && pendingOlderCursor
+      ? {
+          ...messageScopeArgs,
+          paginationOpts: { numItems: MESSAGE_PAGE_SIZE, cursor: pendingOlderCursor },
+        }
+      : 'skip'
+  );
+  const mergedMessages = useMemo(() => mergeMessagesChronologically(messages ?? []), [messages]);
   const currentUserId = currentUserSubject ?? user?._id ?? null;
-  const unreadIncomingCount =
-    messages?.filter(
-      (message) =>
-        message.readAt === 0 && currentUserId !== null && message.recipientId === currentUserId
-    ).length ?? 0;
+  const unreadIncomingCount = mergedMessages.filter(
+    (message) =>
+      message.readAt === 0 && currentUserId !== null && message.recipientId === currentUserId
+  ).length;
+  const isLoadingOlderMessages = pendingOlderCursor !== null;
+  const canLoadOlderMessages = nextOlderCursor !== null && !isLoadingOlderMessages;
 
   const scrollToBottom = (animated: boolean) => {
     requestAnimationFrame(() => {
       listRef.current?.scrollToEnd({ animated });
     });
   };
+
+  const handleLoadOlderMessages = useCallback(() => {
+    if (!nextOlderCursor || isLoadingOlderMessages) {
+      return;
+    }
+
+    messageLoadDirectionRef.current = 'older';
+    olderCursorRequestRef.current = nextOlderCursor;
+    setPendingOlderCursor(nextOlderCursor);
+  }, [isLoadingOlderMessages, nextOlderCursor]);
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
@@ -229,18 +288,62 @@ export default function ConversationDetailScreen() {
   }, [isSessionLoading, conversationId, isAuthenticated, isWeb, router]);
 
   useEffect(() => {
-    if (!messages) {
+    if (!conversationId) {
       return;
     }
 
-    if (messages.length > 0 && previousMessageCount.current === 0) {
+    previousMessageCount.current = 0;
+    messageLoadDirectionRef.current = 'initial';
+    olderCursorRequestRef.current = null;
+    setLoadedMessageLimit(MESSAGE_PAGE_SIZE);
+    setNextOlderCursor(null);
+    setPendingOlderCursor(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (
+      !latestMessagePage ||
+      loadedMessageLimit !== MESSAGE_PAGE_SIZE ||
+      pendingOlderCursor !== null
+    ) {
+      return;
+    }
+
+    setNextOlderCursor(latestMessagePage.continueCursor);
+  }, [latestMessagePage, loadedMessageLimit, pendingOlderCursor]);
+
+  useEffect(() => {
+    if (
+      !olderMessagePage ||
+      !pendingOlderCursor ||
+      olderCursorRequestRef.current !== pendingOlderCursor
+    ) {
+      return;
+    }
+
+    setLoadedMessageLimit((currentLimit) => currentLimit + olderMessagePage.page.length);
+    setNextOlderCursor(olderMessagePage.continueCursor);
+    olderCursorRequestRef.current = null;
+    setPendingOlderCursor(null);
+  }, [olderMessagePage, pendingOlderCursor]);
+
+  useEffect(() => {
+    if (messages === undefined) {
+      return;
+    }
+
+    if (mergedMessages.length > 0 && previousMessageCount.current === 0) {
       scrollToBottom(false);
-    } else if (messages.length > previousMessageCount.current) {
+    } else if (
+      mergedMessages.length > previousMessageCount.current &&
+      messageLoadDirectionRef.current !== 'older'
+    ) {
       scrollToBottom(true);
     }
 
-    previousMessageCount.current = messages.length;
-  }, [messages]);
+    previousMessageCount.current = mergedMessages.length;
+    messageLoadDirectionRef.current = 'newer';
+  }, [mergedMessages, messages]);
 
   useEffect(() => {
     if (
@@ -368,7 +471,7 @@ export default function ConversationDetailScreen() {
     (isAuthenticated &&
       (conversationList === undefined ||
         currentUserSubject === undefined ||
-        (conversation !== null && messages === undefined) ||
+        (conversation !== null && (messages === undefined || latestMessagePage === undefined)) ||
         isBlockStatusLoading))
   ) {
     return (
@@ -498,15 +601,34 @@ export default function ConversationDetailScreen() {
 
           <FlatList
             ref={listRef}
-            data={messages ?? []}
+            data={mergedMessages}
             keyExtractor={(item) => item._id}
             style={styles.messagesList}
             contentInsetAdjustmentBehavior="automatic"
             contentContainerStyle={styles.messagesContent}
             keyboardShouldPersistTaps="handled"
+            maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
             onScrollBeginDrag={() => {
               setActiveMessageActionId(null);
             }}
+            ListHeaderComponent={
+              isLoadingOlderMessages ? (
+                <View style={styles.historyStatusWrap}>
+                  <Text style={styles.historyStatusText}>Loading earlier messages…</Text>
+                </View>
+              ) : canLoadOlderMessages ? (
+                <View style={styles.historyStatusWrap}>
+                  <Pressable
+                    onPress={handleLoadOlderMessages}
+                    style={({ pressed }) => [styles.historyButton, pressed && styles.buttonPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Load earlier messages"
+                  >
+                    <Text style={styles.historyButtonText}>Load earlier messages</Text>
+                  </Pressable>
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => {
               const isSent = currentUserId !== null && item.senderId === currentUserId;
               const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
@@ -626,6 +748,27 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     gap: 6,
+  },
+  historyStatusWrap: {
+    alignItems: 'center',
+    paddingBottom: spacing.sm,
+  },
+  historyStatusText: {
+    ...typography.footnote,
+    color: colors.text,
+  },
+  historyButton: {
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  historyButtonText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
   },
   messageRow: {
     flexDirection: 'row',

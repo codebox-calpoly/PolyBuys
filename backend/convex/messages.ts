@@ -1,5 +1,6 @@
 import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
 import { v, ConvexError } from 'convex/values';
+import { paginationOptsValidator } from 'convex/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
@@ -19,7 +20,10 @@ const DEFAULT_INBOX_LIMIT = 100;
 const MAX_INBOX_LIMIT = 200;
 const MAX_INBOX_SCAN_PER_ROLE = 400;
 const DEFAULT_MESSAGE_HISTORY_LIMIT = 500;
-const MAX_MESSAGE_HISTORY_LIMIT = 1000;
+const MAX_MESSAGE_HISTORY_LIMIT = 5000;
+const MAX_MESSAGE_PAGE_SIZE = 100;
+const DEFAULT_BACKFILL_BATCH_SIZE = 100;
+const MAX_BACKFILL_BATCH_SIZE = 200;
 const CONVERSATION_STARTED_PREVIEW = 'Conversation started';
 type ConversationInboxHiddenReason = 'deleted' | 'reported';
 type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
@@ -89,6 +93,68 @@ function getConversationViewerUnreadCount(
 
 function getMessagePreview(body: string) {
   return body;
+}
+
+type MessagePageCursor = {
+  createdAt: number;
+  messageId: Id<'messages'>;
+};
+
+function compareMessagesDescending(left: Doc<'messages'>, right: Doc<'messages'>) {
+  if (left.createdAt !== right.createdAt) {
+    return right.createdAt - left.createdAt;
+  }
+
+  return right._id.localeCompare(left._id);
+}
+
+function compareMessagesAscending(left: Doc<'messages'>, right: Doc<'messages'>) {
+  return -compareMessagesDescending(left, right);
+}
+
+function encodeMessagePageCursor(message: Doc<'messages'>) {
+  return JSON.stringify({
+    createdAt: message.createdAt,
+    messageId: message._id,
+  } satisfies MessagePageCursor);
+}
+
+function decodeMessagePageCursor(cursor: string | null | undefined): MessagePageCursor | null {
+  if (!cursor) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(cursor) as Partial<MessagePageCursor>;
+    if (
+      typeof parsed.createdAt !== 'number' ||
+      typeof parsed.messageId !== 'string' ||
+      parsed.messageId.length === 0
+    ) {
+      throw new Error('Invalid cursor shape');
+    }
+
+    return {
+      createdAt: parsed.createdAt,
+      messageId: parsed.messageId as Id<'messages'>,
+    };
+  } catch {
+    throw new ConvexError('Invalid message pagination cursor');
+  }
+}
+
+function isMessageStrictlyOlderThanCursor(message: Doc<'messages'>, cursor: MessagePageCursor) {
+  if (message.createdAt !== cursor.createdAt) {
+    return message.createdAt < cursor.createdAt;
+  }
+
+  return message._id < cursor.messageId;
+}
+
+function validatePaginatedBatchSize(numItems: number, label: string, maxValue: number) {
+  if (!Number.isInteger(numItems) || numItems < 1 || numItems > maxValue) {
+    throw new ConvexError(`${label} numItems must be between 1 and ${maxValue}`);
+  }
 }
 
 async function getUnreadMessageCount(
@@ -830,6 +896,58 @@ async function collectMessagesForConversationScope(
     .slice(-normalizedLimit);
 }
 
+async function collectMessagePageForConversationScope(
+  ctx: MutationCtx | QueryCtx,
+  conversationIds: Id<'conversations'>[],
+  paginationOpts: {
+    numItems: number;
+    cursor: string | null;
+  }
+) {
+  validatePaginatedBatchSize(paginationOpts.numItems, 'Message page', MAX_MESSAGE_PAGE_SIZE);
+  const cursor = decodeMessagePageCursor(paginationOpts.cursor);
+  const perConversationFetchLimit = paginationOpts.numItems + (cursor ? 2 : 1);
+
+  const messageBatches = await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      const batch = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation_createdAt', (q) => {
+          const scopedQuery = q.eq('conversationId', conversationId);
+          if (!cursor) {
+            return scopedQuery;
+          }
+          return scopedQuery.lte('createdAt', cursor.createdAt);
+        })
+        .order('desc')
+        .take(perConversationFetchLimit);
+
+      if (!cursor) {
+        return batch;
+      }
+
+      return batch.filter((message) => isMessageStrictlyOlderThanCursor(message, cursor));
+    })
+  );
+
+  const pageDescending = messageBatches
+    .flat()
+    .sort(compareMessagesDescending)
+    .slice(0, paginationOpts.numItems + 1);
+
+  const page = pageDescending.slice(0, paginationOpts.numItems);
+  const continueCursor =
+    pageDescending.length > paginationOpts.numItems && page.length > 0
+      ? encodeMessagePageCursor(page[page.length - 1])
+      : null;
+
+  return {
+    page: [...page].sort(compareMessagesAscending),
+    continueCursor,
+    isDone: continueCursor === null,
+  };
+}
+
 function normalizeAndValidateReportNotes(reason: ReportReason, notes?: string) {
   const trimmedNotes = notes?.trim();
   if (trimmedNotes && trimmedNotes.length > MAX_REPORT_NOTES_LENGTH) {
@@ -1224,6 +1342,97 @@ export const backfillMessagingFields = internalMutation({
   },
 });
 
+export const backfillMessagingFieldsBatch = internalMutation({
+  args: {
+    conversationPagination: v.optional(paginationOptsValidator),
+    messagePagination: v.optional(paginationOptsValidator),
+  },
+  handler: async (ctx, args) => {
+    const hasConversationPagination = args.conversationPagination !== undefined;
+    const hasMessagePagination = args.messagePagination !== undefined;
+
+    if (hasConversationPagination === hasMessagePagination) {
+      throw new ConvexError('Provide exactly one of conversationPagination or messagePagination');
+    }
+
+    if (args.conversationPagination) {
+      const conversationPagination = args.conversationPagination ?? {
+        numItems: DEFAULT_BACKFILL_BATCH_SIZE,
+        cursor: null,
+      };
+
+      validatePaginatedBatchSize(
+        conversationPagination.numItems,
+        'Conversation backfill batch',
+        MAX_BACKFILL_BATCH_SIZE
+      );
+
+      const conversationPage = await ctx.db.query('conversations').paginate(conversationPagination);
+
+      let conversationPatches = 0;
+      for (const convo of conversationPage.page) {
+        const participantIdsPatch =
+          !convo.participantIds || convo.participantIds.length !== 2
+            ? { participantIds: [convo.buyerId, convo.sellerId] }
+            : {};
+        const nextMessageState = await buildConversationMessageStatePatch(ctx, convo);
+        const messageStatePatch = buildConversationStateDiff(convo, nextMessageState);
+        const patch = { ...participantIdsPatch, ...messageStatePatch };
+
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(convo._id, patch);
+          conversationPatches += 1;
+        }
+      }
+
+      return {
+        target: 'conversations' as const,
+        conversationPatches,
+        messagePatches: 0,
+        conversationScanned: conversationPage.page.length,
+        messageScanned: 0,
+        conversationContinueCursor: conversationPage.isDone
+          ? null
+          : conversationPage.continueCursor,
+        messageContinueCursor: null,
+        isDone: conversationPage.isDone,
+      };
+    }
+
+    const messagePagination = args.messagePagination ?? {
+      numItems: DEFAULT_BACKFILL_BATCH_SIZE,
+      cursor: null,
+    };
+
+    validatePaginatedBatchSize(
+      messagePagination.numItems,
+      'Message backfill batch',
+      MAX_BACKFILL_BATCH_SIZE
+    );
+
+    const messagePage = await ctx.db.query('messages').paginate(messagePagination);
+
+    let messagePatches = 0;
+    for (const message of messagePage.page) {
+      if (!message.type) {
+        await ctx.db.patch(message._id, { type: 'text' });
+        messagePatches += 1;
+      }
+    }
+
+    return {
+      target: 'messages' as const,
+      conversationPatches: 0,
+      messagePatches,
+      conversationScanned: 0,
+      messageScanned: messagePage.page.length,
+      conversationContinueCursor: null,
+      messageContinueCursor: messagePage.isDone ? null : messagePage.continueCursor,
+      isDone: messagePage.isDone,
+    };
+  },
+});
+
 export const messagesByConversation = query({
   args: {
     conversationId: v.id('conversations'),
@@ -1233,5 +1442,17 @@ export const messagesByConversation = query({
   handler: async (ctx, args) => {
     const { conversationIds } = await requireConversationScope(ctx, args);
     return await collectMessagesForConversationScope(ctx, conversationIds, args.limit);
+  },
+});
+
+export const messagesByConversationPage = query({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const { conversationIds } = await requireConversationScope(ctx, args);
+    return await collectMessagePageForConversationScope(ctx, conversationIds, args.paginationOpts);
   },
 });
