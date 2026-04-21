@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "platforms": ["ios", "android", "web"],
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/polybuys-ios.icon",
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
