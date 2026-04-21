@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   primaryPill: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   },
   secondaryPill: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,

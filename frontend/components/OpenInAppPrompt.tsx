@@ -40,6 +40,14 @@ export default function OpenInAppPrompt({
     }
   };
 
+  const handleDownload = async () => {
+    try {
+      await ExpoLinking.openURL(APP_STORE_URL);
+    } catch (error) {
+      Alert.alert('Download Failed', getUserFlowErrorMessage(error, 'download-app'));
+    }
+  };
+
   const card = (
     <View style={[styles.card, cardStyle]}>
       <Text style={styles.eyebrow}>Mobile app</Text>
@@ -67,13 +75,7 @@ export default function OpenInAppPrompt({
         </Pressable>
       ) : null}
       <Pressable
-        onPress={async () => {
-          try {
-            await ExpoLinking.openURL(APP_STORE_URL);
-          } catch (error) {
-            Alert.alert('Download Failed', getUserFlowErrorMessage(error, 'download-app'));
-          }
-        }}
+        onPress={() => void handleDownload()}
         accessibilityRole="link"
         accessibilityLabel="Download the PolyBuys app"
       >
