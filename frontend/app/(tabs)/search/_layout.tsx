@@ -5,7 +5,8 @@ export default function SearchStackLayout() {
   return (
     <Stack
       screenOptions={{
-        headerLargeTitle: true,
+        /** Large title + UISearchBar stacks excessive vertical chrome; Home uses a compact in-screen header. */
+        headerLargeTitle: false,
         headerShadowVisible: false,
         headerTransparent: false,
         headerStyle: { backgroundColor: colors.surface },

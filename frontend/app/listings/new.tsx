@@ -445,26 +445,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   option: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
   },
   optionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.location,
+    borderColor: colors.locationDark,
   },
   optionPressed: {
-    opacity: 0.85,
+    opacity: 0.94,
+    transform: [{ scale: 0.985 }],
   },
   optionText: {
     ...typography.subhead,
     color: colors.text,
+    fontWeight: '600',
   },
   optionTextSelected: {
-    color: colors.white,
+    color: colors.textDark,
     fontWeight: '600',
   },
   buttonContainer: {

@@ -47,11 +47,11 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
   },
   pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.96,
+    transform: [{ scale: 0.985 }],
   },
   disabled: {
     opacity: 0.5,
@@ -67,20 +67,25 @@ const styles = StyleSheet.create({
 /* eslint-disable react-native/no-unused-styles -- variantStyles[variant] uses all entries */
 const variantStyles = StyleSheet.create({
   default: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   primary: {
     backgroundColor: colors.primary,
     borderWidth: 0,
+    boxShadow: '0 12px 24px rgba(21, 71, 52, 0.22)',
   },
   secondary: {
-    backgroundColor: colors.muted,
-    borderWidth: 0,
+    backgroundColor: 'rgba(21, 71, 52, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   ghost: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
   },
 });
