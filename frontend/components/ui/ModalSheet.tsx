@@ -10,17 +10,27 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { borderRadius, colors, spacing } from '../../theme/tokens';
+import { KeyboardUnderlay } from './KeyboardUnderlay';
 
 type ModalSheetProps = {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   sheetStyle?: StyleProp<Animated.WithAnimatedValue<ViewStyle>>;
+  keyboardUnderlayColor?: string;
 };
 
-export function ModalSheet({ visible, onClose, children, sheetStyle }: ModalSheetProps) {
+export function ModalSheet({
+  visible,
+  onClose,
+  children,
+  sheetStyle,
+  keyboardUnderlayColor = colors.white,
+}: ModalSheetProps) {
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight({ enabled: visible });
 
   return (
     <Modal
@@ -35,6 +45,7 @@ export function ModalSheet({ visible, onClose, children, sheetStyle }: ModalShee
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={keyboardUnderlayColor} />
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <Animated.View

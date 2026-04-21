@@ -3,15 +3,15 @@ import { Picker } from '@react-native-picker/picker';
 import {
   ActivityIndicator,
   Animated,
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
@@ -26,8 +26,10 @@ import {
   GRADUATION_YEAR_MIN,
   GRADUATION_YEAR_OPTIONS,
 } from '../../constants/graduationYears';
+import { KeyboardUnderlay } from '../../components/ui';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { getLoginEntryAction, type LoginStep } from './loginRedirect';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -136,6 +138,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
   const verifiedEmailRef = useRef<string | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -560,6 +563,7 @@ export default function LoginScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.surface} />
         <View style={styles.background}>
           <View style={styles.orbTop} />
           <View style={styles.orbBottom} />
@@ -673,6 +677,7 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.surface} />
       <View style={styles.background}>
         <View style={styles.orbTop} />
         <View style={styles.orbBottom} />
