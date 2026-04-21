@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -24,6 +24,7 @@ import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
+const MESSAGES_BOTTOM_PADDING = spacing.md;
 
 function formatMessageTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, {
@@ -48,6 +49,7 @@ export default function ConversationDetailScreen() {
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const previousMessageCount = useRef(0);
   const isMarkingReadRef = useRef(false);
@@ -189,6 +191,42 @@ export default function ConversationDetailScreen() {
     unreadIncomingCount,
   ]);
 
+  useEffect(() => {
+    if (process.env.EXPO_OS === 'web') {
+      return;
+    }
+
+    if (process.env.EXPO_OS === 'ios') {
+      const showSubscription = Keyboard.addListener('keyboardWillShow', () => {
+        setIsKeyboardVisible(true);
+      });
+      const hideSubscription = Keyboard.addListener('keyboardWillHide', () => {
+        setIsKeyboardVisible(false);
+      });
+
+      return () => {
+        showSubscription.remove();
+        hideSubscription.remove();
+      };
+    }
+
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const composerBottomPadding = isKeyboardVisible
+    ? spacing.sm
+    : Math.max(insets.bottom, spacing.sm);
+
   const handleBlockPress = () => {
     if (!otherUserId) return;
 
@@ -295,8 +333,14 @@ export default function ConversationDetailScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+      behavior={
+        process.env.EXPO_OS === 'ios'
+          ? 'padding'
+          : process.env.EXPO_OS === 'android'
+            ? 'height'
+            : undefined
+      }
+      keyboardVerticalOffset={process.env.EXPO_OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
@@ -347,7 +391,8 @@ export default function ConversationDetailScreen() {
         keyExtractor={(item) => item._id}
         style={styles.messagesList}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.messagesContent}
+        keyboardDismissMode={process.env.EXPO_OS === 'ios' ? 'interactive' : 'on-drag'}
+        contentContainerStyle={[styles.messagesContent, { paddingBottom: MESSAGES_BOTTOM_PADDING }]}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const isSent = currentUserId !== null && item.senderId === currentUserId;
@@ -389,49 +434,51 @@ export default function ConversationDetailScreen() {
         }
       />
 
-      <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-        {isBlockingOther === true ? (
-          <View style={styles.blockedComposer}>
-            <Text style={styles.blockedText}>
-              You have blocked this user. Tap Unblock above to send messages.
-            </Text>
-          </View>
-        ) : isBlockedByOther === true ? (
-          <View style={styles.blockedComposer}>
-            <Text style={styles.blockedText}>
-              You cannot send messages in this conversation because this user has blocked you.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <TextInput
-              value={messageBody}
-              onChangeText={setMessageBody}
-              placeholder="Type a message..."
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              cursorColor={colors.primary}
-              style={styles.input}
-              multiline
-              maxLength={2000}
-              editable={!isSending}
-              textAlignVertical="top"
-            />
-            <Pressable
-              onPress={() => {
-                void onSend();
-              }}
-              style={({ pressed }) => [
-                styles.sendButton,
-                (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-              disabled={!messageBody.trim() || isSending}
-            >
-              <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
-            </Pressable>
-          </>
-        )}
+      <View style={styles.composerContainer}>
+        <View style={[styles.composerWrap, { paddingBottom: composerBottomPadding }]}>
+          {isBlockingOther === true ? (
+            <View style={styles.blockedComposer}>
+              <Text style={styles.blockedText}>
+                You have blocked this user. Tap Unblock above to send messages.
+              </Text>
+            </View>
+          ) : isBlockedByOther === true ? (
+            <View style={styles.blockedComposer}>
+              <Text style={styles.blockedText}>
+                You cannot send messages in this conversation because this user has blocked you.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <TextInput
+                value={messageBody}
+                onChangeText={setMessageBody}
+                placeholder="Type a message..."
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                style={styles.input}
+                multiline
+                maxLength={2000}
+                editable={!isSending}
+                textAlignVertical="top"
+              />
+              <Pressable
+                onPress={() => {
+                  void onSend();
+                }}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                disabled={!messageBody.trim() || isSending}
+              >
+                <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -499,10 +546,14 @@ const styles = StyleSheet.create({
   messagesList: {
     flex: 1,
   },
+  composerContainer: {
+    flexShrink: 0,
+    backgroundColor: colors.surface,
+  },
   messagesContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingBottom: MESSAGES_BOTTOM_PADDING,
     gap: 6,
   },
   messageRow: {
