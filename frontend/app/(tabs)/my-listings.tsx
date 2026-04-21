@@ -23,7 +23,7 @@ import MyListingActionsSheet, {
 import { useAuth } from '../../hooks/useAuth';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
-import { FilterChips, type FilterChipOption } from '../../components/ui';
+import { FilterChips, ScreenHeader, type FilterChipOption } from '../../components/ui';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'sold';
 
@@ -180,7 +180,12 @@ export default function MyListingsScreen() {
   const isCompactLayout = width < 760;
   const isNarrowPhone = width < 430;
   const columnCount = 2;
-  const contentPadding = width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
+  /** Same as Home: roomier header / filters. */
+  const nativeHeaderHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
+  /** Same as Home: tighter gutters for the listing grid. */
+  const nativeListHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.xs : spacing.sm;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   if (isWeb) {
@@ -246,42 +251,42 @@ export default function MyListingsScreen() {
 
   return (
     <View style={styles.page}>
-      <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
+      <View style={styles.content}>
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <View style={[styles.headerBlock, isNarrowPhone && styles.headerBlockStacked]}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>My Listings</Text>
-            <Text style={styles.headerSubtitle}>{subtitleText}</Text>
-          </View>
+        <View style={[styles.headerSection, { paddingHorizontal: nativeHeaderHorizontalPadding }]}>
+          <ScreenHeader
+            title="My Listings"
+            subtitle={subtitleText}
+            action={
+              <Pressable
+                style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
+                onPress={() => router.push('/listings/new')}
+                accessibilityLabel="Create listing"
+                accessibilityRole="button"
+              >
+                <Text style={styles.createChipText}>+ Create</Text>
+              </Pressable>
+            }
+          />
+
           {manageableListings.length > 0 ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.createChip,
-                isNarrowPhone && styles.createChipCompact,
-                pressed && styles.createChipPressed,
-              ]}
-              onPress={() => router.push('/listings/new')}
-              accessibilityLabel="Create listing"
-              accessibilityRole="button"
-            >
-              <Text style={styles.createChipText}>
-                {isNarrowPhone ? '+ Create' : '+ Create listing'}
-              </Text>
-            </Pressable>
+            <FilterChips
+              options={filterOptionsWithCounts}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              wrap={isNarrowPhone}
+            />
           ) : null}
         </View>
 
-        {manageableListings.length > 0 && (
-          <FilterChips
-            options={filterOptionsWithCounts}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            wrap={isNarrowPhone}
-          />
-        )}
-
         {manageableListings.length === 0 ? (
-          <View style={[styles.emptyState, styles.emptyStateCentered]}>
+          <View
+            style={[
+              styles.emptyState,
+              styles.emptyStateCentered,
+              { paddingHorizontal: nativeListHorizontalPadding },
+            ]}
+          >
             <Text style={styles.emptyTitle}>No listings yet</Text>
             <Text style={styles.emptyText}>Create your first listing to get started.</Text>
             <Pressable
@@ -292,7 +297,7 @@ export default function MyListingsScreen() {
             </Pressable>
           </View>
         ) : filteredListings.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, { paddingHorizontal: nativeListHorizontalPadding }]}>
             <Text style={styles.emptyTitle}>No {statusFilter} listings</Text>
             <Text style={styles.emptyText}>Try a different filter or create a new listing.</Text>
             <Pressable
@@ -308,10 +313,17 @@ export default function MyListingsScreen() {
             data={filteredListings}
             keyExtractor={(item) => item._id}
             numColumns={columnCount}
-            columnWrapperStyle={columnCount > 1 ? styles.columnWrapper : undefined}
+            columnWrapperStyle={
+              columnCount > 1
+                ? [styles.columnWrapper, isCompactLayout && styles.columnWrapperCompact]
+                : undefined
+            }
             contentContainerStyle={[
               styles.listContainer,
-              { paddingBottom: insets.bottom + spacing.xxl },
+              {
+                paddingBottom: insets.bottom + spacing.xxl,
+                paddingHorizontal: nativeListHorizontalPadding,
+              },
             ]}
             showsVerticalScrollIndicator={false}
             renderItem={({ item, index }) => {
@@ -323,6 +335,7 @@ export default function MyListingsScreen() {
                   statusBadge={statusToBadge(item.status, item.isHidden === true)}
                   onManagePress={isProcessing ? undefined : () => setSelectedListingId(item._id)}
                   onPress={() => router.push(`/listings/${item._id}` as never)}
+                  shellStyle="flat"
                 />
               );
             }}
@@ -352,6 +365,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     gap: spacing.md,
   },
+  headerSection: {
+    gap: spacing.md,
+  },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
@@ -363,28 +379,6 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.text,
   },
-  headerBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  headerBlockStacked: {
-    alignItems: 'flex-start',
-    flexDirection: 'column',
-  },
-  headerCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  headerTitle: {
-    ...typography.title1,
-    color: colors.textDark,
-  },
-  headerSubtitle: {
-    ...typography.footnoteMed,
-    color: colors.text,
-    marginTop: 2,
-  },
   createChip: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
@@ -393,9 +387,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  createChipCompact: {
-    alignSelf: 'flex-start',
   },
   createChipPressed: {
     opacity: 0.9,
@@ -410,7 +401,10 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
+  },
+  columnWrapperCompact: {
+    gap: spacing.xs,
   },
   emptyState: {
     alignItems: 'center',

@@ -38,39 +38,27 @@ const CATEGORY_META: Record<
   Category,
   {
     icon: keyof typeof Feather.glyphMap;
-    tint: string;
-    accent: string;
     blurb: string;
   }
 > = {
   textbooks: {
     icon: 'book-open',
-    tint: '#EEF7F2',
-    accent: colors.primary,
     blurb: 'Course books, notes, and study staples.',
   },
   electronics: {
     icon: 'monitor',
-    tint: '#EDF5FF',
-    accent: '#2F6FB2',
     blurb: 'Calculators, laptops, and dorm tech.',
   },
   furniture: {
     icon: 'home',
-    tint: '#FFF5E8',
-    accent: '#A86715',
     blurb: 'Desks, lamps, chairs, and room setup.',
   },
   tickets: {
     icon: 'tag',
-    tint: '#FFF0F0',
-    accent: '#B84C4C',
     blurb: 'Events, rides, and campus extras.',
   },
   other: {
     icon: 'shopping-bag',
-    tint: '#F2F5F4',
-    accent: '#587066',
     blurb: 'Everything else students are moving.',
   },
 };
@@ -301,7 +289,7 @@ export default function SearchScreen() {
               key={cat}
               style={({ pressed }) => [
                 styles.categoryCard,
-                { width: browseCategoryWidth, backgroundColor: CATEGORY_META[cat].tint },
+                { width: browseCategoryWidth },
                 browseCategoryColumns === 2 &&
                   cat === BROWSE_CATEGORIES[BROWSE_CATEGORIES.length - 1] &&
                   styles.categoryCardCentered,
@@ -311,20 +299,14 @@ export default function SearchScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Browse ${CATEGORY_LABELS[cat]}`}
             >
-              <View
-                style={[styles.categoryIconWrap, { borderColor: `${CATEGORY_META[cat].accent}25` }]}
-              >
-                <Feather
-                  name={CATEGORY_META[cat].icon}
-                  size={16}
-                  color={CATEGORY_META[cat].accent}
-                />
+              <View style={styles.categoryIconWrap}>
+                <Feather name={CATEGORY_META[cat].icon} size={16} color={colors.primary} />
               </View>
               <View style={styles.categoryCardCopy}>
                 <Text style={styles.categoryChipText}>{CATEGORY_LABELS[cat]}</Text>
                 <Text style={styles.categoryCardBody}>{CATEGORY_META[cat].blurb}</Text>
               </View>
-              <Feather name="arrow-right" size={16} color={CATEGORY_META[cat].accent} />
+              <Feather name="arrow-right" size={16} color={colors.primary} />
             </Pressable>
           ))}
         </View>
@@ -681,13 +663,14 @@ const styles = StyleSheet.create({
   categoryCard: {
     minHeight: 116,
     borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    boxShadow: '0 10px 24px rgba(21, 71, 52, 0.08)',
+    boxShadow: '0 8px 20px rgba(21, 71, 52, 0.07)',
   },
   categoryCardPressed: {
     transform: [{ scale: 0.98 }],
@@ -702,8 +685,9 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
+    borderColor: colors.border,
   },
   categoryCardCopy: {
     flex: 1,
