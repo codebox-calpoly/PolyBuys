@@ -11,7 +11,7 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   open-release-pr:
@@ -56,22 +56,21 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create release PR
+      - name: Output one-click release PR link
         if: steps.ahead.outputs.count != '0' && steps.existing-pr.outputs.exists == 'false'
         env:
-          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.ahead.outputs.count }}
         run: |
-          URL=$(gh pr create \
-            --repo "${{ github.repository }}" \
-            --base main \
-            --head dev \
-            --title "Release: sync dev → main" \
-            --body "Automated release PR: merge after CI passes, then deploy from \`main\`. Opened when \`dev\` is ahead of \`main\`. Re-run **Sync dev to main (release)** if you need a new PR after the previous one was merged or closed.")
-
-          echo "::notice title=Release PR created::$URL"
+          URL="https://github.com/${{ github.repository }}/compare/main...dev?quick_pull=1&title=Release%3A+sync+dev+%E2%86%92+main&body=Automated+release%3A+merge+after+CI+passes%2C+then+deploy+from+%60main%60."
+          echo "::notice title=Open release PR::$URL"
           {
             echo "## Sync dev → main"
-            echo "Created release PR: $URL"
+            echo ""
+            echo "**$COUNT** commit(s) on \`dev\` not in \`main\`."
+            echo ""
+            echo "[**Click here to open the release PR →**]($URL)"
+            echo ""
+            echo "On the compare page, click **Create pull request** to finalize."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report existing release PR
