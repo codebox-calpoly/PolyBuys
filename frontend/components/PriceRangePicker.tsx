@@ -53,7 +53,7 @@ export function PriceRangePicker({
   const scrollViewRef = useRef<ScrollView | null>(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
   const availableSheetHeight = Math.max(windowHeight - insets.top - SHEET_TOP_MARGIN, 0);
-  const animatedSheetMaxHeight = Animated.subtract(availableSheetHeight, keyboardOffset);
+  const sheetMaxHeight = Math.max(availableSheetHeight - keyboardHeight, 0);
 
   // Reset inputs only when modal transitions from closed to open
   useEffect(() => {
@@ -199,7 +199,7 @@ export function PriceRangePicker({
                 styles.sheet,
                 entranceStyle,
                 {
-                  maxHeight: animatedSheetMaxHeight,
+                  maxHeight: sheetMaxHeight,
                 },
               ]}
             >
