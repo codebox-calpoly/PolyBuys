@@ -3,6 +3,7 @@ import { Brand } from './Brand';
 import { Button } from './Button';
 import { Footer } from './Footer';
 import type { LegalDocument } from './legalContent';
+import { LEGAL_SUPPORT_EMAIL } from './legalContent';
 import { GLOBAL_CSS } from './styles';
 
 interface LegalDocumentPageProps {
@@ -16,6 +17,8 @@ export function LegalDocumentPage({
   siblingHref,
   siblingLabel,
 }: LegalDocumentPageProps) {
+  const isSupport = legalDocument.slug === 'support';
+
   return (
     <>
       <Head>
@@ -41,9 +44,25 @@ export function LegalDocumentPage({
                 <a href="/" className="pb-doc__navLink">
                   Home
                 </a>
-                <a href={siblingHref} className="pb-doc__navLink">
-                  {siblingLabel}
-                </a>
+                {isSupport ? (
+                  <>
+                    <a href="/privacy" className="pb-doc__navLink">
+                      Privacy
+                    </a>
+                    <a href="/terms" className="pb-doc__navLink">
+                      Terms
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <a href="/support" className="pb-doc__navLink">
+                      Support
+                    </a>
+                    <a href={siblingHref} className="pb-doc__navLink">
+                      {siblingLabel}
+                    </a>
+                  </>
+                )}
               </div>
             </div>
 
@@ -76,6 +95,25 @@ export function LegalDocumentPage({
                         ))}
                       </ul>
                     ) : null}
+
+                    {section.contactLines?.length ? (
+                      <ul className="pb-doc__list">
+                        {section.contactLines.map((line) => (
+                          <li key={`${line.lead}-${line.href}`}>
+                            <strong>{line.lead}:</strong>{' '}
+                            <a
+                              href={line.href}
+                              className="pb-doc__contactLink"
+                              {...(line.href.startsWith('http')
+                                ? { target: '_blank', rel: 'noopener noreferrer' }
+                                : {})}
+                            >
+                              {line.text}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </section>
                 ))}
               </div>
@@ -84,9 +122,15 @@ export function LegalDocumentPage({
                 <Button href="/" variant="ghost" size="md">
                   Back to home
                 </Button>
-                <Button href={siblingHref} size="md">
-                  {siblingLabel}
-                </Button>
+                {isSupport ? (
+                  <Button href={`mailto:${LEGAL_SUPPORT_EMAIL}`} size="md">
+                    Email support
+                  </Button>
+                ) : (
+                  <Button href={siblingHref} size="md">
+                    {siblingLabel}
+                  </Button>
+                )}
               </div>
             </article>
           </div>
