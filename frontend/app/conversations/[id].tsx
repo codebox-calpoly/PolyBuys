@@ -28,7 +28,6 @@ import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
-const MESSAGES_BOTTOM_PADDING = spacing.md;
 const MESSAGE_ACTION_PANEL_WIDTH = 74;
 const MESSAGE_ACTION_BUTTON_WIDTH = MESSAGE_ACTION_PANEL_WIDTH;
 const MESSAGE_ACTION_BUTTON_HEIGHT = 44;
@@ -131,7 +130,6 @@ export default function ConversationDetailScreen() {
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<Id<'messages'> | null>(null);
   const [activeMessageActionId, setActiveMessageActionId] = useState<Id<'messages'> | null>(null);
   const listRef = useRef<FlatList>(null);
@@ -281,42 +279,6 @@ export default function ConversationDetailScreen() {
     unreadIncomingCount,
   ]);
 
-  useEffect(() => {
-    if (process.env.EXPO_OS === 'web') {
-      return;
-    }
-
-    if (process.env.EXPO_OS === 'ios') {
-      const showSubscription = Keyboard.addListener('keyboardWillShow', () => {
-        setIsKeyboardVisible(true);
-      });
-      const hideSubscription = Keyboard.addListener('keyboardWillHide', () => {
-        setIsKeyboardVisible(false);
-      });
-
-      return () => {
-        showSubscription.remove();
-        hideSubscription.remove();
-      };
-    }
-
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      setIsKeyboardVisible(true);
-    });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  const composerBottomPadding = isKeyboardVisible
-    ? spacing.sm
-    : Math.max(insets.bottom, spacing.sm);
-
   const handleBlockPress = () => {
     if (!otherUserId) return;
 
@@ -442,14 +404,8 @@ export default function ConversationDetailScreen() {
     <TouchableWithoutFeedback onPress={handleBackgroundPress} accessible={false}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={
-          process.env.EXPO_OS === 'ios'
-            ? 'padding'
-            : process.env.EXPO_OS === 'android'
-              ? 'height'
-              : undefined
-        }
-        keyboardVerticalOffset={process.env.EXPO_OS === 'ios' ? headerHeight : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
         <Stack.Screen
           options={{
@@ -500,7 +456,6 @@ export default function ConversationDetailScreen() {
           keyExtractor={(item) => item._id}
           style={styles.messagesList}
           contentInsetAdjustmentBehavior="automatic"
-          keyboardDismissMode={process.env.EXPO_OS === 'ios' ? 'interactive' : 'on-drag'}
           contentContainerStyle={styles.messagesContent}
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
@@ -540,7 +495,7 @@ export default function ConversationDetailScreen() {
           }
         />
 
-        <View style={[styles.composerWrap, { paddingBottom: composerBottomPadding }]}>
+        <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
           {isBlockingOther === true ? (
             <View style={styles.blockedComposer}>
               <Text style={styles.blockedText}>
@@ -661,14 +616,10 @@ const styles = StyleSheet.create({
   messagesList: {
     flex: 1,
   },
-  composerContainer: {
-    flexShrink: 0,
-    backgroundColor: colors.surface,
-  },
   messagesContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: MESSAGES_BOTTOM_PADDING,
+    paddingBottom: spacing.md,
     gap: 6,
   },
   messageRow: {
