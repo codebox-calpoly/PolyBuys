@@ -35,10 +35,7 @@ export function GetApp() {
             </Button>
           </div>
 
-          <p className="pb-getapp__footnote">
-            Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and other
-            countries.
-          </p>
+          <p className="pb-getapp__footnote">Open the link on your iPhone to install PolyBuys.</p>
         </div>
       </div>
     </section>

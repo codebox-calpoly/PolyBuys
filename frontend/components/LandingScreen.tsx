@@ -19,10 +19,6 @@ import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 /* eslint-disable react-native/no-raw-text -- AppButton and expo-router Head handle text appropriately. */
 
-/** Official App Store badge artwork (Apple Marketing Resources). */
-const APP_STORE_BADGE_URI =
-  'https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83';
-
 const LAYOUT_BREAKPOINT = 768;
 
 const HOME_HREF = '/home' as Href;
@@ -132,10 +128,10 @@ export default function LandingScreen() {
                   <Image
                     source={qrDownloadPng}
                     style={styles.qrImage}
-                    accessibilityLabel="QR code linking to the PolyBuys download page"
+                    accessibilityLabel="QR code linking to the PolyBuys app download link"
                   />
                   <AppText variant="footnoteMed" color="text" style={styles.qrCaption}>
-                    Scan with your phone to open the download link.
+                    Scan with your phone to open the app download link.
                   </AppText>
                 </View>
                 <View style={styles.emailBlock}>
@@ -155,39 +151,32 @@ export default function LandingScreen() {
                     href={APP_STORE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    accessibilityLabel="Download on the App Store"
+                    accessibilityLabel="Download the app"
                     asChild
                   >
-                    <Pressable
-                      accessibilityRole="link"
-                      style={({ pressed }) => [styles.badgePressable, pressed && styles.pressed]}
-                    >
-                      <Image
-                        source={{ uri: APP_STORE_BADGE_URI }}
-                        style={styles.appStoreBadge}
-                        resizeMode="contain"
-                        accessibilityIgnoresInvertColors
-                      />
-                    </Pressable>
+                    <View style={styles.mobileCtaWrap}>
+                      <AppButton
+                        size="lg"
+                        onPress={() => void 0}
+                        accessibilityLabel="Download the app"
+                      >
+                        Download the app
+                      </AppButton>
+                    </View>
                   </Link>
                 ) : (
-                  <Pressable
-                    onPress={() => void Linking.openURL(APP_STORE_URL)}
-                    accessibilityRole="link"
-                    accessibilityLabel="Download on the App Store"
-                    style={({ pressed }) => [styles.badgePressable, pressed && styles.pressed]}
-                  >
-                    <Image
-                      source={{ uri: APP_STORE_BADGE_URI }}
-                      style={styles.appStoreBadge}
-                      resizeMode="contain"
-                      accessibilityIgnoresInvertColors
-                    />
-                  </Pressable>
+                  <View style={styles.mobileCtaWrap}>
+                    <AppButton
+                      size="lg"
+                      onPress={() => void Linking.openURL(APP_STORE_URL)}
+                      accessibilityLabel="Download the app"
+                    >
+                      Download the app
+                    </AppButton>
+                  </View>
                 )}
                 <AppText variant="footnote" color="muted" style={styles.badgeFootnote}>
-                  Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and
-                  other countries. App Store is a service mark of Apple Inc.
+                  Open the link on your iPhone to install PolyBuys.
                 </AppText>
               </View>
             )}
@@ -344,10 +333,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     alignItems: 'flex-start',
   },
-  badgePressable: {},
-  appStoreBadge: {
-    width: 250,
-    height: 83,
+  mobileCtaWrap: {
+    width: '100%',
+    maxWidth: 280,
   },
   badgeFootnote: {
     lineHeight: 18,

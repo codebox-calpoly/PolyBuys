@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.polybuys.polybuys",
-      "associatedDomains": ["applinks:polybuys.com"],
+      "associatedDomains": ["applinks:poly-buys.vercel.app", "applinks:polybuys.com"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -30,6 +30,28 @@
           "data": [
             {
               "scheme": "https",
+              "host": "poly-buys.vercel.app",
+              "pathPrefix": "/l/"
+            },
+            {
+              "scheme": "https",
+              "host": "polybuys.com",
+              "pathPrefix": "/l/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "poly-buys.vercel.app",
+              "pathPrefix": "/listings"
+            },
+            {
+              "scheme": "https",
               "host": "polybuys.com",
               "pathPrefix": "/listings"
             }
@@ -40,6 +62,11 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
+            {
+              "scheme": "https",
+              "host": "poly-buys.vercel.app",
+              "pathPrefix": "/profile"
+            },
             {
               "scheme": "https",
               "host": "polybuys.com",
@@ -54,7 +81,7 @@
       [
         "expo-router",
         {
-          "origin": "https://polybuys.com"
+          "origin": "https://poly-buys.vercel.app"
         }
       ],
       [
@@ -78,7 +105,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://polybuys.com"
+        "origin": "https://poly-buys.vercel.app"
       },
       "eas": {
         "projectId": "1f42b24b-0dcd-4b44-84d5-f31b6ff08dae"
