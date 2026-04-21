@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -43,8 +44,11 @@ import ListingUnavailable from '../../components/ListingUnavailable';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
+import { KeyboardUnderlay } from '../../components/ui';
 import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
 import { formatRelativeDate } from '../../lib/formatDate';
@@ -92,6 +96,7 @@ export default function ListingDetailScreen() {
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
   const insets = useSafeAreaInsets();
+  const { reduceMotion } = useReducedMotion();
 
   const listing = useQuery(
     api.listings.getListing,
@@ -116,6 +121,7 @@ export default function ListingDetailScreen() {
   const [imageIndex, setImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [messageComposerOpen, setMessageComposerOpen] = useState(false);
+  const messageComposerKeyboardHeight = useKeyboardHeight({ enabled: messageComposerOpen });
   const [messageBody, setMessageBody] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messageComposerTranslateY = useSharedValue(0);
@@ -137,6 +143,46 @@ export default function ListingDetailScreen() {
   const hasMultipleImages = mappedUrls.length > 1;
   const hasPreviousImage = imageIndex > 0;
   const hasNextImage = imageIndex < mappedUrls.length - 1;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
+  const prevDisplayedSavedRef = useRef<boolean | null>(null);
+  const displayedSaved = savedOptimistic ?? isSaved ?? false;
+
+  const playBookmarkSavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    bookmarkScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(bookmarkScale, {
+        toValue: 1.2,
+        friction: 5,
+        tension: 280,
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkScale, reduceMotion]);
+
+  const playBookmarkUnsavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    Animated.sequence([
+      Animated.timing(bookmarkScale, {
+        toValue: 0.88,
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkScale, reduceMotion]);
 
   useEffect(() => {
     setImageIndex((currentIndex) => {
@@ -146,6 +192,28 @@ export default function ListingDetailScreen() {
       return Math.min(currentIndex, mappedUrls.length - 1);
     });
   }, [mappedUrls.length]);
+
+  useEffect(() => {
+    prevDisplayedSavedRef.current = null;
+    bookmarkScale.setValue(1);
+  }, [bookmarkScale, listingId]);
+
+  useEffect(() => {
+    if (prevDisplayedSavedRef.current === null) {
+      prevDisplayedSavedRef.current = displayedSaved;
+      return;
+    }
+    if (prevDisplayedSavedRef.current === displayedSaved) return;
+
+    const wasSaved = prevDisplayedSavedRef.current;
+    prevDisplayedSavedRef.current = displayedSaved;
+
+    if (displayedSaved && !wasSaved) {
+      playBookmarkSavedAnimation();
+    } else if (!displayedSaved && wasSaved) {
+      playBookmarkUnsavedAnimation();
+    }
+  }, [displayedSaved, playBookmarkSavedAnimation, playBookmarkUnsavedAnimation]);
 
   const onMessageSellerPress = () => {
     if (!listing) return;
@@ -560,14 +628,16 @@ export default function ListingDetailScreen() {
             <Pressable
               style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
               onPress={() => void onSavePress()}
-              accessibilityLabel={(savedOptimistic ?? isSaved) ? 'Unsave listing' : 'Save listing'}
+              accessibilityLabel={displayedSaved ? 'Unsave listing' : 'Save listing'}
               accessibilityRole="button"
             >
-              <Ionicons
-                name={(savedOptimistic ?? isSaved) ? 'bookmark' : 'bookmark-outline'}
-                size={20}
-                color={(savedOptimistic ?? isSaved) ? colors.category : colors.textDark}
-              />
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <Ionicons
+                  name={displayedSaved ? 'bookmark' : 'bookmark-outline'}
+                  size={20}
+                  color={displayedSaved ? colors.category : colors.textDark}
+                />
+              </Animated.View>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
@@ -689,6 +759,10 @@ export default function ListingDetailScreen() {
       >
         <View style={styles.messageComposerOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMessageComposer} />
+          <KeyboardUnderlay
+            keyboardHeight={messageComposerKeyboardHeight}
+            backgroundColor={colors.white}
+          />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.messageComposerKeyboardWrap}

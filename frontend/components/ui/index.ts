@@ -11,6 +11,7 @@ export { ScreenHeader } from './ScreenHeader';
 export { FilterChips } from './FilterChips';
 export type { FilterChipOption } from './FilterChips';
 export { SectionCard } from './SectionCard';
+export { KeyboardUnderlay } from './KeyboardUnderlay';
 export { KeyboardAwareScreen } from './KeyboardAwareScreen';
 export { ScreenScrollView } from './ScreenScrollView';
 export type { ScreenScrollViewProps } from './ScreenScrollView';

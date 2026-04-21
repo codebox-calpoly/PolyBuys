@@ -3,7 +3,9 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { colors } from '../../theme/tokens';
+import { KeyboardUnderlay } from './KeyboardUnderlay';
 import { ScreenScrollView } from './ScreenScrollView';
 
 interface KeyboardAwareScreenProps {
@@ -15,6 +17,7 @@ interface KeyboardAwareScreenProps {
   /** Disable the default safe-area bottom padding (useful when the screen renders its own fixed footer). */
   disableSafeAreaBottom?: boolean;
   keyboardShouldPersistTaps?: 'always' | 'handled' | 'never';
+  keyboardUnderlayColor?: string;
 }
 
 export function KeyboardAwareScreen({
@@ -24,9 +27,11 @@ export function KeyboardAwareScreen({
   extraOffset = 0,
   disableSafeAreaBottom = false,
   keyboardShouldPersistTaps = 'handled',
+  keyboardUnderlayColor = colors.surface,
 }: KeyboardAwareScreenProps) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const keyboardHeight = useKeyboardHeight();
   const bottomPadding = disableSafeAreaBottom ? 0 : insets.bottom + 8;
 
   return (
@@ -35,6 +40,7 @@ export function KeyboardAwareScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight + extraOffset : 0}
     >
+      <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={keyboardUnderlayColor} />
       <ScreenScrollView
         contentContainerStyle={[
           styles.content,

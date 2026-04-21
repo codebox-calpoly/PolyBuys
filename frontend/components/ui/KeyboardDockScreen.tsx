@@ -1,8 +1,10 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { colors, spacing } from '../../theme/tokens';
+import { KeyboardUnderlay } from './KeyboardUnderlay';
 
 type KeyboardDockScreenProps = {
   children: ReactNode;
@@ -13,30 +15,8 @@ type KeyboardDockScreenProps = {
   keyboardVerticalOffset?: number;
   compactBottomPadding?: number;
   expandedBottomPadding?: number;
+  keyboardUnderlayColor?: string;
 };
-
-function useKeyboardVisibility(): boolean {
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSubscription = Keyboard.addListener(showEvent, () => {
-      setIsKeyboardVisible(true);
-    });
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  return isKeyboardVisible;
-}
 
 export function KeyboardDockScreen({
   children,
@@ -47,12 +27,12 @@ export function KeyboardDockScreen({
   keyboardVerticalOffset = 0,
   compactBottomPadding = spacing.xs,
   expandedBottomPadding = spacing.sm,
+  keyboardUnderlayColor = colors.surface,
 }: KeyboardDockScreenProps) {
   const insets = useSafeAreaInsets();
-  const isKeyboardVisible = useKeyboardVisibility();
-  const bottomPadding = isKeyboardVisible
-    ? compactBottomPadding
-    : Math.max(insets.bottom, expandedBottomPadding);
+  const keyboardHeight = useKeyboardHeight();
+  const bottomPadding =
+    keyboardHeight > 0 ? compactBottomPadding : Math.max(insets.bottom, expandedBottomPadding);
 
   return (
     <KeyboardAvoidingView
@@ -60,6 +40,7 @@ export function KeyboardDockScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardVerticalOffset : 0}
     >
+      <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={keyboardUnderlayColor} />
       <View style={[styles.content, contentStyle]}>{children}</View>
       <View style={[styles.dock, { paddingBottom: bottomPadding }, dockStyle]}>{dock}</View>
     </KeyboardAvoidingView>
