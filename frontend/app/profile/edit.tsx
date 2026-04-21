@@ -16,7 +16,6 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
-import { getEmailValidationError } from '@polybuys/shared';
 import { MajorPicker } from '../../components/MajorPicker';
 import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
 import {
@@ -246,7 +245,6 @@ export default function ProfileEditScreen() {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
     const trimmedBio = bio.trim();
-    const normalizedEmail = profileEmail.trim().toLowerCase();
 
     if (!trimmedName) {
       setFlash('Name is required.');
@@ -259,14 +257,6 @@ export default function ProfileEditScreen() {
     if (!isCalPolyMajor(trimmedMajor)) {
       setFlash('Choose your major from the official Cal Poly majors list.');
       return;
-    }
-
-    if (normalizedEmail) {
-      const emailError = getEmailValidationError(normalizedEmail);
-      if (emailError) {
-        setFlash(emailError);
-        return;
-      }
     }
 
     if (!isSupportedGraduationYear(year, yearOptions)) {
