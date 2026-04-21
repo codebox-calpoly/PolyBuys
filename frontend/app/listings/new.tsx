@@ -20,18 +20,21 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
 import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
+import {
+  hasFieldErrors,
+  type FieldErrors,
+  upsertFieldError,
+  validateDescription,
+  validateImages,
+  validateListingFields,
+  validatePrice,
+  validateTitle,
+} from './newListingValidation';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
 const MODERATION_ERROR_FRAGMENT = 'violates our community guidelines';
 const PROFILE_SETUP_ERROR_FRAGMENT = 'complete your profile setup';
-
-type FieldErrors = {
-  title?: string;
-  description?: string;
-  price?: string;
-  images?: string;
-};
 
 function showAlert(title: string, message: string, onAck?: () => void) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -99,6 +102,7 @@ export default function NewListingScreen() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const submittingRef = useRef(false);
+  const hasActiveFieldErrors = hasFieldErrors(fieldErrors);
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
@@ -120,18 +124,18 @@ export default function NewListingScreen() {
     );
   }
 
-  // Clear field errors as user types
+  // After the first failed submit, keep each field's error state in sync with its current value.
   const handleTitleChange = (text: string) => {
     setTitle(text);
-    if (fieldErrors.title) {
-      setFieldErrors((prev) => ({ ...prev, title: undefined }));
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'title', validateTitle(text)));
     }
   };
 
   const handleDescriptionChange = (text: string) => {
     setDescription(text);
-    if (fieldErrors.description) {
-      setFieldErrors((prev) => ({ ...prev, description: undefined }));
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'description', validateDescription(text)));
     }
   };
 
@@ -141,53 +145,20 @@ export default function NewListingScreen() {
     if (parts.length > 2) return;
     if (parts[1]?.length > 2) return;
     setPrice(filtered);
-    if (fieldErrors.price) {
-      setFieldErrors((prev) => ({ ...prev, price: undefined }));
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'price', validatePrice(filtered)));
     }
   };
 
   const handleImagesChange = (newImages: string[] | ((prev: string[]) => string[])) => {
-    setImages(newImages);
-    if (fieldErrors.images) {
-      setFieldErrors((prev) => ({ ...prev, images: undefined }));
-    }
-  };
-
-  function validateFields(): FieldErrors {
-    const errors: FieldErrors = {};
-    const trimmedTitle = title.trim();
-    const trimmedDescription = description.trim();
-
-    if (!trimmedTitle) {
-      errors.title = 'Title is required.';
-    } else if (trimmedTitle.length < 5) {
-      errors.title = 'Title must be at least 5 characters.';
-    } else if (trimmedTitle.length > 100) {
-      errors.title = 'Title must be 100 characters or less.';
-    }
-
-    if (!trimmedDescription) {
-      errors.description = 'Description is required.';
-    }
-
-    const trimmedPrice = price.trim();
-    if (!trimmedPrice) {
-      errors.price = 'Price is required.';
-    } else {
-      const parsedPrice = Number(trimmedPrice);
-      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-        errors.price = 'Enter a valid non-negative price.';
+    setImages((prevImages) => {
+      const nextImages = typeof newImages === 'function' ? newImages(prevImages) : newImages;
+      if (hasAttemptedSubmit) {
+        setFieldErrors((prev) => upsertFieldError(prev, 'images', validateImages(nextImages)));
       }
-    }
-
-    if (images.length < 1) {
-      errors.images = 'At least 1 photo is required.';
-    } else if (images.length > 8) {
-      errors.images = 'Maximum 8 photos allowed.';
-    }
-
-    return errors;
-  }
+      return nextImages;
+    });
+  };
 
   async function onSubmit() {
     if (submittingRef.current) {
@@ -214,7 +185,12 @@ export default function NewListingScreen() {
       return;
     }
 
-    const errors = validateFields();
+    const errors = validateListingFields({
+      title,
+      description,
+      price,
+      images,
+    });
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -406,7 +382,7 @@ export default function NewListingScreen() {
           </View>
         </View>
 
-        {hasAttemptedSubmit && Object.keys(fieldErrors).length > 0 && (
+        {hasAttemptedSubmit && hasActiveFieldErrors && (
           <View style={styles.formErrorBanner}>
             <Text style={styles.formErrorText}>Please fix the errors above before submitting.</Text>
           </View>
