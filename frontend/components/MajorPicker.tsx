@@ -62,16 +62,21 @@ export function MajorPicker({ visible, selectedMajor, onSelect, onClose }: Major
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
           const isSelected = item === selectedMajor;
+          const optionLabel = formatMajorLabel(item);
           return (
             <TouchableOpacity
               style={[styles.option, isSelected && styles.optionSelected]}
               onPress={() => handleSelect(item)}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={optionLabel}
+              accessibilityState={{ selected: isSelected }}
             >
               <Text
                 style={[styles.optionText, isSelected && styles.optionTextSelected]}
                 numberOfLines={2}
               >
-                {formatMajorLabel(item)}
+                {optionLabel}
               </Text>
               {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
             </TouchableOpacity>

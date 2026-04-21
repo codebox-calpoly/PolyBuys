@@ -1,5 +1,11 @@
-function readEnv(name: string): string | null {
-  const value = process.env[name];
+const PUBLIC = {
+  EXPO_PUBLIC_CONVEX_URL: process.env.EXPO_PUBLIC_CONVEX_URL,
+} as const;
+
+type PublicEnvName = keyof typeof PUBLIC;
+
+function readEnv(name: PublicEnvName): string | null {
+  const value = PUBLIC[name];
   if (typeof value !== 'string') {
     return null;
   }
@@ -8,7 +14,7 @@ function readEnv(name: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function getRequiredExpoPublicEnv(name: 'EXPO_PUBLIC_CONVEX_URL'): string {
+export function getRequiredExpoPublicEnv(name: PublicEnvName): string {
   const value = readEnv(name);
   if (value) {
     return value;

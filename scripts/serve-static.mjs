@@ -33,11 +33,21 @@ async function fileExists(filePath) {
 }
 
 async function resolveAssetPath(urlPath) {
-  const decodedPath = decodeURIComponent(urlPath);
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(urlPath);
+  } catch {
+    return null;
+  }
+
   const safeRelativePath = decodedPath.replace(/^\/+/, '');
   const candidatePath = path.resolve(distDir, safeRelativePath);
+  const relativeCandidatePath = path.relative(distDir, candidatePath);
 
-  if (!candidatePath.startsWith(distDir)) {
+  if (
+    relativeCandidatePath.startsWith('..') ||
+    path.isAbsolute(relativeCandidatePath)
+  ) {
     return null;
   }
 

@@ -308,38 +308,42 @@ export default function ListingCard({
             </Text>
           )}
         </Pressable>
-        {onToggleSave && (
-          <GlassIconButton
-            containerStyle={styles.saveButton}
-            onPress={onToggleSave}
-            accessibilityLabel={`${isSaved ? 'Unsave' : 'Save'} listing: ${listing.title?.trim() || listing._id || 'listing'}`}
-            hitSlop={8}
-            pressedScale={0.94}
-          >
-            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-              <Ionicons
-                name={isSaved ? 'bookmark' : 'bookmark-outline'}
-                size={17}
-                color={isSaved ? colors.category : colors.textDark}
-              />
-            </Animated.View>
-          </GlassIconButton>
-        )}
-        {onManagePress && (
-          <GlassIconButton
-            containerStyle={styles.manageButton}
-            onPress={onManagePress}
-            accessibilityLabel={`Manage listing: ${listing.title?.trim() || listing._id || 'listing'}`}
-            hitSlop={8}
-            pressedScale={0.94}
-          >
-            <View style={styles.manageDots}>
-              <View style={styles.manageDot} />
-              <View style={styles.manageDot} />
-              <View style={styles.manageDot} />
-            </View>
-          </GlassIconButton>
-        )}
+        {onToggleSave || onManagePress ? (
+          <View style={styles.floatingActions} pointerEvents="box-none">
+            {onToggleSave ? (
+              <GlassIconButton
+                containerStyle={styles.saveButton}
+                onPress={onToggleSave}
+                accessibilityLabel={`${isSaved ? 'Unsave' : 'Save'} listing: ${listing.title?.trim() || listing._id || 'listing'}`}
+                hitSlop={8}
+                pressedScale={0.94}
+              >
+                <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                  <Ionicons
+                    name={isSaved ? 'bookmark' : 'bookmark-outline'}
+                    size={17}
+                    color={isSaved ? colors.category : colors.textDark}
+                  />
+                </Animated.View>
+              </GlassIconButton>
+            ) : null}
+            {onManagePress ? (
+              <GlassIconButton
+                containerStyle={styles.manageButton}
+                onPress={onManagePress}
+                accessibilityLabel={`Manage listing: ${listing.title?.trim() || listing._id || 'listing'}`}
+                hitSlop={8}
+                pressedScale={0.94}
+              >
+                <View style={styles.manageDots}>
+                  <View style={styles.manageDot} />
+                  <View style={styles.manageDot} />
+                  <View style={styles.manageDot} />
+                </View>
+              </GlassIconButton>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
@@ -383,6 +387,13 @@ const styles = StyleSheet.create({
   cardContainer: {
     position: 'relative',
   },
+  floatingActions: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
   listingCard: {
     borderRadius: borderRadius.md,
     backgroundColor: colors.surface,
@@ -413,17 +424,11 @@ const styles = StyleSheet.create({
   imageContainerHome: {},
   imageContainerHomeWeb: {},
   saveButton: {
-    position: 'absolute',
-    top: spacing.xs,
-    right: spacing.xs,
     width: 40,
     height: 40,
     borderRadius: 20,
   },
   manageButton: {
-    position: 'absolute',
-    top: spacing.xs,
-    right: spacing.xs,
     width: 36,
     height: 36,
     borderRadius: 18,

@@ -196,6 +196,7 @@ export default function ListingDetailScreen() {
 
   useEffect(() => {
     prevDisplayedSavedRef.current = null;
+    setSavedOptimistic(null);
     bookmarkScale.setValue(1);
   }, [bookmarkScale, listingId]);
 

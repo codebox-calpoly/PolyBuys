@@ -19,7 +19,19 @@ export type UserFlowErrorContext =
   | 'download-app';
 
 function getRawErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message.trim().toLowerCase() : '';
+  if (error instanceof Error) {
+    return error.message.trim().toLowerCase();
+  }
+
+  if (typeof error === 'string') {
+    return error.trim().toLowerCase();
+  }
+
+  if (error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message.trim().toLowerCase();
+  }
+
+  return '';
 }
 
 function includesAny(message: string, patterns: string[]): boolean {

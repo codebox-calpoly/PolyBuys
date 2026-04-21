@@ -103,6 +103,32 @@ describe('Profiles mutations', () => {
     expect(profile?.email).toBe('alice@calpoly.edu');
   });
 
+  it('updateProfile rejects email-only updates and keeps the stored email unchanged', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-stable-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    const profileId = await asUser.mutation(api.profiles.createProfile, {
+      name: 'Alice',
+      major: 'Computer Science',
+      year: 2026,
+    });
+    await expect(
+      asUser.mutation(api.profiles.updateProfile, {
+        email: 'updated@calpoly.edu',
+      })
+    ).rejects.toThrowError('No valid fields to update');
+
+    const profile = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(profile?.email).toBe('alice@calpoly.edu');
+  });
+
   it('updateProfile ignores reserved server-controlled profile fields', async () => {
     const t = convexTest(schema as any, modules);
     const asUser = t.withIdentity({
@@ -121,6 +147,8 @@ describe('Profiles mutations', () => {
       return await ctx.db.get(profileId);
     });
 
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
     await asUser.mutation(api.profiles.updateProfile, {
       name: 'Alice Updated',
       joinDate: 1,
@@ -130,6 +158,11 @@ describe('Profiles mutations', () => {
       hiddenAt: 123,
       hiddenReason: 'client should not be able to set this',
     });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[profiles.updateProfile] Ignoring reserved fields: joinDate, rating, review_count, isHidden, hiddenAt, hiddenReason'
+    );
+    warnSpy.mockRestore();
 
     const updatedProfile = await t.run(async (ctx) => {
       return await ctx.db.get(profileId);

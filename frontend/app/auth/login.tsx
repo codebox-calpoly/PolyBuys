@@ -317,6 +317,11 @@ export default function LoginScreen() {
     setSuccessMessage(null);
   };
 
+  function finishAndRedirect() {
+    setSuccessRedirect(postAuthRedirect);
+    setStep('success');
+  }
+
   const handleCompleteProfile = async () => {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
@@ -376,7 +381,7 @@ export default function LoginScreen() {
       setStep('push');
     } catch (err) {
       if (isExistingProfileError(err)) {
-        setStep('checking');
+        finishAndRedirect();
         return;
       }
 
@@ -459,11 +464,6 @@ export default function LoginScreen() {
       </View>
     );
   }
-
-  const finishAndRedirect = () => {
-    setSuccessRedirect(postAuthRedirect);
-    setStep('success');
-  };
 
   const persistMessageNotificationsPreference = async (enabled: boolean) => {
     await updateMessageNotificationsEnabled({ enabled });
