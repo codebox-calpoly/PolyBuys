@@ -27,7 +27,11 @@ export function DownloadButton({
       window.location.href = APP_STORE_URL;
       return;
     }
-    setModalOpen(true);
+    if (QR_SRC) {
+      setModalOpen(true);
+    } else {
+      window.location.href = APP_STORE_URL;
+    }
   }, []);
 
   const handleClose = useCallback(() => {
@@ -54,6 +58,15 @@ export function DownloadButton({
   );
 }
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) => !el.hasAttribute('disabled')
+  );
+}
+
 function QrModal({ onClose }: { onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -62,8 +75,36 @@ function QrModal({ onClose }: { onClose: () => void }) {
     closeBtnRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !cardRef.current) return;
+
+      const nodes = focusableIn(cardRef.current);
+      if (nodes.length === 0) return;
+
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      const active = document.activeElement as Node | null;
+
+      if (!cardRef.current.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
+
     const onClickAway = (e: MouseEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) onClose();
     };

@@ -6,17 +6,21 @@ import type { LegalDocument } from './legalContent';
 import { GLOBAL_CSS } from './styles';
 
 interface LegalDocumentPageProps {
-  document: LegalDocument;
+  legalDocument: LegalDocument;
   siblingHref: string;
   siblingLabel: string;
 }
 
-export function LegalDocumentPage({ document, siblingHref, siblingLabel }: LegalDocumentPageProps) {
+export function LegalDocumentPage({
+  legalDocument,
+  siblingHref,
+  siblingLabel,
+}: LegalDocumentPageProps) {
   return (
     <>
       <Head>
-        <title>{document.title} | PolyBuys</title>
-        <meta name="description" content={document.description} />
+        <title>{legalDocument.title} | PolyBuys</title>
+        <meta name="description" content={legalDocument.description} />
         <meta name="robots" content="index,follow" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -24,9 +28,8 @@ export function LegalDocumentPage({ document, siblingHref, siblingLabel }: Legal
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700&display=swap"
         />
+        <style>{GLOBAL_CSS}</style>
       </Head>
-
-      <style>{GLOBAL_CSS}</style>
 
       <div className="pb-web-scroll-shell">
         <main className="pb-page pb-doc">
@@ -45,31 +48,31 @@ export function LegalDocumentPage({ document, siblingHref, siblingLabel }: Legal
             </div>
 
             <article className="pb-doc__card">
-              <p className="pb-doc__eyebrow">{document.eyebrow}</p>
-              <h1 className="pb-doc__title">{document.title}</h1>
-              <p className="pb-doc__meta">Last updated {document.updatedAt}</p>
+              <p className="pb-doc__eyebrow">{legalDocument.eyebrow}</p>
+              <h1 className="pb-doc__title">{legalDocument.title}</h1>
+              <p className="pb-doc__meta">Last updated {legalDocument.updatedAt}</p>
 
               <div className="pb-doc__lede">
-                {document.intro.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
+                {legalDocument.intro.map((paragraph, i) => (
+                  <p key={i}>{paragraph}</p>
                 ))}
               </div>
 
               <div className="pb-doc__sections">
-                {document.sections.map((section) => (
+                {legalDocument.sections.map((section) => (
                   <section key={section.title} className="pb-doc__section">
                     <h2 className="pb-doc__sectionTitle">{section.title}</h2>
 
-                    {section.paragraphs?.map((paragraph) => (
-                      <p key={paragraph} className="pb-doc__paragraph">
+                    {section.paragraphs?.map((paragraph, i) => (
+                      <p key={i} className="pb-doc__paragraph">
                         {paragraph}
                       </p>
                     ))}
 
                     {section.bullets?.length ? (
                       <ul className="pb-doc__list">
-                        {section.bullets.map((bullet) => (
-                          <li key={bullet}>{bullet}</li>
+                        {section.bullets.map((bullet, i) => (
+                          <li key={i}>{bullet}</li>
                         ))}
                       </ul>
                     ) : null}

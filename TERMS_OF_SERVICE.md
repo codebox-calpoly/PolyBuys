@@ -55,7 +55,7 @@ To the fullest extent permitted by law, PolyBuys and its operators will not be l
 
 ## Privacy
 
-Your use of PolyBuys is also governed by the [Privacy Policy](./PRIVACY_POLICY.md), which explains how we collect, use, and share data.
+Your use of PolyBuys is also governed by the [Privacy Policy](/privacy), which explains how we collect, use, and share data.
 
 ## Changes to these terms
 

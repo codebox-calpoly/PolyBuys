@@ -48,11 +48,15 @@ export function Button(props: ButtonProps) {
   );
 
   if ('href' in props && props.href !== undefined) {
+    const { target, rel } = props;
+    const finalRel =
+      target === '_blank' && (rel == null || rel === '') ? 'noopener noreferrer' : rel;
+
     return (
       <a
         href={props.href}
-        target={props.target}
-        rel={props.rel}
+        target={target}
+        rel={finalRel}
         aria-label={props.ariaLabel}
         className={classes}
       >
