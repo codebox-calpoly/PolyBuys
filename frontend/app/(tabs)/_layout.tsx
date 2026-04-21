@@ -3,11 +3,12 @@ import { Link, Slot, useLocalSearchParams, usePathname, useRouter } from 'expo-r
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
-import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import { colors, typography } from '../../theme/tokens';
+import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
+import { nativeChrome } from '../../theme/nativeChrome';
 
 function WebHeaderLayout() {
   const router = useRouter();
@@ -77,6 +78,8 @@ function WebHeaderLayout() {
               onChangeText={setSearchInput}
               placeholder="Search listings..."
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
               style={styles.webSearchInput}
               autoCapitalize="none"
               autoCorrect={false}
@@ -92,7 +95,6 @@ function WebHeaderLayout() {
 }
 
 export default function TabsLayout() {
-  const colorScheme = useColorScheme();
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated } = useAuth();
   const conversations = useQuery(
@@ -110,22 +112,41 @@ export default function TabsLayout() {
     return <WebHeaderLayout />;
   }
 
-  const isDarkMode = colorScheme === 'dark';
-  const tabTint = isDarkMode ? colors.white : colors.primary;
+  const tabTint = nativeChrome.tabIconSelectedColor;
 
   const nativeTabs = (
     <NativeTabs
       minimizeBehavior="onScrollDown"
       tintColor={tabTint}
-      labelStyle={styles.nativeTabLabel}
+      iconColor={{
+        default: nativeChrome.tabIconDefaultColor,
+        selected: nativeChrome.tabIconSelectedColor,
+      }}
+      labelStyle={{
+        default: styles.nativeTabLabelDefault,
+        selected: styles.nativeTabLabelSelected,
+      }}
+      backgroundColor={nativeChrome.tabBarBackgroundColor}
+      blurEffect={nativeChrome.tabBarBlurEffect}
+      shadowColor={nativeChrome.tabBarShadowColor}
+      disableTransparentOnScrollEdge
     >
-      <NativeTabs.Trigger name="index" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="index"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role="search" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="search"
+        role="search"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
@@ -134,7 +155,11 @@ export default function TabsLayout() {
           md="search"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="my-listings" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="my-listings"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
@@ -143,7 +168,11 @@ export default function TabsLayout() {
           md="view_list"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="inbox" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="inbox"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
@@ -157,7 +186,11 @@ export default function TabsLayout() {
           </NativeTabs.Trigger.Badge>
         ) : null}
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
+      <NativeTabs.Trigger
+        name="settings"
+        disableTransparentOnScrollEdge
+        contentStyle={styles.nativeTabContent}
+      >
         {/* NativeTabs expects plain text inside Trigger.Label. */}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
@@ -186,14 +219,12 @@ const styles = StyleSheet.create({
   },
   webRoot: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   webHeaderBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
   },
   webHeaderContent: {
     width: '100%',
@@ -202,27 +233,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   brand: {
     ...typography.title1,
-    color: colors.primary,
+    color: colors.textDark,
+    fontSize: 28,
+    lineHeight: 34,
   },
   webSearchControl: {
-    minWidth: 260,
-    maxWidth: 320,
+    minWidth: 280,
+    maxWidth: 360,
     width: '100%',
     minHeight: 44,
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: borderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
     justifyContent: 'center',
   },
   webSearchControlActive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.locationDark,
+    backgroundColor: colors.white,
+    borderColor: colors.primary,
   },
   webSearchInput: {
     ...typography.subhead,
@@ -237,8 +276,17 @@ const styles = StyleSheet.create({
     outlineColor: 'transparent',
     boxShadow: 'none',
   },
-  nativeTabLabel: {
+  nativeTabLabelDefault: {
     fontSize: 11,
     fontWeight: '600',
+    color: nativeChrome.tabLabelDefaultColor,
+  },
+  nativeTabLabelSelected: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: nativeChrome.tabLabelSelectedColor,
+  },
+  nativeTabContent: {
+    backgroundColor: colors.surface,
   },
 });

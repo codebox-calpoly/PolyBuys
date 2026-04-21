@@ -55,7 +55,6 @@ export default defineSchema({
     hiddenReason: v.optional(v.string()),
     createdAt: v.number(),
     postedOn: v.number(),
-    tags: v.optional(v.array(v.string())),
   })
     .index('by_status', ['status'])
     .index('by_seller_createdAt', ['sellerId', 'createdAt'])
@@ -72,7 +71,6 @@ export default defineSchema({
       'condition',
       'createdAt',
     ])
-    .index('by_tag', ['tags'])
     .searchIndex('search_listings', {
       searchField: 'title',
       filterFields: ['status', 'category', 'condition', 'description'],
@@ -106,10 +104,20 @@ export default defineSchema({
     .index('by_listing', ['listingId']),
 
   reports: defineTable({
-    targetId: v.string(), // Can be listing or profile ID
-    targetType: v.union(v.literal('listing'), v.literal('profile')),
+    targetId: v.string(), // Can be listing, profile, conversation, or message ID
+    targetType: v.union(
+      v.literal('listing'),
+      v.literal('profile'),
+      v.literal('conversation'),
+      v.literal('message')
+    ),
     reporterId: v.string(), // Auth identity subject
-    reason: v.union(v.literal('scam'), v.literal('inappropriate'), v.literal('spam')),
+    reason: v.union(
+      v.literal('scam'),
+      v.literal('inappropriate'),
+      v.literal('spam'),
+      v.literal('other')
+    ),
     notes: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal('pending'), v.literal('reviewed'), v.literal('dismissed'))
@@ -131,6 +139,10 @@ export default defineSchema({
     buyerLastReadAt: v.number(),
     sellerLastReadAt: v.number(),
     lastMessageId: v.optional(v.id('messages')),
+    buyerInboxHiddenAt: v.optional(v.number()),
+    sellerInboxHiddenAt: v.optional(v.number()),
+    buyerInboxHiddenReason: v.optional(v.union(v.literal('deleted'), v.literal('reported'))),
+    sellerInboxHiddenReason: v.optional(v.union(v.literal('deleted'), v.literal('reported'))),
   })
     .index('by_listing_buyer_seller', ['listingId', 'buyerId', 'sellerId'])
     .index('by_buyer', ['buyerId', 'updatedAt'])

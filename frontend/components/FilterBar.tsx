@@ -1,61 +1,52 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import TagPicker from './TagPicker';
-import { CATEGORY_LABELS } from '../types/filters';
-import type { Category, Filters } from '../types/filters';
+import { CATEGORY_LABELS, LISTING_SORT_SHORT } from '../types/filters';
+import type { Category, Filters, ListingSortBy } from '../types/filters';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { formatPrice } from '../lib/formatPrice';
 import { colors, borderRadius } from '../theme/tokens';
 
-// Re-export for backward compatibility
 export type { Category, Filters };
 
 interface FilterBarProps {
   filters: Filters;
-  selectedTags: string[];
+  sortBy: ListingSortBy;
   onCategoryPress: () => void;
   onPricePress: () => void;
-  onTagsChange: (tags: string[]) => void;
+  onSortPress: () => void;
   onClearCategory: () => void;
   onClearPrice: () => void;
-  onClearTags: () => void;
   onClearAll: () => void;
 }
 
 export function FilterBar({
   filters,
-  selectedTags,
+  sortBy,
   onCategoryPress,
   onPricePress,
-  onTagsChange,
+  onSortPress,
   onClearCategory,
   onClearPrice,
-  onClearTags,
   onClearAll,
 }: FilterBarProps) {
-  const [tagPickerVisible, setTagPickerVisible] = useState(false);
   const entranceStyle = useEntranceAnimation(80, 10);
 
   const hasCategory = !!filters.category;
   const hasPrice = filters.minPrice !== undefined || filters.maxPrice !== undefined;
-  const hasTags = selectedTags.length > 0;
-  const hasAnyFilter = hasCategory || hasPrice || hasTags;
+  const hasNonDefaultSort = sortBy !== 'newest';
+  const hasAnyFilter = hasCategory || hasPrice || hasNonDefaultSort;
 
   const getPriceLabel = () => {
     if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
-      return `$${formatPrice(filters.minPrice)} - $${formatPrice(filters.maxPrice)}`;
+      return `${formatPrice(filters.minPrice)} - ${formatPrice(filters.maxPrice)}`;
     }
     if (filters.minPrice !== undefined) {
-      return `$${formatPrice(filters.minPrice)}+`;
+      return `${formatPrice(filters.minPrice)}+`;
     }
     if (filters.maxPrice !== undefined) {
-      return `Under $${formatPrice(filters.maxPrice)}`;
+      return `Under ${formatPrice(filters.maxPrice)}`;
     }
     return 'Price';
-  };
-
-  const handleTagFilterPress = () => {
-    setTagPickerVisible(true);
   };
 
   return (
@@ -124,55 +115,37 @@ export function FilterBar({
         <Pressable
           style={({ pressed }) => [
             styles.chip,
-            hasTags && styles.chipActive,
+            hasNonDefaultSort && styles.chipActive,
             pressed && styles.chipPressed,
           ]}
-          onPress={handleTagFilterPress}
-          accessibilityLabel={hasTags ? `Tags: ${selectedTags.length} selected` : 'Filter by tags'}
+          onPress={onSortPress}
+          accessibilityLabel={`Sort: ${LISTING_SORT_SHORT[sortBy]}`}
           accessibilityRole="button"
-          accessibilityState={{ selected: hasTags }}
+          accessibilityState={{ selected: hasNonDefaultSort }}
         >
-          <Text style={[styles.chipText, hasTags && styles.chipTextActive]}>
-            {hasTags ? `Tags (${selectedTags.length})` : 'Tags'}
+          <Text style={[styles.chipText, hasNonDefaultSort && styles.chipTextActive]}>
+            Sort · {LISTING_SORT_SHORT[sortBy]}
           </Text>
-          {hasTags && (
-            <Pressable
-              style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.8 }]}
-              onPress={onClearTags}
-              hitSlop={8}
-              accessibilityLabel="Clear tags filter"
-              accessibilityRole="button"
-            >
-              <Text style={styles.clearBtnText}>×</Text>
-            </Pressable>
-          )}
         </Pressable>
 
         {hasAnyFilter && (
           <Pressable
             style={({ pressed }) => [styles.clearAll, pressed && styles.chipPressed]}
             onPress={onClearAll}
-            accessibilityLabel="Clear all filters"
+            accessibilityLabel="Clear all filters and sort"
             accessibilityRole="button"
           >
             <Text style={styles.clearAllText}>Clear</Text>
           </Pressable>
         )}
       </ScrollView>
-
-      <TagPicker
-        visible={tagPickerVisible}
-        selectedTags={selectedTags}
-        onSelectTags={onTagsChange}
-        onClose={() => setTagPickerVisible(false)}
-      />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 12,
+    marginBottom: 0,
   },
   scrollContent: {
     flexDirection: 'row',
