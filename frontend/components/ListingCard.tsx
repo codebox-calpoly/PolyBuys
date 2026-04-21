@@ -4,6 +4,7 @@ import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } 
 import { BlurView } from 'expo-blur';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
+import { formatRelativeDate } from '../lib/formatDate';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { nativeChrome } from '../theme/nativeChrome';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
@@ -47,6 +48,8 @@ interface ListingCardProps {
     description: string;
     images?: string[];
     condition: 'new' | 'used' | 'refurbished';
+    postedOn?: number;
+    createdAt?: number;
   };
   index?: number;
   isSaved?: boolean;
@@ -299,6 +302,11 @@ export default function ListingCard({
               ${formatPrice(listing.price)}
             </Text>
           </View>
+          {(listing.postedOn || listing.createdAt) && (
+            <Text style={[styles.listingDate, isHomeDensity && styles.listingDateHome]}>
+              {formatRelativeDate(listing.postedOn ?? listing.createdAt!)}
+            </Text>
+          )}
         </Pressable>
         {onToggleSave && (
           <Pressable
@@ -566,6 +574,16 @@ const styles = StyleSheet.create({
   listingPriceHome: {
     fontSize: 17,
     marginTop: spacing.xs,
+  },
+  listingDate: {
+    ...typography.footnote,
+    color: colors.muted,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  listingDateHome: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.md,
   },
   footer: {
     marginTop: spacing.sm,
