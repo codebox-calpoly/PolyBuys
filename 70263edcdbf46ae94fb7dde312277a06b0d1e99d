@@ -1,0 +1,35 @@
+frontend/components/landing/Footer.tsx
+  c9ad6b55836754bf 20-22
+frontend/components/landing/LegalDocument.web.tsx
+  c9ad6b55836754bf 6,20-21,47-65,98-116,125-133
+frontend/components/landing/legalContent.ts
+  c9ad6b55836754bf 6-16,21,25,34-74,76-79
+frontend/app/support.web.tsx
+  c9ad6b55836754bf 1-12
+frontend/components/LandingScreen.tsx
+  c9ad6b55836754bf 2,28-32,74,102,196-239,356-366
+frontend/app/support.tsx
+  c9ad6b55836754bf 1-5
+frontend/components/landing/styles.ts
+  c9ad6b55836754bf 787-795
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "70263edcdbf46ae94fb7dde312277a06b0d1e99d",
+  "prompts": {
+    "c9ad6b55836754bf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fd43c263-9c47-4354-9c7f-98438b1575c7",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 240,
+      "total_deletions": 43,
+      "accepted_lines": 201,
+      "overriden_lines": 1
+    }
+  }
+}
