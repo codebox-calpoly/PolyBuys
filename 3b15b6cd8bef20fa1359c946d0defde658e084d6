@@ -1,0 +1,75 @@
+frontend/components/landing/ListingCard.tsx
+  a5414e6799991184 2,17-19
+frontend/components/landing/Ticker.tsx
+  a5414e6799991184 2,10-12
+frontend/components/landing/styles.ts
+  a5414e6799991184 63-65,68,85,89-107,138,161-162,176,180-182,186,190,195,199,205,210-216,259-260,263,351,359-360,367-368,374-375,377-381,386-387,389-391,399-403,416,449-453,463-469,526,535-560,569,571-572,579-580,603-611,617-618,840,904-905,907-915
+frontend/components/landing/GetApp.tsx
+  a5414e6799991184 4,6,9-10,12-17
+frontend/components/landing/Why.tsx
+  a5414e6799991184 3-5,8-9,11-16,23-24,31,33,35
+frontend/components/landing/useRevealOnVisible.ts
+  a5414e6799991184 1-36
+frontend/components/landing/icons.tsx
+  a5414e6799991184 1-186
+frontend/components/LandingScreen.web.tsx
+  a5414e6799991184 19
+frontend/components/landing/index.ts
+  a5414e6799991184 10
+frontend/components/landing/data.ts
+  6b7ba907ff9919c4 9-10,12
+  a5414e6799991184 14-16,24,36,46,54,61,66,71,75-87,90-99
+frontend/components/landing/Hero.tsx
+  a5414e6799991184 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "3b15b6cd8bef20fa1359c946d0defde658e084d6",
+  "prompts": {
+    "6b7ba907ff9919c4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2617284a-55a7-4877-b5b3-ca670fc42a78",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 92,
+      "total_deletions": 96,
+      "accepted_lines": 92,
+      "overriden_lines": 1
+    },
+    "a5414e6799991184": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a8e43544-8e2e-425c-894e-3c5ed2124d6c",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 487,
+      "total_deletions": 169,
+      "accepted_lines": 430,
+      "overriden_lines": 3
+    },
+    "fbe3ecebf9b00cb0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "92a7729d-c82f-432c-b07f-ce6b8ba80c90",
+        "model": "composer-2"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 16,
+      "accepted_lines": 0,
+      "overriden_lines": 12
+    }
+  },
+  "humans": {
+    "h_d6f0aa68cda9fc": {
+      "author": "Evan Taylor"
+    }
+  }
+}
