@@ -9,11 +9,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAction, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
+import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
@@ -25,16 +29,25 @@ export default function NewConversationScreen() {
       : null;
 
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const headerHeight = useHeaderHeight();
+  const isWeb = Platform.OS === 'web';
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
   );
 
-  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+  const listing = useQuery(
+    api.listings.getListing,
+    !isWeb && listingId ? { id: listingId } : 'skip'
+  );
   const sellerProfile = useQuery(
     api.profiles.getProfileByUserId,
-    listing?.sellerId ? { userId: listing.sellerId } : 'skip'
+    !isWeb && listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
+  const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
+    sellerProfile?.picture ? [sellerProfile.picture] : []
+  );
+  const sellerAvatarUrl = sellerAvatarUrls[0] ?? null;
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -62,11 +75,26 @@ export default function NewConversationScreen() {
   };
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       const returnTo = listingId ? `/conversations/new?listingId=${listingId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as Href);
     }
-  }, [authLoading, isAuthenticated, listingId, router]);
+  }, [isSessionLoading, isAuthenticated, isWeb, listingId, router]);
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Start conversations in the mobile app"
+        body="Messaging is available in the PolyBuys mobile app."
+        path={listingId ? `/conversations/new?listingId=${listingId}` : '/inbox'}
+        buttonLabel="Open Messaging in App"
+        secondaryActionLabel="Back to listing"
+        onSecondaryAction={() =>
+          listingId ? router.replace(`/listings/${listingId}` as never) : router.replace('/')
+        }
+      />
+    );
+  }
 
   if (!listingId) {
     return (
@@ -76,7 +104,7 @@ export default function NewConversationScreen() {
     );
   }
 
-  if (authLoading || !isAuthenticated) {
+  if (isSessionLoading || !isAuthenticated) {
     return (
       <View style={styles.centered}>
         <ScreenState variant="loading" title="Redirecting to login..." />
@@ -105,8 +133,8 @@ export default function NewConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 82 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
@@ -116,12 +144,23 @@ export default function NewConversationScreen() {
       />
 
       <View style={styles.content}>
+        <View style={styles.sellerRow}>
+          <ProfileAvatar uri={sellerAvatarUrl} name={sellerName} size={48} />
+          <View style={styles.sellerCopy}>
+            <Text style={styles.sellerName}>{sellerName}</Text>
+            <Text style={styles.sellerListing} numberOfLines={1}>
+              {listing.title}
+            </Text>
+          </View>
+        </View>
         <Text style={styles.prompt}>Send a message about &quot;{listing.title}&quot;</Text>
         <TextInput
           value={messageBody}
           onChangeText={setMessageBody}
           placeholder="Type your message..."
           placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
           style={styles.input}
           multiline
           maxLength={2000}
@@ -147,18 +186,42 @@ export default function NewConversationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,
     padding: spacing.lg,
     gap: spacing.md,
+  },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+  },
+  sellerCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  sellerName: {
+    ...typography.subhead,
+    color: colors.textDark,
+    fontWeight: '700',
+  },
+  sellerListing: {
+    ...typography.footnote,
+    color: colors.text,
   },
   prompt: {
     ...typography.subhead,
@@ -168,9 +231,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 120,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     ...typography.subhead,

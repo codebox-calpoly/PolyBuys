@@ -110,7 +110,6 @@ export async function createTestListing(
     category: 'textbooks' | 'electronics' | 'furniture' | 'tickets' | 'other';
     images: string[];
     condition: 'new' | 'used' | 'refurbished';
-    tags: string[];
     status: 'active' | 'sold' | 'inactive' | 'deleted';
   }>
 ): Promise<Id<'listings'>> {
@@ -123,7 +122,6 @@ export async function createTestListing(
       category: overrides?.category ?? 'textbooks',
       images: overrides?.images ?? ['https://example.com/image.jpg'],
       condition: overrides?.condition ?? 'new',
-      tags: overrides?.tags,
       status: overrides?.status ?? 'active',
       createdAt: Date.now(),
       postedOn: Date.now(),

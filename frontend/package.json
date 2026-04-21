@@ -19,8 +19,10 @@
     "@expo/vector-icons": "^15.0.3",
     "@polybuys/shared": "*",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "^8.3.0",
     "convex": "^1.32.0",
     "expo": "~55.0.5",
+    "expo-blur": "~55.0.8",
     "expo-constants": "~55.0.7",
     "expo-dev-client": "~55.0.16",
     "expo-device": "~55.0.9",
@@ -35,6 +37,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.2",
+    "react-native-reanimated": "^3.19.2",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.23.0",
     "react-native-web": "^0.21.0"
