@@ -1,15 +1,48 @@
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../theme/tokens';
+
+const SAFETY_BANNER_DISMISSED_KEY = 'polybuy:safety-banner-dismissed';
 
 /**
  * Banner reminding users to meet in a safe, public place for in-person transactions.
  * Shown in conversation screens where buyers and sellers coordinate meetups.
  */
 export default function SafetyBanner() {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState<boolean | null>(null);
 
-  if (!isVisible) {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadVisibility = async () => {
+      try {
+        const dismissed = await AsyncStorage.getItem(SAFETY_BANNER_DISMISSED_KEY);
+        if (isMounted) {
+          setIsVisible(dismissed !== 'true');
+        }
+      } catch {
+        if (isMounted) {
+          setIsVisible(true);
+        }
+      }
+    };
+
+    void loadVisibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    void AsyncStorage.setItem(SAFETY_BANNER_DISMISSED_KEY, 'true').catch(() => {
+      // Non-fatal: the banner is already hidden locally.
+    });
+  };
+
+  if (isVisible !== true) {
     return null;
   }
 
@@ -18,10 +51,11 @@ export default function SafetyBanner() {
       <View style={styles.headerRow}>
         <Text style={styles.title}>Meet in a safe, public place</Text>
         <Pressable
-          onPress={() => setIsVisible(false)}
+          onPress={handleDismiss}
           style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
           accessibilityRole="button"
           accessibilityLabel="Dismiss safety reminder"
+          hitSlop={8}
         >
           <Text style={styles.closeButtonText}>Close</Text>
         </Pressable>
@@ -66,9 +100,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.infoBorder,
     borderRadius: borderRadius.full,
+    minWidth: 44,
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButtonPressed: {
     opacity: 0.8,
