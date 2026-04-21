@@ -1,4 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -318,9 +319,11 @@ export default function ListingCard({
           >
             <BlurView intensity={40} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
             <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-              <Text style={[styles.saveIcon, isSaved && styles.saveIconActive]}>
-                {isSaved ? '♥' : '♡'}
-              </Text>
+              <Ionicons
+                name={isSaved ? 'bookmark' : 'bookmark-outline'}
+                size={17}
+                color={isSaved ? colors.category : colors.textDark}
+              />
             </Animated.View>
           </Pressable>
         )}
@@ -429,13 +432,6 @@ const styles = StyleSheet.create({
   },
   saveButtonPressed: {
     opacity: 0.9,
-  },
-  saveIcon: {
-    fontSize: 15,
-    color: colors.textDark,
-  },
-  saveIconActive: {
-    color: colors.category,
   },
   manageButton: {
     position: 'absolute',

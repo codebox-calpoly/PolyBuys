@@ -16,6 +16,7 @@ import { Id } from 'convex/_generated/dataModel';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { getEmailValidationError } from '@polybuys/shared';
+import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { useAuth } from '../../hooks/useAuth';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
@@ -146,7 +147,7 @@ export default function ProfileEditScreen() {
     if (profile) {
       setName(profile.name);
       setBio(profile.bio ?? '');
-      setMajor(profile.major);
+      setMajor(formatMajorLabel(profile.major));
       setYear(String(profile.year));
       setPicture(profile.picture ?? null);
     } else {

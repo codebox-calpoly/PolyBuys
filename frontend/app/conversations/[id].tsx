@@ -130,6 +130,7 @@ export default function ConversationDetailScreen() {
 
   const [messageBody, setMessageBody] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<Id<'messages'> | null>(null);
   const [activeMessageActionId, setActiveMessageActionId] = useState<Id<'messages'> | null>(null);
   const listRef = useRef<FlatList>(null);
@@ -242,6 +243,23 @@ export default function ConversationDetailScreen() {
 
     previousMessageCount.current = messages.length;
   }, [messages]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -495,7 +513,14 @@ export default function ConversationDetailScreen() {
           }
         />
 
-        <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+        <View
+          style={[
+            styles.composerWrap,
+            {
+              paddingBottom: isKeyboardVisible ? spacing.xs : Math.max(insets.bottom, spacing.sm),
+            },
+          ]}
+        >
           {isBlockingOther === true ? (
             <View style={styles.blockedComposer}>
               <Text style={styles.blockedText}>
