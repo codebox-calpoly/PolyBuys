@@ -158,7 +158,7 @@ export default function NewListingScreen() {
         images,
       });
       setFlash('Listing created.');
-      router.replace('/');
+      router.replace('/home');
     } catch (error) {
       const actionError = getListingActionError(error, 'Create failed');
       showAlert(actionError.title, actionError.message);

@@ -80,6 +80,7 @@ function RootLayout() {
                 contentStyle: { backgroundColor: colors.surface },
               }}
             >
+              <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
               <Stack.Screen
                 name="listings/[id]"
@@ -121,6 +122,8 @@ function RootLayout() {
                 name="profile/[userId]"
                 options={{ title: 'Profile', headerBackTitle: 'Back' }}
               />
+              <Stack.Screen name="privacy" options={{ headerShown: false }} />
+              <Stack.Screen name="terms" options={{ headerShown: false }} />
               <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
             </Stack>
           </FlashProvider>

@@ -21,7 +21,6 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { getLoginEntryAction, type LoginStep } from './loginRedirect';
-import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -70,12 +69,18 @@ export default function LoginScreen() {
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
-      : '/';
+      : '/home';
   const [successRedirect, setSuccessRedirect] = useState<Href>(postAuthRedirect);
 
   useEffect(() => {
     setSuccessRedirect(postAuthRedirect);
   }, [postAuthRedirect]);
+
+  useEffect(() => {
+    if (isWeb) {
+      router.replace(postAuthRedirect);
+    }
+  }, [isWeb, postAuthRedirect, router]);
 
   useEffect(() => {
     const entryAction = getLoginEntryAction({
@@ -308,16 +313,7 @@ export default function LoginScreen() {
   const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
 
   if (isWeb) {
-    return (
-      <OpenInAppPrompt
-        title="Sign in on mobile"
-        body="Login is only available in the PolyBuys mobile app."
-        path={String(postAuthRedirect)}
-        buttonLabel="Open PolyBuys App"
-        secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/')}
-      />
-    );
+    return null;
   }
 
   if (isWelcomeStep) {
@@ -380,7 +376,7 @@ export default function LoginScreen() {
   }
 
   const finishAndRedirect = () => {
-    setSuccessRedirect('/');
+    setSuccessRedirect(postAuthRedirect);
     setStep('success');
   };
 

@@ -23,7 +23,7 @@ function WebHeaderLayout() {
   }, [q]);
   const [searchInput, setSearchInput] = useState(currentQuery);
   const searchActive =
-    pathname === '/'
+    pathname === '/home'
       ? searchInput.trim().length > 0
       : pathname === '/search' || pathname.startsWith('/search/');
   const searchControlStyle = StyleSheet.flatten([
@@ -55,7 +55,7 @@ function WebHeaderLayout() {
       }
 
       router.replace({
-        pathname: '/' as never,
+        pathname: '/home' as never,
         params: trimmed.length > 0 ? { ...mergedParams, q: trimmed } : mergedParams,
       });
     }, 250);
@@ -67,7 +67,7 @@ function WebHeaderLayout() {
     <View style={styles.webRoot}>
       <View style={styles.webHeaderBorder}>
         <View style={styles.webHeaderContent}>
-          <Link href="/" asChild>
+          <Link href="/home" asChild>
             <Pressable accessibilityRole="link" accessibilityLabel="Go to home">
               <Text style={styles.brand}>PolyBuys</Text>
             </Pressable>
@@ -132,7 +132,7 @@ export default function TabsLayout() {
       disableTransparentOnScrollEdge
     >
       <NativeTabs.Trigger
-        name="index"
+        name="home"
         disableTransparentOnScrollEdge
         contentStyle={styles.nativeTabContent}
       >
