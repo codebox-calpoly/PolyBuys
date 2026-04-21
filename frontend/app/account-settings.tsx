@@ -55,7 +55,7 @@ export default function AccountSettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Faccount-settings' as never);
+      router.replace('/auth/login' as never);
     }
   }, [isAuthenticated, isLoading, isWeb, router]);
 
@@ -67,7 +67,7 @@ export default function AccountSettingsScreen() {
 
   const handleSignOut = async () => {
     if (!isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Faccount-settings' as never);
+      router.replace('/auth/login' as never);
       return;
     }
 
@@ -407,13 +407,13 @@ export default function AccountSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     gap: spacing.sm,
   },
   listContent: {
@@ -427,9 +427,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   section: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.xl,
     gap: spacing.sm,

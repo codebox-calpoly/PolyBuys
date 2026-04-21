@@ -45,7 +45,6 @@ const baseArgs = {
   category: 'textbooks' as const,
   images: ['https://example.com/book1.png'],
   condition: 'used' as const,
-  tags: ['csc202'],
 };
 
 const aliceIdentity = { name: 'Alice', subject: 'alice-id', email: 'alice@calpoly.edu' };
@@ -134,61 +133,6 @@ describe('Filtered pagination correctness', () => {
     expect(result.page.length).toBe(1);
     expect(result.page[0].condition).toBe('new');
     expect(result.page[0].price).toBe(200);
-  });
-
-  it('getListings pagination cursor advances correctly with tag filtering', async () => {
-    const t = await setupTestWithProfile();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    // Create multiple listings with same tag
-    for (let i = 0; i < 5; i++) {
-      await asUser.action(api.listings.createListing, {
-        ...baseArgs,
-        title: `Tagged Listing ${i}`,
-        tags: ['test-tag'],
-      });
-    }
-
-    // Create listings without the tag
-    for (let i = 0; i < 5; i++) {
-      await asUser.action(api.listings.createListing, {
-        ...baseArgs,
-        title: `Untagged Listing ${i}`,
-        tags: ['other-tag'],
-      });
-    }
-
-    // Fetch first page
-    const page1 = await t.query(api.listings.getListings, {
-      tags: ['test-tag'],
-      paginationOpts: { numItems: 2, cursor: null },
-    });
-
-    expect(page1.page.length).toBe(2);
-    expect(page1.isDone).toBe(false);
-    expect(page1.continueCursor).not.toBeNull();
-
-    // All results should have the tag
-    page1.page.forEach((listing) => {
-      expect(listing.tags).toContain('test-tag');
-    });
-
-    // Fetch second page
-    const page2 = await t.query(api.listings.getListings, {
-      tags: ['test-tag'],
-      paginationOpts: { numItems: 2, cursor: page1.continueCursor },
-    });
-
-    expect(page2.page.length).toBe(2);
-    page2.page.forEach((listing) => {
-      expect(listing.tags).toContain('test-tag');
-    });
-
-    // Verify no duplicates between pages
-    const page1Ids = page1.page.map((l) => l._id);
-    const page2Ids = page2.page.map((l) => l._id);
-    const intersection = page1Ids.filter((id) => page2Ids.includes(id));
-    expect(intersection.length).toBe(0);
   });
 
   it('searchAndFilterListings pagination with maxPrice does not skip results', async () => {

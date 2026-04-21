@@ -17,15 +17,19 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import Constants from 'expo-constants';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import HiddenBanner from '../../components/HiddenBanner';
 import ListingUnavailable from '../../components/ListingUnavailable';
+import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
@@ -37,8 +41,8 @@ import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
 
 import { APP_STORE_URL } from '../../constants/app';
+import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
-type FeedTabHref = '/' | '/search' | '/settings';
 const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
 
 function normalizeAppOrigin(value: unknown) {
@@ -69,7 +73,9 @@ export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = typeof id === 'string' && id.trim().length > 0 ? id : null;
   const router = useRouter();
+  const { setFlash } = useFlash();
   const { isAuthenticated } = useAuth();
+  const isWeb = Platform.OS === 'web';
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
 
@@ -79,14 +85,14 @@ export default function ListingDetailScreen() {
   );
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
-    isAuthenticated ? {} : 'skip'
+    isAuthenticated && !isWeb ? {} : 'skip'
   );
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
   const [markingSold, setMarkingSold] = useState(false);
   const isSaved = useQuery(
     api.savedListings.isListingSaved,
-    listingId && isAuthenticated ? { listingId: listingId as Id<'listings'> } : 'skip'
+    listingId && isAuthenticated && !isWeb ? { listingId: listingId as Id<'listings'> } : 'skip'
   );
   const [reportOpen, setReportOpen] = useState(false);
   const [savedOptimistic, setSavedOptimistic] = useState<boolean | null>(null);
@@ -103,6 +109,10 @@ export default function ListingDetailScreen() {
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
+  const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
+    sellerProfile?.picture ? [sellerProfile.picture] : []
+  );
+  const sellerAvatarUrl = sellerAvatarUrls[0] ?? null;
   const hasMultipleImages = mappedUrls.length > 1;
   const hasPreviousImage = imageIndex > 0;
   const hasNextImage = imageIndex < mappedUrls.length - 1;
@@ -116,15 +126,16 @@ export default function ListingDetailScreen() {
     });
   }, [mappedUrls.length]);
 
-  const navigateToFeedWithTag = (tag: string) => {
-    router.push({
-      pathname: '/' as FeedTabHref,
-      params: { tags: tag },
-    });
-  };
-
   const onMessageSellerPress = () => {
     if (!listing) return;
+
+    if (isWeb) {
+      router.push({
+        pathname: '/auth/login',
+        params: { returnTo: `/listings/${listing._id}` },
+      } as never);
+      return;
+    }
 
     if (!isAuthenticated) {
       const redirectTo = `/listings/${listing._id}`;
@@ -140,6 +151,14 @@ export default function ListingDetailScreen() {
 
   const onSavePress = async () => {
     if (!listingId) return;
+
+    if (isWeb) {
+      router.push({
+        pathname: '/auth/login',
+        params: { returnTo: `/listings/${listingId}` },
+      } as never);
+      return;
+    }
 
     if (!isAuthenticated) {
       router.replace(
@@ -195,6 +214,7 @@ export default function ListingDetailScreen() {
     try {
       setMarkingSold(true);
       await updateListingStatus({ id: listing._id, status: 'sold' });
+      setFlash('Listing marked as sold.');
     } catch (error) {
       const message =
         error instanceof Error && error.message
@@ -231,7 +251,7 @@ export default function ListingDetailScreen() {
     return <ListingUnavailable />;
   }
 
-  if (listing === undefined || (isAuthenticated && currentUserSubject === undefined)) {
+  if (listing === undefined || (!isWeb && isAuthenticated && currentUserSubject === undefined)) {
     return (
       <View style={styles.loadingContainer}>
         <ScreenState variant="loading" title="Loading listing..." />
@@ -460,9 +480,11 @@ export default function ListingDetailScreen() {
               accessibilityLabel={(savedOptimistic ?? isSaved) ? 'Unsave listing' : 'Save listing'}
               accessibilityRole="button"
             >
-              <Text style={styles.iconButtonText}>
-                {(savedOptimistic ?? isSaved) ? 'Saved' : 'Save'}
-              </Text>
+              <Ionicons
+                name={(savedOptimistic ?? isSaved) ? 'heart' : 'heart-outline'}
+                size={20}
+                color={(savedOptimistic ?? isSaved) ? colors.category : colors.textDark}
+              />
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
@@ -470,7 +492,7 @@ export default function ListingDetailScreen() {
               accessibilityLabel="Share listing"
               accessibilityRole="button"
             >
-              <Text style={styles.iconButtonText}>Share</Text>
+              <Feather name="share" size={18} color={colors.textDark} />
             </Pressable>
           </View>
         )}
@@ -484,11 +506,6 @@ export default function ListingDetailScreen() {
             variant="default"
             label={listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)}
           />
-          {listing.tags?.map((tag) => (
-            <Pressable key={tag} onPress={() => navigateToFeedWithTag(tag)}>
-              <Chip variant="default" label={`#${tag}`} />
-            </Pressable>
-          ))}
         </View>
 
         <Text style={styles.postedDate}>
@@ -505,11 +522,13 @@ export default function ListingDetailScreen() {
             accessibilityLabel={`View ${sellerProfile.name}'s profile`}
             accessibilityRole="button"
           >
-            <View style={[styles.sellerAvatar, styles.sellerAvatarPlaceholder]}>
-              <Text style={styles.sellerAvatarText}>
-                {sellerProfile.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            <ProfileAvatar
+              uri={sellerAvatarUrl}
+              name={sellerProfile.name}
+              size={44}
+              style={styles.sellerAvatar}
+              textStyle={styles.sellerAvatarText}
+            />
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{sellerProfile.name}</Text>
               <Text style={styles.sellerMeta}>
@@ -519,7 +538,7 @@ export default function ListingDetailScreen() {
           </Pressable>
         )}
 
-        {isOwner && !isHidden && (
+        {isOwner && !isHidden && listing.status !== 'sold' && (
           <View style={styles.buttonContainer}>
             {listing.status === 'active' && (
               <Pressable
@@ -549,7 +568,7 @@ export default function ListingDetailScreen() {
           </View>
         )}
 
-        {!isOwner && (
+        {!isOwner && !isWeb && (
           <Pressable
             style={({ pressed }) => [styles.reportLink, pressed && styles.buttonPressed]}
             onPress={() => setReportOpen(true)}
@@ -566,6 +585,7 @@ export default function ListingDetailScreen() {
           onClose={() => setReportOpen(false)}
           targetId={String(listing._id)}
           targetType="listing"
+          onReportSuccess={() => setFlash(REPORT_SUBMITTED_MESSAGE)}
         />
       </Animated.View>
 
@@ -587,12 +607,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     gap: 8,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     width: '100%',
@@ -642,8 +662,11 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
     overflow: 'hidden',
   },
   imageSection: {
@@ -657,10 +680,8 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     height: '100%',
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.border,
-    borderWidth: 1.5,
-    borderColor: colors.muted,
   },
   imageIndicator: {
     alignItems: 'center',
@@ -735,55 +756,58 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
   title: {
     ...typography.title1,
+    fontSize: 24,
+    lineHeight: 30,
     flex: 1,
     color: colors.textDark,
   },
   price: {
-    ...typography.title2,
-    fontSize: 19,
+    ...typography.title1,
+    fontSize: 22,
     color: colors.accent,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   messageButton: {
+    flex: 1,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 48,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   messageButtonText: {
-    ...typography.body,
+    ...typography.subhead,
     color: colors.white,
+    fontWeight: '700',
   },
   iconButton: {
-    padding: spacing.sm,
-    minWidth: 44,
-    minHeight: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconButtonText: {
-    ...typography.subhead,
-    color: colors.text,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.white,
   },
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.xl,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   postedDate: {
     ...typography.footnote,
@@ -793,35 +817,29 @@ const styles = StyleSheet.create({
   descriptionLabel: {
     ...typography.heading,
     color: colors.textDark,
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
   description: {
     ...typography.body,
     color: colors.textDark,
     lineHeight: 24,
-    marginBottom: spacing.xl,
   },
   sellerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   sellerAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.border,
-  },
-  sellerAvatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.location,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   sellerAvatarText: {
     ...typography.subhead,
@@ -841,42 +859,46 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   buttonContainer: {
-    gap: spacing.md,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   markSoldButton: {
     backgroundColor: colors.primary,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
   },
   markSoldButtonText: {
-    ...typography.body,
+    ...typography.subhead,
     color: colors.white,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   editButton: {
-    backgroundColor: colors.primary,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
   },
   editButtonText: {
-    ...typography.body,
-    color: colors.white,
+    ...typography.subhead,
+    color: colors.textDark,
     fontWeight: '600',
   },
   reportLink: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     paddingVertical: spacing.sm,
+    alignSelf: 'flex-start',
   },
   reportLinkText: {
     ...typography.footnote,
-    color: colors.primary,
-    fontWeight: '700',
+    color: colors.destructive,
+    fontWeight: '600',
   },
   buttonPressed: {
     opacity: 0.9,

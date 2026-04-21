@@ -733,4 +733,73 @@ describe('Reports mutations', () => {
     expect(listing?.hiddenReason).toBe('manual_admin_action'); // Should NOT be 'auto_moderation'
     expect(listing?.hiddenAt).toBe(originalHiddenAt); // Should prevent update
   });
+
+  it('createReport succeeds with "other" reason and notes', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    const reportId = await asUser.mutation(api.reports.createReport, {
+      targetId: listingId,
+      targetType: 'listing',
+      reason: 'other',
+      notes: 'This listing has misleading photos',
+    });
+
+    const report = await t.run(async (ctx: any) => {
+      return await ctx.db.get(reportId);
+    });
+
+    expect(report).toMatchObject({
+      reason: 'other',
+      notes: 'This listing has misleading photos',
+    });
+  });
+
+  it('createReport with "other" reason fails without notes', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'other',
+      });
+    }).rejects.toThrow('Please provide details when selecting "Other" as the reason');
+  });
+
+  it('createReport with "other" reason fails with empty notes', async () => {
+    const t = convexTest(schema as any, modules);
+
+    const listingId = await createTestListing(t, 'seller-id');
+
+    const asUser = t.withIdentity({
+      name: 'Reporter',
+      subject: 'reporter-subject',
+      email: 'reporter@calpoly.edu',
+    });
+
+    await expect(async () => {
+      await asUser.mutation(api.reports.createReport, {
+        targetId: listingId,
+        targetType: 'listing',
+        reason: 'other',
+        notes: '   ',
+      });
+    }).rejects.toThrow('Please provide details when selecting "Other" as the reason');
+  });
 });

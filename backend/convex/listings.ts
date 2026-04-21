@@ -1,21 +1,16 @@
 import { v, ConvexError } from 'convex/values';
 import { query, mutation, action, internalMutation, internalQuery } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
+import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
 export type Listing = Doc<'listings'> & {
   condition: ListingCondition;
   status: ListingStatus;
-};
-
-export const TAG_CONSTRAINTS = {
-  MAX_TAGS: 5,
-  MAX_TAG_LENGTH: 20,
-  MIN_TAG_LENGTH: 1,
 };
 
 export const PAYLOAD_BOUNDS = {
@@ -70,37 +65,14 @@ function validateImages(images: string[]) {
   }
 }
 
-function validateTags(tags: string[] | undefined): string[] | undefined {
-  if (tags === undefined) return undefined;
-
-  // Normalize and deduplicate tags
-  const seen = new Set<string>();
-  const normalizedTags: string[] = [];
-
-  for (const tag of tags) {
-    const normalized = tag.trim().toLowerCase();
-
-    if (normalized.length === 0) {
-      throw new ConvexError('Empty tags are not allowed');
-    }
-
-    if (normalized.length > TAG_CONSTRAINTS.MAX_TAG_LENGTH) {
-      throw new ConvexError(`Tags must be ${TAG_CONSTRAINTS.MAX_TAG_LENGTH} characters or less`);
-    }
-
-    // Skip duplicates instead of throwing
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      normalizedTags.push(normalized);
-    }
+async function getReportedConversationListingIdSetForViewer(
+  ctx: QueryCtx
+): Promise<Set<Id<'listings'>>> {
+  const viewerId = await getStableUserId(ctx);
+  if (!viewerId) {
+    return new Set<Id<'listings'>>();
   }
-
-  // Check max tags after deduplication
-  if (normalizedTags.length > TAG_CONSTRAINTS.MAX_TAGS) {
-    throw new ConvexError(`Maximum ${TAG_CONSTRAINTS.MAX_TAGS} tags allowed`);
-  }
-
-  return normalizedTags;
+  return await getReportedConversationListingIdSetByReporter(ctx, viewerId);
 }
 
 // Category validator for reuse
@@ -129,20 +101,6 @@ export const getListingImageUrl = query({
     return await ctx.storage.getUrl(args.storageId);
   },
 });
-
-function normalizeSearchTags(tags: string[]): string[] {
-  return [
-    ...new Set(
-      tags
-        .map((tag) => tag.trim().toLowerCase())
-        .filter(
-          (tag) =>
-            tag.length >= TAG_CONSTRAINTS.MIN_TAG_LENGTH &&
-            tag.length <= TAG_CONSTRAINTS.MAX_TAG_LENGTH
-        )
-    ),
-  ].slice(0, TAG_CONSTRAINTS.MAX_TAGS);
-}
 
 // Get a single listing by ID
 // Owners can see their own hidden listings, others cannot
@@ -182,7 +140,6 @@ export const searchAndFilterListings = query({
         minPrice: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
         condition: v.optional(conditionValidator),
-        tags: v.optional(v.array(v.string())),
         sortBy: v.optional(
           v.union(
             v.literal('newest'),
@@ -209,6 +166,8 @@ export const searchAndFilterListings = query({
     const filters = args.filters ?? {};
     const searchTerm = filters.searchTerm?.trim();
     const sortBy = filters.sortBy ?? 'newest';
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // LIMITATION: Full-text search requires collect() - Convex search indexes don't support paginate()
     // This is acceptable because search results are typically limited by search relevance.
@@ -238,7 +197,9 @@ export const searchAndFilterListings = query({
       }
 
       // Filter out hidden content
-      results = results.filter((l) => l.isHidden !== true);
+      results = results.filter(
+        (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+      );
 
       // Apply sorting
       switch (sortBy) {
@@ -356,7 +317,9 @@ export const searchAndFilterListings = query({
     }
 
     // If no post-filtering needed, use direct pagination (most efficient)
-    if (!needsPostFiltering) {
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = needsPostFiltering || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       let dbQuery = query.filter((q) => q.neq(q.field('isHidden'), true));
 
       // Apply maxPrice filter at database level for price-sorted queries
@@ -383,6 +346,7 @@ export const searchAndFilterListings = query({
 
     // Apply remaining filters
     const filtered = allResults.filter((l) => {
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (filters.maxPrice !== undefined && l.price > filters.maxPrice) return false;
       if (
         sortBy !== 'price_asc' &&
@@ -416,13 +380,12 @@ export const searchAndFilterListings = query({
   },
 });
 
-// Get all active listings with optional tag/category/price filters
+// Get all active listings with optional category/price filters
 export const getListings = query({
   args: {
     category: v.optional(categoryValidator),
     minPrice: v.optional(v.number()),
     maxPrice: v.optional(v.number()),
-    tags: v.optional(v.array(v.string())),
     paginationOpts: v.object({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
@@ -451,9 +414,9 @@ export const getListings = query({
       throw new ConvexError('maxPrice must be greater than or equal to minPrice');
     }
 
-    const normalizedTags = args.tags ? normalizeSearchTags(args.tags) : [];
-    const hasTags = normalizedTags.length > 0;
     const hasPriceFilters = args.minPrice !== undefined || args.maxPrice !== undefined;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
 
     // Use database indexes with proper ordering
     let query;
@@ -471,8 +434,10 @@ export const getListings = query({
         .order('desc');
     }
 
-    // If no tags/price filters, use direct pagination (most efficient)
-    if (!hasTags && !hasPriceFilters) {
+    // If no price filters, use direct pagination (most efficient)
+    // Reporting-based visibility is user-specific and cannot be represented by indexes.
+    const shouldUsePostFiltering = hasPriceFilters || reportedConversationListingIdSet.size > 0;
+    if (!shouldUsePostFiltering) {
       const paginationResult = await query
         .filter((q) => q.neq(q.field('isHidden'), true))
         .paginate(args.paginationOpts);
@@ -484,7 +449,7 @@ export const getListings = query({
       };
     }
 
-    // Need tags/price filtering: collect with limit, filter, then paginate in-memory
+    // Need price filtering: collect with limit, filter, then paginate in-memory
     // This is necessary because filters can't be expressed in indexes
     const MAX_COLLECT = 1000; // Limit to prevent excessive memory usage
 
@@ -492,9 +457,9 @@ export const getListings = query({
       .filter((q) => q.neq(q.field('isHidden'), true))
       .take(MAX_COLLECT);
 
-    // Apply tag and price filters
+    // Apply price filters
     const filtered = allResults.filter((l) => {
-      if (hasTags && !(l.tags ?? []).some((tag) => normalizedTags.includes(tag))) return false;
+      if (reportedConversationListingIdSet.has(l._id)) return false;
       if (args.minPrice !== undefined && l.price < args.minPrice) return false;
       if (args.maxPrice !== undefined && l.price > args.maxPrice) return false;
       return true;
@@ -561,7 +526,6 @@ export const internalCreateListing = internalMutation({
     category: categoryValidator,
     images: v.array(v.string()),
     condition: conditionValidator,
-    tags: v.optional(v.array(v.string())),
     sellerId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -573,7 +537,6 @@ export const internalCreateListing = internalMutation({
       category: args.category,
       images: args.images,
       condition: args.condition,
-      tags: args.tags,
       sellerId: args.sellerId,
       status: 'active',
       createdAt: now,
@@ -592,7 +555,6 @@ export const createListing = action({
     category: categoryValidator,
     images: v.array(v.string()),
     condition: conditionValidator,
-    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<string> => {
     const userId = await requireAuthUserId(ctx);
@@ -615,7 +577,6 @@ export const createListing = action({
     if (args.price > PAYLOAD_BOUNDS.PRICE_MAX) {
       throw new ConvexError(`Price must be ${PAYLOAD_BOUNDS.PRICE_MAX} or less`);
     }
-    const normalizedTags = validateTags(args.tags);
 
     // Screen content via OpenAI Moderation API
     const moderationResult = await ctx.runAction(internal.moderation.moderateContent, {
@@ -638,7 +599,6 @@ export const createListing = action({
       category: args.category,
       images: args.images,
       condition: args.condition,
-      tags: normalizedTags,
       sellerId: userId,
     });
 
@@ -657,10 +617,17 @@ export const internalUpdateListing = internalMutation({
       images: v.optional(v.array(v.string())),
       condition: v.optional(conditionValidator),
       category: v.optional(categoryValidator),
-      tags: v.optional(v.array(v.string())),
     }),
   },
   handler: async (ctx, args) => {
+    const listing = await ctx.db.get(args.id);
+    if (!listing) {
+      throw new ConvexError('Listing not found');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot update a sold listing');
+    }
+
     // Build a clean update object (strip undefined fields)
     const patch: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(args.update)) {
@@ -681,7 +648,6 @@ export const updateListing = action({
     images: v.optional(v.array(v.string())),
     condition: v.optional(conditionValidator),
     category: v.optional(categoryValidator),
-    tags: v.optional(v.array(v.string())),
   },
   handler: async (
     ctx,
@@ -699,6 +665,9 @@ export const updateListing = action({
     }
     if (listing.status === 'deleted') {
       throw new ConvexError('Cannot update a deleted listing');
+    }
+    if (listing.status === 'sold') {
+      throw new ConvexError('Cannot update a sold listing');
     }
 
     // Validate inputs
@@ -737,11 +706,6 @@ export const updateListing = action({
       update.price = args.price;
     }
 
-    if (args.tags !== undefined) {
-      const normalizedTags = validateTags(args.tags);
-      update.tags = normalizedTags;
-    }
-
     if (Object.keys(update).length === 0) {
       throw new ConvexError('No valid fields to update');
     }
@@ -777,7 +741,6 @@ export const updateListing = action({
           | 'tickets'
           | 'other'
           | undefined,
-        tags: update.tags as string[] | undefined,
       },
     });
 
@@ -823,6 +786,8 @@ export const searchListings = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
     const MAX_SEARCH_COLLECT = 1000;
+    const reportedConversationListingIdSet =
+      await getReportedConversationListingIdSetForViewer(ctx);
     const results = await ctx.db
       .query('listings')
       .withSearchIndex('search_listings', (q) =>
@@ -831,7 +796,9 @@ export const searchListings = query({
       .take(MAX_SEARCH_COLLECT);
 
     // Filter out hidden content
-    return results.filter((l) => l.isHidden !== true);
+    return results.filter(
+      (l) => l.isHidden !== true && !reportedConversationListingIdSet.has(l._id)
+    );
   },
 });
 
