@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { Link, useRouter } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import {
   Image,
   Linking,
@@ -24,6 +24,11 @@ const APP_STORE_BADGE_URI =
   'https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83';
 
 const LAYOUT_BREAKPOINT = 768;
+
+const HOME_HREF = '/home' as Href;
+const SUPPORT_PAGE_HREF = '/support' as Href;
+const PRIVACY_PAGE_HREF = '/privacy' as Href;
+const TERMS_PAGE_HREF = '/terms' as Href;
 
 function openDownloadLinkEmail() {
   const subject = encodeURIComponent('PolyBuys — download link');
@@ -66,7 +71,7 @@ export default function LandingScreen() {
       ) : null}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <Link href="/home" asChild>
+          <Link href={HOME_HREF} asChild>
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Go to marketplace"
@@ -94,7 +99,7 @@ export default function LandingScreen() {
             <View style={styles.ctaRow}>
               <AppButton
                 size="lg"
-                onPress={() => router.push('/home')}
+                onPress={() => router.push(HOME_HREF)}
                 accessibilityLabel="Browse marketplace"
               >
                 Browse marketplace
@@ -187,6 +192,50 @@ export default function LandingScreen() {
               </View>
             )}
           </SectionCard>
+
+          {Platform.OS === 'web' ? (
+            <View style={styles.legalLinksRow}>
+              <Link href={SUPPORT_PAGE_HREF} asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Support"
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AppText variant="footnoteMed" color="primary">
+                    Support
+                  </AppText>
+                </Pressable>
+              </Link>
+              <AppText variant="footnote" color="muted" style={styles.legalLinksSep}>
+                ·
+              </AppText>
+              <Link href={PRIVACY_PAGE_HREF} asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Privacy Policy"
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AppText variant="footnoteMed" color="primary">
+                    Privacy
+                  </AppText>
+                </Pressable>
+              </Link>
+              <AppText variant="footnote" color="muted" style={styles.legalLinksSep}>
+                ·
+              </AppText>
+              <Link href={TERMS_PAGE_HREF} asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Terms of Service"
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AppText variant="footnoteMed" color="primary">
+                    Terms
+                  </AppText>
+                </Pressable>
+              </Link>
+            </View>
+          ) : null}
 
           <AppText variant="footnote" color="muted" style={styles.footerNote}>
             PolyBuys is an independent student marketplace and is not affiliated with California
@@ -303,6 +352,17 @@ const styles = StyleSheet.create({
   badgeFootnote: {
     lineHeight: 18,
     maxWidth: 320,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  legalLinksSep: {
+    lineHeight: 18,
   },
   footerNote: {
     lineHeight: 18,

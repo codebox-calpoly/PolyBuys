@@ -3,14 +3,26 @@ export const LEGAL_SUPPORT_EMAIL =
 
 export const LEGAL_UPDATED_AT = 'April 20, 2026';
 
+/** Public URLs on the /support page (hardcoded for App Store review). */
+const SUPPORT_PUBLIC_EMAIL = 'support@polybuys.com';
+const SUPPORT_PUBLIC_WEBSITE_HREF = 'https://polybuys.com';
+const SUPPORT_PUBLIC_GITHUB_ISSUES_HREF = 'https://github.com/codebox-calpoly/PolyBuys/issues';
+
+export type LegalContactLine = {
+  lead: string;
+  href: string;
+  text: string;
+};
+
 export type LegalSection = {
   title: string;
   paragraphs?: readonly string[];
   bullets?: readonly string[];
+  contactLines?: readonly LegalContactLine[];
 };
 
 export type LegalDocument = {
-  slug: 'privacy' | 'terms';
+  slug: 'privacy' | 'terms' | 'support';
   eyebrow: string;
   title: string;
   description: string;
@@ -18,6 +30,53 @@ export type LegalDocument = {
   intro: readonly string[];
   sections: readonly LegalSection[];
 };
+
+/** Support information page for App Store review and in-app help links. */
+export function getSupportDocument(): LegalDocument {
+  const contactLines: LegalContactLine[] = [
+    {
+      lead: 'Email',
+      href: `mailto:${SUPPORT_PUBLIC_EMAIL}`,
+      text: SUPPORT_PUBLIC_EMAIL,
+    },
+    {
+      lead: 'Website',
+      href: SUPPORT_PUBLIC_WEBSITE_HREF,
+      text: 'polybuys.com',
+    },
+    {
+      lead: 'GitHub Issues',
+      href: SUPPORT_PUBLIC_GITHUB_ISSUES_HREF,
+      text: 'github.com/codebox-calpoly/PolyBuys',
+    },
+  ];
+
+  return {
+    slug: 'support',
+    eyebrow: 'PolyBuys',
+    title: 'Support',
+    description:
+      'How to get help with the PolyBuys app or website — contact options and response times.',
+    updatedAt: LEGAL_UPDATED_AT,
+    intro: [
+      'PolyBuys — operated by the PolyBuys student team.',
+      'PolyBuys is an independent marketplace for verified Cal Poly students and is not affiliated with California Polytechnic State University.',
+    ],
+    sections: [
+      {
+        title: 'How to Get Help',
+        paragraphs: [
+          "If you're running into an issue with the app or have a question, you can reach us through any of the following:",
+        ],
+        contactLines,
+      },
+      {
+        title: 'Response time',
+        paragraphs: ["We're a small team, so please allow 1–3 business days for a response."],
+      },
+    ],
+  };
+}
 
 export const PRIVACY_POLICY_DOC: LegalDocument = {
   slug: 'privacy',

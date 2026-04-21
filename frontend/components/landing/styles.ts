@@ -784,6 +784,15 @@ img { max-width: 100%; display: block; }
   line-height: 1.65;
   color: var(--pb-ink);
 }
+.pb-doc__contactLink {
+  color: var(--pb-green);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pb-doc__contactLink:hover {
+  color: var(--pb-green-2);
+}
 .pb-doc__actions {
   margin-top: 12px;
   display: flex;
