@@ -37,6 +37,26 @@ describe('new listing validation', () => {
     expect(validatePrice('.')).toBe('Enter a valid non-negative price.');
   });
 
+  it('rejects titles longer than 100 characters', () => {
+    expect(validateTitle('a'.repeat(101))).toBe('Title must be 100 characters or less.');
+  });
+
+  it('rejects more than 8 photos', () => {
+    expect(
+      validateImages([
+        'image-1',
+        'image-2',
+        'image-3',
+        'image-4',
+        'image-5',
+        'image-6',
+        'image-7',
+        'image-8',
+        'image-9',
+      ])
+    ).toBe('Maximum 8 photos allowed.');
+  });
+
   it('removes cleared field keys so banner state reflects active errors only', () => {
     const errors = validateListingFields({
       title: 'Hey',

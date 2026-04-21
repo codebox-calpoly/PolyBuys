@@ -142,21 +142,17 @@ export default function NewListingScreen() {
   };
 
   const handleImagesChange = (newImages: string[] | ((prev: string[]) => string[])) => {
-    setImages((prevImages) => {
-      const nextImages = typeof newImages === 'function' ? newImages(prevImages) : newImages;
-      if (hasAttemptedSubmit) {
-        setFieldErrors((prev) => upsertFieldError(prev, 'images', validateImages(nextImages)));
-      }
-      return nextImages;
-    });
+    const nextImages = typeof newImages === 'function' ? newImages(images) : newImages;
+    setImages(nextImages);
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'images', validateImages(nextImages)));
+    }
   };
 
   async function onSubmit() {
     if (submittingRef.current) {
       return;
     }
-
-    setHasAttemptedSubmit(true);
 
     if (profile === undefined) {
       showAlert('Please wait', 'Your profile is still loading. Please try again in a moment.');
@@ -176,6 +172,8 @@ export default function NewListingScreen() {
       return;
     }
 
+    setHasAttemptedSubmit(true);
+
     const errors = validateListingFields({
       title,
       description,
@@ -184,7 +182,7 @@ export default function NewListingScreen() {
     });
     setFieldErrors(errors);
 
-    if (Object.keys(errors).length > 0) {
+    if (hasFieldErrors(errors)) {
       return;
     }
 
