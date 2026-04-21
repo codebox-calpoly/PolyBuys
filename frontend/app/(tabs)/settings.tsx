@@ -20,6 +20,7 @@ import ListingCard from '../../components/ListingCard';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
+import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { FilterChips, type FilterChipOption } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
@@ -140,7 +141,7 @@ export default function SettingsScreen() {
 
   const yearLabel = yearToOrdinal(profile.year);
 
-  const profileSubtitle = `${profile.major} • ${yearLabel}`;
+  const profileSubtitle = `${formatMajorLabel(profile.major)} • ${yearLabel}`;
 
   return (
     <ScrollView
@@ -439,7 +440,7 @@ const styles = StyleSheet.create({
   },
   primaryPill: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 42,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -455,7 +456,7 @@ const styles = StyleSheet.create({
   },
   secondaryPill: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 42,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,

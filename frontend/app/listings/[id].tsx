@@ -43,6 +43,7 @@ import ListingUnavailable from '../../components/ListingUnavailable';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
+import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
@@ -564,7 +565,7 @@ export default function ListingDetailScreen() {
               accessibilityRole="button"
             >
               <Ionicons
-                name={(savedOptimistic ?? isSaved) ? 'heart' : 'heart-outline'}
+                name={(savedOptimistic ?? isSaved) ? 'bookmark' : 'bookmark-outline'}
                 size={20}
                 color={(savedOptimistic ?? isSaved) ? colors.category : colors.textDark}
               />
@@ -615,7 +616,7 @@ export default function ListingDetailScreen() {
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{sellerProfile.name}</Text>
               <Text style={styles.sellerMeta}>
-                {sellerProfile.major} · Year {sellerProfile.year}
+                {formatMajorLabel(sellerProfile.major)} · Year {sellerProfile.year}
               </Text>
             </View>
           </Pressable>

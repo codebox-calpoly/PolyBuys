@@ -1,4 +1,5 @@
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -9,7 +10,7 @@ import {
 } from 'react-native';
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import type { Doc } from 'convex/_generated/dataModel';
 import { useFlash } from '../../contexts/FlashContext';
@@ -19,6 +20,7 @@ import ListingCard from '../../components/ListingCard';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
+import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
@@ -38,6 +40,7 @@ export default function PublicProfileScreen() {
   const isWeb = Platform.OS === 'web';
   const { user, isAuthenticated } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
+  const [isUpdatingBlock, setIsUpdatingBlock] = useState(false);
   let resolvedUserId: string | null = null;
   if (typeof rawUserId === 'string') {
     const trimmedUserId = rawUserId.trim();
@@ -63,8 +66,63 @@ export default function PublicProfileScreen() {
   );
   const avatarUrl = avatarUrls[0];
   const isWideLayout = width >= 980;
-  const canReportProfile =
-    !isWeb && isAuthenticated && resolvedUserId !== null && user?._id !== resolvedUserId;
+  const isOwnProfile = resolvedUserId !== null && user?._id === resolvedUserId;
+  const canManageProfile = !isWeb && isAuthenticated && resolvedUserId !== null && !isOwnProfile;
+  const canReportProfile = canManageProfile;
+  const blockUser = useMutation(api.blocks.blockUser);
+  const unblockUser = useMutation(api.blocks.unblockUser);
+  const isBlockingProfile = useQuery(
+    api.blocks.isBlocking,
+    canManageProfile && resolvedUserId ? { blockedId: resolvedUserId } : 'skip'
+  );
+
+  const handleBlockPress = () => {
+    if (!resolvedUserId || isUpdatingBlock || isBlockingProfile === undefined) {
+      return;
+    }
+
+    const commitBlockChange = async (nextBlocked: boolean) => {
+      setIsUpdatingBlock(true);
+      try {
+        if (nextBlocked) {
+          const blockId = await blockUser({ blockedId: resolvedUserId });
+          if (!blockId) {
+            Alert.alert('User unavailable', 'This user is no longer available to block.');
+            return;
+          }
+          setFlash('User blocked. You will no longer receive messages from this user.');
+          return;
+        }
+
+        await unblockUser({ blockedId: resolvedUserId });
+        setFlash('User unblocked.');
+      } catch (error) {
+        Alert.alert(
+          nextBlocked ? 'Could not block' : 'Could not unblock',
+          error instanceof Error ? error.message : 'Please try again.'
+        );
+      } finally {
+        setIsUpdatingBlock(false);
+      }
+    };
+
+    if (isBlockingProfile === true) {
+      Alert.alert('Unblock user', 'Allow this user to message you again?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Unblock', onPress: () => void commitBlockChange(false) },
+      ]);
+      return;
+    }
+
+    Alert.alert(
+      'Block user',
+      'You will no longer receive messages from this user. They will not be notified.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Block', style: 'destructive', onPress: () => void commitBlockChange(true) },
+      ]
+    );
+  };
 
   if (!resolvedUserId) {
     return (
@@ -109,7 +167,7 @@ export default function PublicProfileScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileMeta}>
-              {profile.major} • {yearLabel}
+              {formatMajorLabel(profile.major)} • {yearLabel}
             </Text>
             <Text style={styles.listingsCount}>
               {listings.length} {listings.length === 1 ? 'listing' : 'listings'}
@@ -119,14 +177,52 @@ export default function PublicProfileScreen() {
 
         {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
 
-        {canReportProfile && (
-          <Pressable
-            style={({ pressed }) => [styles.reportButton, pressed && styles.reportButtonPressed]}
-            onPress={() => setReportOpen(true)}
-            hitSlop={6}
-          >
-            <Text style={styles.reportButtonText}>Report</Text>
-          </Pressable>
+        {canManageProfile && (
+          <View style={styles.profileActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                isBlockingProfile === true ? styles.unblockButton : styles.blockButton,
+                pressed && styles.actionButtonPressed,
+                (isUpdatingBlock || isBlockingProfile === undefined) && styles.actionButtonDisabled,
+              ]}
+              onPress={handleBlockPress}
+              disabled={isUpdatingBlock || isBlockingProfile === undefined}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isBlockingProfile === true ? 'Unblock this user' : 'Block this user'
+              }
+            >
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  isBlockingProfile === true ? styles.unblockButtonText : styles.blockButtonText,
+                ]}
+              >
+                {isUpdatingBlock
+                  ? isBlockingProfile === true
+                    ? 'Unblocking...'
+                    : 'Blocking...'
+                  : isBlockingProfile === true
+                    ? 'Unblock'
+                    : 'Block'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.reportButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={() => setReportOpen(true)}
+              disabled={isUpdatingBlock}
+              accessibilityRole="button"
+              accessibilityLabel="Report this profile"
+            >
+              <Text style={[styles.actionButtonText, styles.reportButtonText]}>Report</Text>
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -208,22 +304,50 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 22,
   },
-  reportButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: 0,
-    minHeight: 44,
-    minWidth: 44,
+  profileActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  actionButton: {
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.white,
   },
-  reportButtonPressed: {
-    opacity: 0.7,
+  actionButtonPressed: {
+    opacity: 0.92,
+  },
+  actionButtonDisabled: {
+    opacity: 0.65,
+  },
+  actionButtonText: {
+    ...typography.footnote,
+    fontWeight: '600',
+  },
+  blockButton: {
+    borderColor: 'rgba(179, 38, 30, 0.2)',
+    backgroundColor: 'rgba(179, 38, 30, 0.06)',
+  },
+  blockButtonText: {
+    color: colors.destructive,
+  },
+  unblockButton: {
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
+  },
+  unblockButtonText: {
+    color: colors.primary,
+  },
+  reportButton: {
+    borderColor: 'rgba(179, 38, 30, 0.2)',
+    backgroundColor: colors.white,
   },
   reportButtonText: {
-    ...typography.footnote,
     color: colors.destructive,
-    fontWeight: '600',
   },
   sectionTitle: {
     ...typography.title2,

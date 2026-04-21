@@ -18,6 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../hooks/usePushNotifications';
 import OpenInAppPrompt from '../components/OpenInAppPrompt';
 import { ScreenState } from '../components/ScreenState';
+import { formatMajorLabel } from '../constants/calPolyMajors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 type BlockedRow = {
@@ -264,7 +265,7 @@ export default function AccountSettingsScreen() {
             </Text>
             {item.major ? (
               <Text style={styles.blockedMajor} numberOfLines={1}>
-                {item.major}
+                {formatMajorLabel(item.major)}
               </Text>
             ) : null}
           </View>
@@ -466,6 +467,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.sm,
     minHeight: 88,
   },
