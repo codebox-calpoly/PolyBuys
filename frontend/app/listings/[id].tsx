@@ -61,7 +61,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_STORE_URL } from '../../constants/app';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
-const DEFAULT_APP_ORIGIN = 'https://polybuys.com';
+const DEFAULT_APP_ORIGIN = 'https://poly-buys.vercel.app';
 
 function normalizeAppOrigin(value: unknown) {
   if (typeof value !== 'string') {
