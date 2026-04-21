@@ -25,6 +25,7 @@ const MAX_MESSAGE_PAGE_SIZE = 100;
 const DEFAULT_BACKFILL_BATCH_SIZE = 100;
 const MAX_BACKFILL_BATCH_SIZE = 200;
 const CONVERSATION_STARTED_PREVIEW = 'Conversation started';
+const READ_PATCH_CHUNK_SIZE = 100;
 type ConversationInboxHiddenReason = 'deleted' | 'reported';
 type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
 const REPORT_REASON_VALIDATOR = v.union(
@@ -1141,9 +1142,15 @@ export const markMessagesAsRead = mutation({
         unreadMessageIds.add(message._id);
       }
     }
-    await Promise.all(
-      [...unreadMessageIds].map((messageId) => ctx.db.patch(messageId, { readAt: now }))
-    );
+    const unreadMessageIdList = [...unreadMessageIds];
+    for (
+      let chunkStart = 0;
+      chunkStart < unreadMessageIdList.length;
+      chunkStart += READ_PATCH_CHUNK_SIZE
+    ) {
+      const chunk = unreadMessageIdList.slice(chunkStart, chunkStart + READ_PATCH_CHUNK_SIZE);
+      await Promise.all(chunk.map((messageId) => ctx.db.patch(messageId, { readAt: now })));
+    }
 
     return { ok: true };
   },

@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
 import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
+import { validateListingImageReferences } from './lib/storageImageValidation';
 
 export type ListingCondition = 'new' | 'used' | 'refurbished';
 export type ListingStatus = 'active' | 'sold' | 'inactive' | 'deleted';
@@ -529,6 +530,8 @@ export const internalCreateListing = internalMutation({
     sellerId: v.string(),
   },
   handler: async (ctx, args) => {
+    await validateListingImageReferences(ctx, args.images);
+
     const now = Date.now();
     const listingId = await ctx.db.insert('listings', {
       title: args.title,
@@ -635,6 +638,11 @@ export const internalUpdateListing = internalMutation({
         patch[key] = value;
       }
     }
+
+    if (args.update.images !== undefined) {
+      await validateListingImageReferences(ctx, args.update.images);
+    }
+
     await ctx.db.patch(args.id, patch);
   },
 });

@@ -1296,6 +1296,53 @@ describe('Messages queries and mutations', () => {
       expect(message!.readAt).toBeGreaterThan(0);
     });
 
+    it('marks unread messages in bounded patch chunks', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+      const unreadMessageCount = 125;
+
+      await t.run(async (ctx) => {
+        for (let index = 0; index < unreadMessageCount; index += 1) {
+          await ctx.db.insert('messages', {
+            conversationId,
+            listingId,
+            senderId: seller.id,
+            recipientId: buyer.id,
+            type: 'text',
+            body: `Unread ${index + 1}`,
+            createdAt: Date.now() + index,
+            readAt: 0,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.messages.markMessagesAsRead, {
+        conversationId,
+      });
+
+      const unreadMessages = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('messages')
+          .withIndex('by_conversation_recipient_readAt', (q) =>
+            q.eq('conversationId', conversationId).eq('recipientId', buyer.id).eq('readAt', 0)
+          )
+          .collect();
+      });
+
+      expect(unreadMessages).toHaveLength(0);
+
+      const messages = await asBuyer.query(api.messages.messagesByConversation, {
+        conversationId,
+      });
+      expect(messages).toHaveLength(unreadMessageCount);
+      expect(messages.every((message) => message.readAt > 0)).toBe(true);
+    });
+
     it('does not mark messages sent by the user as read', async () => {
       const t = createConvexTest();
 
