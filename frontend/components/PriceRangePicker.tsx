@@ -11,6 +11,7 @@ import {
   Keyboard,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
@@ -31,6 +32,7 @@ const PRESETS = [
   { label: 'Under $100', min: undefined, max: 100 },
   { label: 'Any Price', min: undefined, max: undefined },
 ];
+const SHEET_TOP_MARGIN = 24;
 
 export function PriceRangePicker({
   visible,
@@ -40,6 +42,7 @@ export function PriceRangePicker({
   onClose,
 }: PriceRangePickerProps) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation(40, 8);
   const [min, setMin] = useState<string>(minPrice?.toString() ?? '');
   const [max, setMax] = useState<string>(maxPrice?.toString() ?? '');
@@ -49,6 +52,8 @@ export function PriceRangePicker({
   const prevVisibleRef = useRef(visible);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const availableSheetHeight = Math.max(windowHeight - insets.top - SHEET_TOP_MARGIN, 0);
+  const animatedSheetMaxHeight = Animated.subtract(availableSheetHeight, keyboardOffset);
 
   // Reset inputs only when modal transitions from closed to open
   useEffect(() => {
@@ -70,11 +75,12 @@ export function PriceRangePicker({
     }
 
     const animateKeyboardOffset = (toValue: number, duration?: number) => {
+      keyboardOffset.stopAnimation();
       Animated.timing(keyboardOffset, {
         toValue,
         duration: duration ?? motion.duration,
         easing: motion.easing,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
     };
 
@@ -188,10 +194,19 @@ export function PriceRangePicker({
               },
             ]}
           >
-            <Animated.View style={[styles.sheet, entranceStyle]}>
+            <Animated.View
+              style={[
+                styles.sheet,
+                entranceStyle,
+                {
+                  maxHeight: animatedSheetMaxHeight,
+                },
+              ]}
+            >
               <View style={styles.sheetTapArea}>
                 <ScrollView
                   ref={scrollViewRef}
+                  style={styles.scrollView}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   showsVerticalScrollIndicator={false}
@@ -284,11 +299,13 @@ const styles = StyleSheet.create({
   },
   sheetLift: {
     width: '100%',
+    maxHeight: '100%',
   },
   sheet: {
     backgroundColor: 'transparent',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   sheetTapArea: {
     backgroundColor: '#fff',
@@ -297,6 +314,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#dbe6e1',
     paddingHorizontal: 20,
+    maxHeight: '100%',
+    flexShrink: 1,
+  },
+  scrollView: {
     maxHeight: '100%',
   },
   scrollContent: {
