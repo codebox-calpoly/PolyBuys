@@ -143,4 +143,52 @@ describe('Profiles mutations', () => {
     expect(updatedProfile?.hiddenAt).toBeUndefined();
     expect(updatedProfile?.hiddenReason).toBeUndefined();
   });
+
+  it('updateProfile rejects reserved-only updates and keeps server-controlled fields unchanged', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-stable-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    const profileId = await asUser.mutation(api.profiles.createProfile, {
+      name: 'Alice',
+      major: 'Computer Science',
+      year: 2026,
+    });
+
+    const profileBefore = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      asUser.mutation(api.profiles.updateProfile, {
+        joinDate: Date.now() + 1000,
+        rating: 4.5,
+        review_count: 12,
+        isHidden: true,
+        hiddenAt: Date.now() + 2000,
+        hiddenReason: 'manual_admin_action',
+      })
+    ).rejects.toThrowError('No valid fields to update');
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[profiles.updateProfile] Ignoring reserved fields: joinDate, rating, review_count, isHidden, hiddenAt, hiddenReason'
+    );
+    warnSpy.mockRestore();
+
+    const profileAfter = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(profileAfter?.joinDate).toBe(profileBefore?.joinDate);
+    expect(profileAfter?.rating).toBe(profileBefore?.rating);
+    expect(profileAfter?.review_count).toBe(profileBefore?.review_count);
+    expect(profileAfter?.isHidden).toBe(profileBefore?.isHidden);
+    expect(profileAfter?.hiddenAt).toBe(profileBefore?.hiddenAt);
+    expect(profileAfter?.hiddenReason).toBe(profileBefore?.hiddenReason);
+  });
 });

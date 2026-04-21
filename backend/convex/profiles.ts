@@ -4,6 +4,7 @@ import type { Doc } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
 import { PROFILE_BOUNDS } from '@polybuys/shared';
 import { getStableUserId, requireAuthUserId } from './lib/authIdentity';
+import { validateStoredImageOrThrow } from './lib/storageImageValidation';
 
 export const PAYLOAD_BOUNDS = {
   ...PROFILE_BOUNDS,
@@ -150,6 +151,10 @@ export const createProfile = mutation({
       throw new ConvexError('Profile already exists for this user');
     }
 
+    if (args.picture) {
+      await validateStoredImageOrThrow(ctx, args.picture, 'Profile picture');
+    }
+
     const profileId = await ctx.db.insert('profiles', {
       userId,
       name: args.name,
@@ -193,7 +198,17 @@ export const updateProfile = mutation({
 
     if (!profile) throw new ConvexError('Profile not found');
 
+    const ignoredReservedFields = RESERVED_PROFILE_FIELDS.filter(
+      (field) => args[field] !== undefined
+    );
+    if (ignoredReservedFields.length > 0) {
+      console.warn(
+        `[profiles.updateProfile] Ignoring reserved fields: ${ignoredReservedFields.join(', ')}`
+      );
+    }
+
     const update: Partial<Doc<'profiles'>> = {};
+    let previousPictureToDelete: Doc<'profiles'>['picture'] | undefined;
 
     if (args.name !== undefined) {
       if (
@@ -221,21 +236,12 @@ export const updateProfile = mutation({
     }
     if (args.picture !== undefined) {
       if (args.picture === null) {
-        if (profile.picture) {
-          try {
-            await ctx.storage.delete(profile.picture);
-          } catch {
-            // Non-fatal: keep profile update path resilient.
-          }
-        }
+        previousPictureToDelete = profile.picture;
         update.picture = undefined;
       } else {
-        if (profile.picture && profile.picture !== args.picture) {
-          try {
-            await ctx.storage.delete(profile.picture);
-          } catch {
-            // Non-fatal: keep profile update path resilient.
-          }
+        if (profile.picture !== args.picture) {
+          await validateStoredImageOrThrow(ctx, args.picture, 'Profile picture');
+          previousPictureToDelete = profile.picture;
         }
         update.picture = args.picture;
       }
@@ -269,6 +275,14 @@ export const updateProfile = mutation({
     }
 
     await ctx.db.patch(profile._id, update);
+
+    if (previousPictureToDelete && previousPictureToDelete !== args.picture) {
+      try {
+        await ctx.storage.delete(previousPictureToDelete);
+      } catch {
+        // Non-fatal: keep profile update path resilient.
+      }
+    }
   },
 });
 
@@ -292,7 +306,19 @@ export const setProfilePicture = mutation({
 
     if (!profile) throw new ConvexError('Profile not found');
 
+    if (profile.picture !== args.storageId) {
+      await validateStoredImageOrThrow(ctx, args.storageId, 'Profile picture');
+    }
+
     await ctx.db.patch(profile._id, { picture: args.storageId });
+
+    if (profile.picture && profile.picture !== args.storageId) {
+      try {
+        await ctx.storage.delete(profile.picture);
+      } catch {
+        // Non-fatal: keep profile update path resilient.
+      }
+    }
   },
 });
 
