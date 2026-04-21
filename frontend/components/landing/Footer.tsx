@@ -17,6 +17,9 @@ export function Footer() {
           <a href="/terms" className="pb-footer__link">
             Terms of Service
           </a>
+          <a href="/support" className="pb-footer__link">
+            Support
+          </a>
           <a href={`mailto:${LEGAL_SUPPORT_EMAIL}`} className="pb-footer__link">
             {LEGAL_SUPPORT_EMAIL}
           </a>
