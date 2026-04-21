@@ -11,6 +11,7 @@ import { Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FlashProvider } from '../contexts/FlashContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { getRequiredExpoPublicEnv } from '../lib/env';
 import { colors, typography } from '../theme/tokens';
 
 const navigationTheme = {
@@ -27,6 +28,7 @@ const navigationTheme = {
 };
 
 const allowSentryPii = process.env.EXPO_PUBLIC_ENABLE_SENTRY_PII === 'true';
+const convexUrl = getRequiredExpoPublicEnv('EXPO_PUBLIC_CONVEX_URL');
 export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
@@ -34,11 +36,11 @@ export const unstable_settings = {
 Sentry.init({
   dsn: 'https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976',
   sendDefaultPii: allowSentryPii,
-  enableLogs: true,
+  enableLogs: __DEV__,
   // spotlight: __DEV__,
 });
 
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+const convex = new ConvexReactClient(convexUrl, {
   unsavedChangesWarning: false,
 });
 

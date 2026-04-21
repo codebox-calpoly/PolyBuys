@@ -21,6 +21,7 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 export default function NewConversationScreen() {
@@ -70,8 +71,7 @@ export default function NewConversationScreen() {
         params: { id: String(conversationId) },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-first-message'));
     } finally {
       setIsSending(false);
     }

@@ -44,7 +44,7 @@ import ListingUnavailable from '../../components/ListingUnavailable';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
-import { KeyboardUnderlay } from '../../components/ui';
+import { GlassIconButton, KeyboardUnderlay } from '../../components/ui';
 import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
@@ -52,6 +52,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
 import { formatRelativeDate } from '../../lib/formatDate';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
@@ -260,8 +261,7 @@ export default function ListingDetailScreen() {
         params: { id: String(conversationId) },
       } as never);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-first-message'));
     } finally {
       setIsSendingMessage(false);
     }
@@ -367,11 +367,7 @@ export default function ListingDetailScreen() {
       await updateListingStatus({ id: listing._id, status: 'sold' });
       setFlash('Listing marked as sold.');
     } catch (error) {
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to mark listing as sold. Please try again.';
-      Alert.alert('Error', message);
+      Alert.alert('Could Not Mark as Sold', getUserFlowErrorMessage(error, 'mark-listing-sold'));
     } finally {
       setMarkingSold(false);
     }
@@ -625,11 +621,11 @@ export default function ListingDetailScreen() {
             >
               <Text style={styles.messageButtonText}>Message Seller</Text>
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
+            <GlassIconButton
+              containerStyle={styles.iconButton}
               onPress={() => void onSavePress()}
               accessibilityLabel={displayedSaved ? 'Unsave listing' : 'Save listing'}
-              accessibilityRole="button"
+              pressedScale={0.94}
             >
               <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
                 <Ionicons
@@ -638,15 +634,15 @@ export default function ListingDetailScreen() {
                   color={displayedSaved ? colors.category : colors.textDark}
                 />
               </Animated.View>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
+            </GlassIconButton>
+            <GlassIconButton
+              containerStyle={styles.iconButton}
               onPress={() => void shareListing()}
               accessibilityLabel="Share listing"
-              accessibilityRole="button"
+              pressedScale={0.94}
             >
               <Feather name="share" size={18} color={colors.textDark} />
-            </Pressable>
+            </GlassIconButton>
           </View>
         )}
 
@@ -1069,13 +1065,7 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderColor: 'rgba(21, 71, 52, 0.14)',
-    borderWidth: 1,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.white,
-    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   chipsRow: {
     flexDirection: 'row',

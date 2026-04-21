@@ -31,7 +31,8 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
-import { getLoginEntryAction, type LoginStep } from './loginRedirect';
+import { getLoginEntryAction, type LoginStep } from '../../lib/auth/loginRedirect';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -479,9 +480,10 @@ export default function LoginScreen() {
     try {
       await persistMessageNotificationsPreference(messageNotificationsEnabled);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to save notification preference.';
-      Alert.alert('Notification preference not saved', message);
+      Alert.alert(
+        'Notification Preference Not Saved',
+        getUserFlowErrorMessage(error, 'notifications-enable')
+      );
       return;
     }
 
@@ -493,9 +495,10 @@ export default function LoginScreen() {
     try {
       await persistMessageNotificationsPreference(messageNotificationsEnabled);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to save notification preference.';
-      Alert.alert('Notification preference not saved', message);
+      Alert.alert(
+        'Notification Preference Not Saved',
+        getUserFlowErrorMessage(error, 'notifications-disable')
+      );
       return;
     }
 
