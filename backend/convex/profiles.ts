@@ -167,7 +167,7 @@ export const updateProfile = mutation({
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     bio: v.optional(v.string()),
-    picture: v.optional(v.id('_storage')),
+    picture: v.optional(v.union(v.id('_storage'), v.null())),
     major: v.optional(v.string()),
     year: v.optional(v.number()),
     joinDate: v.optional(v.number()),
@@ -209,7 +209,27 @@ export const updateProfile = mutation({
       }
       update.bio = args.bio;
     }
-    if (args.picture !== undefined) update.picture = args.picture;
+    if (args.picture !== undefined) {
+      if (args.picture === null) {
+        if (profile.picture) {
+          try {
+            await ctx.storage.delete(profile.picture);
+          } catch {
+            // Non-fatal: keep profile update path resilient.
+          }
+        }
+        update.picture = undefined;
+      } else {
+        if (profile.picture && profile.picture !== args.picture) {
+          try {
+            await ctx.storage.delete(profile.picture);
+          } catch {
+            // Non-fatal: keep profile update path resilient.
+          }
+        }
+        update.picture = args.picture;
+      }
+    }
     if (args.major !== undefined) {
       if (
         args.major.length < PAYLOAD_BOUNDS.MAJOR_MIN ||

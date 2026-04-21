@@ -10,6 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { colors } from '../theme/tokens';
 
 interface PriceRangePickerProps {
   visible: boolean;
@@ -134,6 +135,8 @@ export function PriceRangePicker({
                   placeholder="$0"
                   keyboardType="numeric"
                   placeholderTextColor="#999"
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                 />
               </View>
               <Text style={styles.separator}>–</Text>
@@ -146,6 +149,8 @@ export function PriceRangePicker({
                   placeholder="Any"
                   keyboardType="numeric"
                   placeholderTextColor="#999"
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
                 />
               </View>
             </View>

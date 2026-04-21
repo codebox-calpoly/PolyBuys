@@ -16,7 +16,7 @@ export default function ListingUnavailable() {
         </Text>
         <Pressable
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-          onPress={() => router.replace('/')}
+          onPress={() => router.replace('/home')}
           accessibilityLabel="Back to browse"
           accessibilityRole="button"
         >

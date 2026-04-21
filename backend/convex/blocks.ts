@@ -9,10 +9,7 @@ type BlockedUserListRow = {
   major?: string;
 };
 
-/**
- * Shared helper: check if there is a block between two users (either direction).
- * Used by internalHasBlockBetween and getOrCreateConversation (mutation) for consistency.
- */
+/** True if any block exists between the two users (either direction). */
 export async function hasBlockBetween(
   ctx: { db: QueryCtx['db'] },
   userIdA: string,
@@ -31,31 +28,32 @@ export async function hasBlockBetween(
   return block1 !== null || block2 !== null;
 }
 
-async function getValidatedPeerUserId(
+async function resolvePeerUserId(
   ctx: { db: QueryCtx['db'] },
   peerUserId: string
-): Promise<string> {
+): Promise<string | null> {
   const normalizedPeerUserId = await ctx.db.normalizeId('users', peerUserId);
   if (!normalizedPeerUserId) {
-    throw new ConvexError('Target user not found');
+    return null;
   }
 
   const peerUser = await ctx.db.get(normalizedPeerUserId);
   if (!peerUser) {
-    throw new ConvexError('Target user not found');
+    return null;
   }
 
   return normalizedPeerUserId as string;
 }
 
-/**
- * Block another user. Prevents messaging in both directions.
- */
+/** Returns null if the target user id is missing or deleted (no-op). */
 export const blockUser = mutation({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
-    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
+    const blockedId = await resolvePeerUserId(ctx, args.blockedId);
+    if (!blockedId) {
+      return null;
+    }
 
     if (blockerId === blockedId) {
       throw new ConvexError('You cannot block yourself');
@@ -82,14 +80,15 @@ export const blockUser = mutation({
   },
 });
 
-/**
- * Unblock a previously blocked user.
- */
+/** No-op if the target user id is missing or deleted. */
 export const unblockUser = mutation({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
-    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
+    const blockedId = await resolvePeerUserId(ctx, args.blockedId);
+    if (!blockedId) {
+      return { ok: true };
+    }
 
     const existing = await ctx.db
       .query('userBlocks')
@@ -106,11 +105,7 @@ export const unblockUser = mutation({
   },
 });
 
-/**
- * Users that the current account has blocked (for settings / management UI).
- * Sorted by display name. Hidden profiles are shown as the placeholder name "Unavailable user"
- * (blockedId is always returned so the user can unblock).
- */
+/** Blocked users for the current account, sorted by name; hidden profiles shown as "Unavailable user". */
 export const listMyBlockedUsers = query({
   args: {},
   handler: async (ctx) => {
@@ -156,14 +151,13 @@ export const listMyBlockedUsers = query({
   },
 });
 
-/**
- * Check if the current user has blocked the given user.
- */
+/** False if the target user id is missing or deleted. */
 export const isBlocking = query({
   args: { blockedId: v.string() },
   handler: async (ctx, args) => {
     const blockerId = await requireAuthUserId(ctx);
-    const blockedId = await getValidatedPeerUserId(ctx, args.blockedId);
+    const blockedId = await resolvePeerUserId(ctx, args.blockedId);
+    if (!blockedId) return false;
     const block = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
@@ -174,14 +168,13 @@ export const isBlocking = query({
   },
 });
 
-/**
- * Check if the current user is blocked by the given user.
- */
+/** False if the blocker id is missing or deleted. */
 export const isBlockedBy = query({
   args: { blockerId: v.string() },
   handler: async (ctx, args) => {
     const blockedId = await requireAuthUserId(ctx);
-    const blockerId = await getValidatedPeerUserId(ctx, args.blockerId);
+    const blockerId = await resolvePeerUserId(ctx, args.blockerId);
+    if (!blockerId) return false;
     const block = await ctx.db
       .query('userBlocks')
       .withIndex('by_blocker_blocked', (q) =>
@@ -192,10 +185,7 @@ export const isBlockedBy = query({
   },
 });
 
-/**
- * Internal: Check if there is a block between two users (either direction).
- * Used by messaging to enforce block in both directions.
- */
+/** Used by messaging. */
 export const internalHasBlockBetween = internalQuery({
   args: {
     userIdA: v.string(),

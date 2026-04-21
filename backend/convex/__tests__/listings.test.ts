@@ -4,7 +4,7 @@
 
 import { convexTest } from 'convex-test';
 import schema from '../schema';
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import * as listingsModule from '../listings';
 import * as profilesModule from '../profiles';
 import * as usersModule from '../users';
@@ -49,7 +49,6 @@ const baseArgs = {
   category: 'textbooks' as const,
   images: ['https://example.com/book1.png'],
   condition: 'used' as const,
-  tags: ['csc202'],
 };
 
 const aliceIdentity = { name: 'Alice', subject: 'alice-id', email: 'alice@calpoly.edu' };
@@ -125,7 +124,6 @@ describe('Listings mutations', () => {
       category: baseArgs.category,
       status: 'active',
       sellerId: 'alice-id',
-      tags: baseArgs.tags,
     });
 
     // Extra checks: images + postedOn/createdAt exist
@@ -170,95 +168,6 @@ describe('Listings mutations', () => {
         images: tooManyImages,
       });
     }).rejects.toThrowError('Must have 1-8 images');
-  });
-
-  it('createListing normalizes tags to be trimmed and in lowercase', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    const unnormalized = '   fOUrTH EditION ';
-
-    const listingId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      tags: [unnormalized],
-    });
-
-    const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-
-    expect(listing).toBeDefined();
-    expect(listing?.tags).toEqual(['fourth edition']);
-  });
-
-  it('createListing removes duplicate tags', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    const listingId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
-    });
-
-    const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-
-    expect(listing).toBeDefined();
-    expect(listing?.tags).toEqual(['fourth edition', 'csc101']);
-  });
-
-  it('createListing fails when tags array is too long', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    await expect(async () => {
-      await asUser.action(api.listings.createListing, {
-        ...baseArgs,
-        tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
-      });
-    }).rejects.toThrowError('Maximum 5 tags allowed');
-  });
-
-  it('createListing fails when tag is empty', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    await expect(async () => {
-      await asUser.action(api.listings.createListing, {
-        ...baseArgs,
-        tags: [' '],
-      });
-    }).rejects.toThrowError('Empty tags are not allowed');
-  });
-
-  it('createListing fails when tag is >20 characters long', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    await expect(async () => {
-      await asUser.action(api.listings.createListing, {
-        ...baseArgs,
-        tags: ['supercalifragilisticexpialidocious'],
-      });
-    }).rejects.toThrowError('Tags must be 20 characters or less');
-  });
-
-  it('createListing succeeds with no tags', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    const listingId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      tags: [],
-    });
-
-    const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-
-    expect(listing).toBeDefined();
-    expect(listing?.tags).toEqual([]);
   });
 
   it('createListing fails when price is negative', async () => {
@@ -358,6 +267,46 @@ describe('Listings mutations', () => {
     }).rejects.toThrowError('Cannot update a deleted listing');
   });
 
+  it('updateListing cannot update a sold listing', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.updateListingStatus, {
+      id: listingId,
+      status: 'sold',
+    });
+
+    await expect(async () => {
+      await asOwner.action(api.listings.updateListing, {
+        id: listingId,
+        title: 'Post-sale retitle',
+      });
+    }).rejects.toThrowError('Cannot update a sold listing');
+  });
+
+  it('internalUpdateListing cannot patch a listing after it becomes sold', async () => {
+    const t = await setupTestWithProfiles();
+    const asOwner = t.withIdentity(ownerIdentity);
+
+    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
+
+    await asOwner.mutation(api.listings.updateListingStatus, {
+      id: listingId,
+      status: 'sold',
+    });
+
+    await expect(async () => {
+      await t.mutation(internal.listings.internalUpdateListing, {
+        id: listingId,
+        update: {
+          title: 'Stale write after sold',
+        },
+      });
+    }).rejects.toThrowError('Cannot update a sold listing');
+  });
+
   it('updateListingStatus cannot change status of a deleted listing', async () => {
     const t = await setupTestWithProfiles();
     const asOwner = t.withIdentity(ownerIdentity);
@@ -409,105 +358,6 @@ describe('Listings mutations', () => {
 
     const ids = result.page.map((l: { _id: string }) => l._id);
     expect(ids).not.toContain(listingId);
-  });
-
-  it('updateListing, normalizes tags to be trimmed and in lowercase', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    const unnormalized = '   fOUrTH EditION ';
-
-    const listingId = await asOwner.action(api.listings.createListing, {
-      ...baseArgs,
-      tags: [unnormalized],
-    });
-
-    await asOwner.action(api.listings.updateListing, {
-      id: listingId,
-      tags: ['   fOurTH EdiTIOn  '],
-    });
-
-    const updated = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-    expect(updated).toBeDefined();
-    expect(updated?.tags).toEqual(['fourth edition']);
-  });
-
-  it('updateListing removes duplicate tags', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
-    await asOwner.action(api.listings.updateListing, {
-      id: listingId,
-      tags: ['fourth edition', 'FOURTH EDITION', '   fourth edition    ', 'csc101'],
-    });
-
-    const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-
-    expect(listing).toBeDefined();
-    expect(listing?.tags).toEqual(['fourth edition', 'csc101']);
-  });
-
-  it('updateListing fails when tags array is too long', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
-
-    await expect(async () => {
-      await asOwner.action(api.listings.updateListing, {
-        id: listingId,
-        tags: ['csc101', 'gently used', 'fourth edition', 'answers', 'textbook', 'hardcover'],
-      });
-    }).rejects.toThrowError('Maximum 5 tags allowed');
-  });
-
-  it('updateListing fails when tag is empty', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
-
-    await expect(async () => {
-      await asOwner.action(api.listings.updateListing, {
-        id: listingId,
-        tags: [' '],
-      });
-    }).rejects.toThrowError('Empty tags are not allowed');
-  });
-
-  it('updateListing fails when tag is >20 characters long', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    await expect(async () => {
-      await asOwner.action(api.listings.createListing, {
-        ...baseArgs,
-        tags: ['supercalifragilisticexpialidocious'],
-      });
-    }).rejects.toThrowError('Tags must be 20 characters or less');
-  });
-
-  it('updateListing succeeds with no tags', async () => {
-    const t = await setupTestWithProfiles();
-    const asOwner = t.withIdentity(ownerIdentity);
-
-    const listingId = await asOwner.action(api.listings.createListing, baseArgs);
-    await asOwner.action(api.listings.updateListing, {
-      id: listingId,
-      tags: [],
-    });
-
-    const listing = await t.run(async (ctx) => {
-      return await ctx.db.get(listingId as any);
-    });
-
-    expect(listing).toBeDefined();
-    expect(listing?.tags).toEqual([]);
   });
 });
 
@@ -565,6 +415,143 @@ describe('Listings queries', () => {
 
     expect(textbookListings.page.every((l: any) => l.category === 'textbooks')).toBe(true);
     expect(electronicsListings.page.every((l: any) => l.category === 'electronics')).toBe(true);
+  });
+
+  it('hides reported-conversation listing from reporter in getListings only', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+    const asOther = t.withIdentity(otherIdentity);
+
+    const listingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Reported conversation listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId,
+    });
+
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'spam',
+    });
+
+    const buyerFeed = await asBuyer.query(api.listings.getListings, {
+      paginationOpts: defaultPaginationOpts,
+    });
+    const otherFeed = await asOther.query(api.listings.getListings, {
+      paginationOpts: defaultPaginationOpts,
+    });
+
+    expect(buyerFeed.page.map((listing: any) => listing._id)).not.toContain(listingId);
+    expect(otherFeed.page.map((listing: any) => listing._id)).toContain(listingId);
+  });
+
+  it('hides reported-conversation listing from reporter in searchAndFilterListings only', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+    const asOther = t.withIdentity(otherIdentity);
+
+    const listingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Unique Report Search Token',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId,
+    });
+
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'inappropriate',
+    });
+
+    const buyerSearch = await asBuyer.query(api.listings.searchAndFilterListings, {
+      filters: { searchTerm: 'Unique Report Search Token' },
+      paginationOpts: defaultPaginationOpts,
+    });
+    const otherSearch = await asOther.query(api.listings.searchAndFilterListings, {
+      filters: { searchTerm: 'Unique Report Search Token' },
+      paginationOpts: defaultPaginationOpts,
+    });
+
+    expect(buyerSearch.page.map((listing: any) => listing._id)).not.toContain(listingId);
+    expect(otherSearch.page.map((listing: any) => listing._id)).toContain(listingId);
+  });
+
+  it('getListings keeps pages filled after excluding reported conversation listings', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Visible older listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Visible middle listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const reportedListingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Reported newest listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId: reportedListingId,
+    });
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'spam',
+    });
+
+    const page = await asBuyer.query(api.listings.getListings, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(2);
+    expect(page.page.map((listing: any) => listing._id)).not.toContain(reportedListingId);
+  });
+
+  it('searchAndFilterListings keeps pages filled after excluding reported conversation listings', async () => {
+    const t = await setupTestWithProfiles();
+    const asSeller = t.withIdentity(ownerIdentity);
+    const asBuyer = t.withIdentity(aliceIdentity);
+
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search visible older listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search visible middle listing',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const reportedListingId = await asSeller.action(api.listings.createListing, {
+      ...baseArgs,
+      title: 'Search reported newest listing',
+    });
+
+    const { conversationId } = await asBuyer.mutation(api.messages.getOrCreateConversation, {
+      listingId: reportedListingId,
+    });
+    await asBuyer.mutation(api.messages.reportConversation, {
+      conversationId,
+      reason: 'inappropriate',
+    });
+
+    const page = await asBuyer.query(api.listings.searchAndFilterListings, {
+      filters: { sortBy: 'newest' },
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(2);
+    expect(page.page.map((listing: any) => listing._id)).not.toContain(reportedListingId);
   });
 
   it('filters by minPrice', async () => {
@@ -667,92 +654,6 @@ describe('Listings queries', () => {
         paginationOpts: defaultPaginationOpts,
       });
     }).rejects.toThrowError('maxPrice must be greater than or equal to minPrice');
-  });
-
-  it('filters by tags and combines with category/price', async () => {
-    const t = await setupTestWithProfiles();
-    const asUser = t.withIdentity(aliceIdentity);
-
-    const deskId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      title: 'Wood Desk',
-      price: 80,
-      category: 'furniture',
-      tags: ['desk', 'wood'],
-    });
-
-    const chairId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      title: 'Wood Chair',
-      price: 120,
-      category: 'furniture',
-      tags: ['chair', 'wood'],
-    });
-
-    const laptopId = await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      title: 'Gaming Laptop',
-      price: 900,
-      category: 'electronics',
-      tags: ['laptop', 'gaming'],
-    });
-
-    await asUser.action(api.listings.createListing, {
-      ...baseArgs,
-      title: 'CSC101 Book',
-      price: 50,
-      category: 'textbooks',
-      tags: ['csc101'],
-    });
-
-    const ids = (result: { page: Array<{ _id: string }> }) =>
-      result.page.map((listing) => listing._id).sort();
-
-    const singleTag = await t.query(api.listings.getListings, {
-      tags: ['desk'],
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(singleTag)).toEqual([deskId]);
-
-    const multipleTags = await t.query(api.listings.getListings, {
-      tags: ['desk', 'gaming'],
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(multipleTags)).toEqual([deskId, laptopId].sort());
-
-    const tagAndCategory = await t.query(api.listings.getListings, {
-      tags: ['wood'],
-      category: 'furniture',
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(tagAndCategory)).toEqual([deskId, chairId].sort());
-
-    const tagAndPrice = await t.query(api.listings.getListings, {
-      tags: ['wood'],
-      maxPrice: 100,
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(tagAndPrice)).toEqual([deskId]);
-
-    const tagCategoryPrice = await t.query(api.listings.getListings, {
-      tags: ['wood'],
-      category: 'furniture',
-      maxPrice: 100,
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(tagCategoryPrice)).toEqual([deskId]);
-
-    const caseInsensitive = await t.query(api.listings.getListings, {
-      tags: ['DeSk'],
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(ids(caseInsensitive)).toEqual([deskId]);
-
-    const noMatches = await t.query(api.listings.getListings, {
-      tags: ['nonexistent'],
-      paginationOpts: defaultPaginationOpts,
-    });
-    expect(noMatches.page).toEqual([]);
   });
 
   it('non-owner cannot view sold, inactive, or deleted listings via getListing', async () => {

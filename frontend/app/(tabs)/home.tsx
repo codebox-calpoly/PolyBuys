@@ -20,44 +20,59 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilterBar } from '../../components/FilterBar';
 import { CategoryPicker } from '../../components/CategoryPicker';
 import { PriceRangePicker } from '../../components/PriceRangePicker';
+import { SortPicker } from '../../components/SortPicker';
 import ListingCard from '../../components/ListingCard';
 import { ScreenState } from '../../components/ScreenState';
-import type { Filters, Category } from '../../types/filters';
+import { ScreenHeader } from '../../components/ui';
+import type { Filters, Category, ListingSortBy } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 const PAGE_SIZE = 20;
-/** Only refetch on focus when data is older than this (avoids redundant queries and preserves scroll/pagination) */
 const FOCUS_REFETCH_STALE_MS = 45_000;
 
-function chunkItems<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+function buildWebRows(items: Doc<'listings'>[], size: number) {
+  const rows: Array<{
+    key: string;
+    startIndex: number;
+    items: Doc<'listings'>[];
+    fillerKeys: string[];
+  }> = [];
+
+  for (let startIndex = 0; startIndex < items.length; startIndex += size) {
+    const rowItems = items.slice(startIndex, startIndex + size);
+    const rowKey = rowItems.map((item) => item._id).join('-');
+    const fillerKeys: string[] = [];
+
+    for (let slot = rowItems.length; slot < size; slot += 1) {
+      fillerKeys.push(`${rowKey}-filler-${slot}`);
+    }
+
+    rows.push({ key: rowKey, startIndex, items: rowItems, fillerKeys });
   }
-  return chunks;
+
+  return rows;
 }
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, isLoading } = useAuth();
-  const { tags, q } = useLocalSearchParams<{ tags?: string | string[]; q?: string | string[] }>();
+  const { isAuthenticated, isSessionLoading } = useAuth();
+  const { q } = useLocalSearchParams<{ q?: string | string[] }>();
   const { width } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation();
   const isWeb = Platform.OS === 'web';
   const isDesktopWeb = isWeb && width >= 1024;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
-  // Filter state
   const [filters, setFilters] = useState<Filters>({});
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<ListingSortBy>('newest');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
+  const [showSortPicker, setShowSortPicker] = useState(false);
 
-  // Pagination state
   const [allListings, setAllListings] = useState<Doc<'listings'>[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
@@ -66,46 +81,30 @@ export default function HomeScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadError, setLoadError] = useState(false);
 
-  // Filter versioning to prevent stale results
   const filterVersionRef = useRef(0);
   const currentFilterVersionRef = useRef(0);
 
-  // Track processed cursors to avoid duplicate appends
   const processedCursorsRef = useRef(new Set<string>());
-  // When we last received the first page (for focus-based staleness check)
   const lastFirstPageAtRef = useRef<number>(0);
-  // True once we've received any first page; gates fullscreen loader to initial load only
   const hasLoadedOnceRef = useRef(false);
-
-  // Initialize selected tags from URL params
-  useEffect(() => {
-    if (tags) {
-      const tagArray = Array.isArray(tags) ? tags : [tags];
-      setSelectedTags((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(tagArray)) {
-          return prev;
-        }
-        return tagArray;
-      });
-    } else {
-      setSelectedTags((prev) => (prev.length === 0 ? prev : []));
-    }
-  }, [tags]);
 
   const searchQuery = Array.isArray(q) ? (q[0] ?? '').trim() : (q ?? '').trim();
   const hasSearchQuery = isWeb && searchQuery.length > 0;
+  const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}|${sortBy}`;
 
   const queryFilterVersion = currentFilterVersionRef.current;
 
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const listingsResultStandard = useQuery(
-    api.listings.getListings,
+    api.listings.searchAndFilterListings,
     !hasSearchQuery
       ? {
-          category: filters.category,
-          minPrice: filters.minPrice,
-          maxPrice: filters.maxPrice,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
+          filters: {
+            sortBy,
+            category: filters.category,
+            minPrice: filters.minPrice,
+            maxPrice: filters.maxPrice,
+          },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
           _refreshKey: refreshKey,
         }
@@ -120,8 +119,7 @@ export default function HomeScreen() {
             category: filters.category,
             minPrice: filters.minPrice,
             maxPrice: filters.maxPrice,
-            tags: selectedTags.length > 0 ? selectedTags : undefined,
-            sortBy: 'newest',
+            sortBy,
           },
           paginationOpts: { numItems: PAGE_SIZE, cursor },
           _refreshKey: refreshKey,
@@ -130,8 +128,6 @@ export default function HomeScreen() {
   );
   const listingsResult = hasSearchQuery ? listingsResultSearch : listingsResultStandard;
 
-  // Reset pagination and refetch first page (used by pull-to-refresh and focus).
-  // Bumping refreshKey forces Convex to re-run when cursor is already null.
   const refreshListings = useCallback(() => {
     setRefreshKey((k) => k + 1);
     setCursor(null);
@@ -157,14 +153,12 @@ export default function HomeScreen() {
     }
   }, [listingsResult, cursor, queryFilterVersion]);
 
-  // Stop refresh spinner if the query never returns (e.g. network failure)
   useEffect(() => {
     if (!refreshing || cursor !== null) return;
     const fallback = setTimeout(() => setRefreshing(false), 15000);
     return () => clearTimeout(fallback);
   }, [refreshing, cursor]);
 
-  // Show error state if loading takes too long (e.g. network failure)
   useEffect(() => {
     if (listingsResult !== undefined || cursor !== null) {
       setLoadError(false);
@@ -175,6 +169,7 @@ export default function HomeScreen() {
   }, [listingsResult, cursor]);
 
   useEffect(() => {
+    void activeFilterKey;
     filterVersionRef.current += 1;
     currentFilterVersionRef.current = filterVersionRef.current;
     setCursor(null);
@@ -182,9 +177,8 @@ export default function HomeScreen() {
     setIsDone(false);
     processedCursorsRef.current.clear();
     hasLoadedOnceRef.current = false;
-  }, [filters.category, filters.minPrice, filters.maxPrice, selectedTags, searchQuery]);
+  }, [activeFilterKey]);
 
-  // Refetch when returning to Home only if data is stale (avoids redundant queries, preserves scroll/pagination)
   useFocusEffect(
     useCallback(() => {
       if (hasSearchQuery) {
@@ -201,13 +195,20 @@ export default function HomeScreen() {
 
   const savedState = useQuery(
     api.savedListings.getSavedStateForListings,
-    isAuthenticated && listings.length > 0 ? { listingIds: listings.map((l) => l._id) } : 'skip'
+    isAuthenticated && !isWeb && listings.length > 0
+      ? { listingIds: listings.map((l) => l._id) }
+      : 'skip'
   );
 
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
+      if (isWeb) {
+        Alert.alert('Open in the PolyBuys app', 'Saving listings is available in the mobile app.');
+        return;
+      }
+
       if (!isAuthenticated) {
-        router.replace('/auth/login?returnTo=%2F' as never);
+        router.replace('/auth/login?returnTo=%2Fhome' as never);
         return;
       }
 
@@ -219,14 +220,11 @@ export default function HomeScreen() {
         Alert.alert('Save failed', message);
       }
     },
-    [isAuthenticated, router, toggleSavedListing]
+    [isAuthenticated, isWeb, router, toggleSavedListing]
   );
 
   const hasActiveFilters =
-    !!filters.category ||
-    filters.minPrice !== undefined ||
-    filters.maxPrice !== undefined ||
-    selectedTags.length > 0;
+    !!filters.category || filters.minPrice !== undefined || filters.maxPrice !== undefined;
 
   const handleCategorySelect = (category: Category | undefined) => {
     setFilters((prev) => ({ ...prev, category }));
@@ -244,24 +242,10 @@ export default function HomeScreen() {
     setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
   };
 
-  const handleTagsChange = (nextTags: string[]) => {
-    setSelectedTags(nextTags);
-    if (nextTags.length > 0) {
-      router.setParams({ tags: nextTags });
-    } else {
-      router.setParams({ tags: undefined });
-    }
-  };
-
-  const handleClearTags = () => {
-    setSelectedTags([]);
-    router.setParams({ tags: undefined });
-  };
-
   const handleClearAll = () => {
     setFilters({});
-    setSelectedTags([]);
-    router.setParams({ tags: undefined, q: undefined });
+    setSortBy('newest');
+    router.setParams({ q: undefined });
   };
 
   const handleLoadMore = useCallback(() => {
@@ -277,21 +261,29 @@ export default function HomeScreen() {
   }, [refreshListings]);
 
   const handleCreateListing = () => {
+    if (isWeb) {
+      Alert.alert('Open in the PolyBuys app', 'Creating listings is available in the mobile app.');
+      return;
+    }
+
     if (!isAuthenticated) {
-      if (Platform.OS === 'web') {
-        router.replace('/settings');
-      } else {
-        Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.replace('/auth/login') },
-        ]);
-      }
+      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.replace('/auth/login') },
+      ]);
       return;
     }
     router.push('/listings/new');
   };
 
-  const contentPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
+  const isCompactLayout = width < 760;
+  const webScrollHorizontalPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
+  /** Native: same horizontal inset as My Listings (header + FilterBar). */
+  const nativeHeaderHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
+  /** Native: original Home card gutters (tighter than header). */
+  const nativeListHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.xs : spacing.sm;
   const contentMaxWidth = isWeb ? 1240 : 1120;
   const homeColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : 2;
   const listEmptyComponent =
@@ -325,7 +317,7 @@ export default function HomeScreen() {
                   : hasSearchQuery
                     ? `Nothing matched "${searchQuery}". Try a different search or fewer filters.`
                     : hasActiveFilters
-                      ? 'Try a wider price range or fewer tags.'
+                      ? 'Try a wider price range or different category.'
                       : 'Be the first to post something for campus.'
             }
             actionLabel={
@@ -347,7 +339,7 @@ export default function HomeScreen() {
       <Text style={styles.footerText}>Loading more...</Text>
     </View>
   ) : null;
-  const webRows = chunkItems(listings, homeColumns);
+  const webRows = buildWebRows(listings, homeColumns);
 
   if (isWeb) {
     return (
@@ -367,12 +359,19 @@ export default function HomeScreen() {
           onClose={() => setShowPricePicker(false)}
         />
 
+        <SortPicker
+          visible={showSortPicker}
+          sortBy={sortBy}
+          onSelect={setSortBy}
+          onClose={() => setShowSortPicker(false)}
+        />
+
         <ScrollView
           style={[styles.webScrollView, { maxWidth: contentMaxWidth }]}
           contentContainerStyle={[
             styles.webScrollContent,
             {
-              paddingHorizontal: contentPadding,
+              paddingHorizontal: webScrollHorizontalPadding,
               paddingBottom: Math.max(insets.bottom + 60, 80),
             },
           ]}
@@ -398,25 +397,30 @@ export default function HomeScreen() {
                 pressed && styles.createChipPressed,
               ]}
               onPress={handleCreateListing}
-              disabled={isLoading}
-              accessibilityLabel="Create listing"
+              disabled={isSessionLoading}
+              accessibilityLabel={
+                isWeb ? 'Download the Mobile App to Create Listings' : 'Create listing'
+              }
               accessibilityRole="button"
             >
-              <Text style={styles.createChipText}>
-                {isAuthenticated ? '+ Create listing' : 'Sign in to sell'}
+              <Text style={[styles.createChipText, isWeb && styles.webCreateChipText]}>
+                {isWeb
+                  ? 'Download the Mobile App to Create Listings'
+                  : isAuthenticated
+                    ? '+ Create listing'
+                    : 'Sign in to sell'}
               </Text>
             </Pressable>
           </Animated.View>
 
           <FilterBar
             filters={filters}
-            selectedTags={selectedTags}
+            sortBy={sortBy}
             onCategoryPress={() => setShowCategoryPicker(true)}
             onPricePress={() => setShowPricePicker(true)}
-            onTagsChange={handleTagsChange}
+            onSortPress={() => setShowSortPicker(true)}
             onClearCategory={handleClearCategory}
             onClearPrice={handleClearPrice}
-            onClearTags={handleClearTags}
             onClearAll={handleClearAll}
           />
 
@@ -436,21 +440,21 @@ export default function HomeScreen() {
           ) : (
             <>
               <View style={styles.webGrid}>
-                {webRows.map((row, rowIndex) => (
-                  <View key={`row-${rowIndex}`} style={styles.columnWrapper}>
-                    {row.map((item, columnIndex) => (
+                {webRows.map((row) => (
+                  <View key={row.key} style={styles.columnWrapper}>
+                    {row.items.map((item, columnOffset) => (
                       <View key={item._id} style={styles.webGridItem}>
                         <ListingCard
                           listing={item}
-                          index={rowIndex * homeColumns + columnIndex}
+                          index={row.startIndex + columnOffset}
                           isSaved={savedState?.[item._id] ?? false}
-                          onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
                           density="home"
+                          shellStyle="flat"
                         />
                       </View>
                     ))}
-                    {Array.from({ length: homeColumns - row.length }).map((_, fillerIndex) => (
-                      <View key={`filler-${rowIndex}-${fillerIndex}`} style={styles.webGridItem} />
+                    {row.fillerKeys.map((fillerKey) => (
+                      <View key={fillerKey} style={styles.webGridItem} />
                     ))}
                   </View>
                 ))}
@@ -477,83 +481,42 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.page}>
-      <View
-        style={[styles.content, { paddingHorizontal: contentPadding, maxWidth: contentMaxWidth }]}
-      >
+    <View style={[styles.page, styles.pageMobile]}>
+      <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        {isDesktopWeb ? (
-          <Animated.View style={[styles.webHeroCard, entranceStyle]}>
-            <View style={styles.webHeroTopRow}>
-              <View style={styles.webHeroCopy}>
-                <Text style={styles.webHeroEyebrow}>Campus marketplace</Text>
-                <Text style={styles.webHeroTitle}>Browse what Cal Poly students are selling</Text>
-                <Text style={styles.webHeroBody}>
-                  Discover furniture, electronics, textbooks, and more in a feed designed for campus
-                  pickup.
-                </Text>
-              </View>
+        <Animated.View
+          style={[
+            styles.homeTopBlock,
+            entranceStyle,
+            { paddingHorizontal: nativeHeaderHorizontalPadding },
+          ]}
+        >
+          <ScreenHeader
+            title="Browse"
+            subtitle="Fresh listings from campus"
+            action={
               <Pressable
-                style={({ pressed }) => [
-                  styles.createChip,
-                  styles.webCreateChip,
-                  pressed && styles.createChipPressed,
-                ]}
+                style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
                 onPress={handleCreateListing}
-                disabled={isLoading}
+                disabled={isSessionLoading}
                 accessibilityLabel="Create listing"
                 accessibilityRole="button"
               >
-                <Text style={styles.createChipText}>
-                  {isAuthenticated ? '+ Create listing' : 'Sign in to sell'}
-                </Text>
+                <Text style={styles.createChipText}>+ Create</Text>
               </Pressable>
-            </View>
-            <Pressable
-              style={[styles.searchBarWrap, styles.webSearchBarWrap]}
-              onPress={() => router.push('/search')}
-              accessibilityLabel="Search items"
-              accessibilityRole="button"
-            >
-              <Text style={styles.searchPlaceholder}>Search items...</Text>
-              <Text style={styles.webSearchHint}>
-                Open the search page for focused results and recent searches.
-              </Text>
-            </Pressable>
-          </Animated.View>
-        ) : (
-          <Animated.View style={[styles.searchRow, entranceStyle]}>
-            <Pressable
-              style={styles.searchBarWrap}
-              onPress={() => router.push('/search')}
-              accessibilityLabel="Search items"
-              accessibilityRole="button"
-            >
-              <Text style={styles.searchPlaceholder}>Search items...</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-              onPress={handleCreateListing}
-              disabled={isLoading}
-              accessibilityLabel="Create listing"
-              accessibilityRole="button"
-            >
-              <Text style={styles.createChipText}>+ Create</Text>
-            </Pressable>
-          </Animated.View>
-        )}
-
-        <FilterBar
-          filters={filters}
-          selectedTags={selectedTags}
-          onCategoryPress={() => setShowCategoryPicker(true)}
-          onPricePress={() => setShowPricePicker(true)}
-          onTagsChange={handleTagsChange}
-          onClearCategory={handleClearCategory}
-          onClearPrice={handleClearPrice}
-          onClearTags={handleClearTags}
-          onClearAll={handleClearAll}
-        />
+            }
+          />
+          <FilterBar
+            filters={filters}
+            sortBy={sortBy}
+            onCategoryPress={() => setShowCategoryPicker(true)}
+            onPricePress={() => setShowPricePicker(true)}
+            onSortPress={() => setShowSortPicker(true)}
+            onClearCategory={handleClearCategory}
+            onClearPrice={handleClearPrice}
+            onClearAll={handleClearAll}
+          />
+        </Animated.View>
 
         <CategoryPicker
           visible={showCategoryPicker}
@@ -570,8 +533,17 @@ export default function HomeScreen() {
           onClose={() => setShowPricePicker(false)}
         />
 
+        <SortPicker
+          visible={showSortPicker}
+          sortBy={sortBy}
+          onSelect={setSortBy}
+          onClose={() => setShowSortPicker(false)}
+        />
+
         {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
-          <View style={styles.centerContainer}>
+          <View
+            style={[styles.centerContainer, { paddingHorizontal: nativeListHorizontalPadding }]}
+          >
             <View style={styles.stateCard}>
               <ScreenState
                 variant={loadError ? 'error' : 'loading'}
@@ -592,15 +564,22 @@ export default function HomeScreen() {
                 index={index}
                 isSaved={savedState?.[item._id] ?? false}
                 onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
-                density="home"
+                shellStyle="flat"
               />
             )}
             numColumns={homeColumns}
-            columnWrapperStyle={homeColumns > 1 ? styles.columnWrapper : undefined}
+            columnWrapperStyle={
+              homeColumns > 1
+                ? [styles.columnWrapper, isCompactLayout && styles.columnWrapperCompact]
+                : undefined
+            }
             contentContainerStyle={[
               styles.listContainer,
               isDesktopWeb && styles.listContainerDesktop,
-              { paddingBottom: Math.max(insets.bottom + 60, 80) },
+              {
+                paddingBottom: Math.max(insets.bottom + 60, 80),
+                paddingHorizontal: nativeListHorizontalPadding,
+              },
             ]}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
@@ -626,6 +605,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  pageMobile: {
+    backgroundColor: colors.surface,
+  },
   pageWeb: {
     minHeight: '100%',
   },
@@ -635,7 +617,7 @@ const styles = StyleSheet.create({
     maxWidth: 1120,
     alignSelf: 'center',
     paddingTop: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   webScrollView: {
     width: '100%',
@@ -689,122 +671,66 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
-  webHeroCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    gap: spacing.lg,
-    boxShadow: '0 18px 40px rgba(21, 71, 52, 0.08)',
-  },
-  webHeroTopRow: {
-    gap: spacing.lg,
-  },
-  webHeroCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  webHeroEyebrow: {
-    ...typography.footnote,
-    color: colors.primary,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  webHeroTitle: {
-    ...typography.title1,
-    fontSize: 30,
-    lineHeight: 36,
-    color: colors.textDark,
-  },
-  webHeroBody: {
-    ...typography.subhead,
-    color: colors.text,
-    maxWidth: 620,
-  },
   webCreateChip: {
-    minWidth: 172,
+    minWidth: 280,
     alignItems: 'center',
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  webCreateChipText: {
+    textAlign: 'center',
   },
-  searchBarWrap: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 48,
-    justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  webSearchBarWrap: {
-    minHeight: 78,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.lg,
-  },
-  searchPlaceholder: {
-    ...typography.body,
-    color: colors.textDark,
-    fontWeight: '600',
-  },
-  webSearchHint: {
-    ...typography.footnote,
-    color: colors.text,
+  homeTopBlock: {
+    gap: spacing.md,
   },
   createChip: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
     minHeight: 44,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   createChipPressed: {
     opacity: 0.9,
   },
   createChipText: {
+    ...typography.subhead,
     color: colors.white,
-    fontSize: 15,
     fontWeight: '600',
   },
   columnWrapper: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    gap: spacing.sm,
+  },
+  columnWrapperCompact: {
+    gap: spacing.xs,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 48,
-    paddingHorizontal: 20,
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
   },
   stateContainer: {
     flex: 1,
-    minHeight: 200,
+    minHeight: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   stateCard: {
     width: '100%',
     maxWidth: 560,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.xl,
-    boxShadow: '0 16px 36px rgba(21, 71, 52, 0.06)',
+    padding: spacing.lg,
   },
   listContainer: {
+    paddingTop: spacing.xs,
     paddingBottom: 26,
-    gap: spacing.lg,
   },
   listContainerDesktop: {
     paddingTop: spacing.xs,
