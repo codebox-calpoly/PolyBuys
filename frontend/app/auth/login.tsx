@@ -660,11 +660,27 @@ export default function LoginScreen() {
               <Text style={styles.footerText}>Only @calpoly.edu emails are allowed.</Text>
             ) : (
               <View style={styles.secondaryActions}>
-                <Pressable onPress={handleResendCode} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleResendCode}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Resend code</Text>
                 </Pressable>
 
-                <Pressable onPress={handleBack} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleBack}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Use different email</Text>
                 </Pressable>
               </View>
@@ -870,12 +886,31 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     marginTop: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
   },
   skipButtonText: {
-    color: colors.muted,
+    color: colors.primary,
     ...typography.subhead,
     fontWeight: '600',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.16)',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    boxShadow: '0 6px 16px rgba(21, 71, 52, 0.06)',
   },
 });
