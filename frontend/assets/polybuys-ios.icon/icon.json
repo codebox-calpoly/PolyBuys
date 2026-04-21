@@ -1,0 +1,35 @@
+{
+  "color-space-for-untagged-svg-colors": "display-p3",
+  "fill": "automatic",
+  "groups": [
+    {
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "fill": "automatic",
+          "glass": true,
+          "hidden": false,
+          "image-name": "SVG Image.svg",
+          "name": "SVG Image",
+          "opacity": 1,
+          "position": {
+            "scale": 1.84,
+            "translation-in-points": [-4.565996005466104, -62.15098236180194]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": ["watchOS"],
+    "squares": ["iOS"]
+  }
+}
