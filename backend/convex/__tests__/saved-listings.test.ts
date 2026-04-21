@@ -170,7 +170,7 @@ describe('Saved listings', () => {
     expect(result.page[0].listing?.status).toBe('sold');
   });
 
-  it('getMySavedListings marks deleted listing as unavailable', async () => {
+  it('getMySavedListings redacts deleted listings entirely', async () => {
     const t = await setupTestWithProfiles();
     const listingId = await createTestListing(t, 'bob-id' as Id<'users'>, {
       status: 'deleted',
@@ -183,12 +183,10 @@ describe('Saved listings', () => {
       paginationOpts: { numItems: 20, cursor: null },
     });
 
-    expect(result.page.length).toBe(1);
-    expect(result.page[0].isUnavailable).toBe(true);
-    expect(result.page[0].listing?.status).toBe('deleted');
+    expect(result.page).toHaveLength(0);
   });
 
-  it('getMySavedListings marks hidden listing as unavailable', async () => {
+  it('getMySavedListings redacts hidden listings entirely', async () => {
     const t = await setupTestWithProfiles();
     const listingId = await createTestListing(t, 'bob-id' as Id<'users'>);
     const asAlice = t.withIdentity(aliceIdentity);
@@ -202,8 +200,7 @@ describe('Saved listings', () => {
       paginationOpts: { numItems: 20, cursor: null },
     });
 
-    expect(result.page.length).toBe(1);
-    expect(result.page[0].isUnavailable).toBe(true);
+    expect(result.page).toHaveLength(0);
   });
 
   it('toggleSavedListing rejects non-existent listing', async () => {
@@ -219,5 +216,24 @@ describe('Saved listings', () => {
     await expect(
       asAlice.mutation(api.savedListings.toggleSavedListing, { listingId })
     ).rejects.toThrow('Listing not found');
+  });
+
+  it('getSavedStateForListings rejects excessively large lookup batches', async () => {
+    const t = await setupTestWithProfiles();
+    const asAlice = t.withIdentity(aliceIdentity);
+
+    const listingIds = await Promise.all(
+      Array.from({ length: 101 }, (_, index) =>
+        createTestListing(t, 'bob-id' as Id<'users'>, {
+          title: `Listing ${index}`,
+        })
+      )
+    );
+
+    await expect(
+      asAlice.query(api.savedListings.getSavedStateForListings, {
+        listingIds,
+      })
+    ).rejects.toThrow('listingIds must contain at most 100 entries');
   });
 });

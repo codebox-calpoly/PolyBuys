@@ -150,6 +150,8 @@ export async function createTestConversationEmpty(
       updatedAt: now,
       buyerLastReadAt: now,
       sellerLastReadAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 0,
     });
   });
 }
@@ -175,6 +177,8 @@ export async function createTestConversation(
       updatedAt: now,
       buyerLastReadAt: now,
       sellerLastReadAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 0,
     });
     const messageId = await ctx.db.insert('messages', {
       conversationId,
@@ -186,7 +190,13 @@ export async function createTestConversation(
       createdAt: now,
       readAt: 0,
     });
-    await ctx.db.patch(conversationId, { lastMessageId: messageId });
+    await ctx.db.patch(conversationId, {
+      lastMessageId: messageId,
+      lastMessagePreview: 'Test message',
+      lastMessageAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 1,
+    });
     return conversationId;
   });
 }

@@ -4,12 +4,14 @@ import type { RandomReader } from '@oslojs/crypto/random';
 import { generateRandomString } from '@oslojs/crypto/random';
 import { isCalPolyEmail } from '@polybuys/shared';
 import { ConvexError } from 'convex/values';
+import { logError } from './lib/logger';
+import { getConfiguredResendFromAddress } from './lib/runtimeConfig';
 
 /**
  * Resend OTP Email Provider for Cal Poly authentication
  * Sends an 8-digit verification code that expires in 15 minutes
  */
-const resendFromAddress = process.env.AUTH_RESEND_FROM ?? process.env.RESEND_FROM;
+const resendFromAddress = getConfiguredResendFromAddress();
 
 export const ResendOTP = Email({
   id: 'resend-otp',
@@ -84,7 +86,10 @@ If you didn't request this code, you can safely ignore this email.`,
     });
 
     if (error) {
-      console.error('Resend error:', error);
+      logError('auth.resend_delivery_failed', {
+        provider: 'resend-otp',
+        error,
+      });
       throw new ConvexError('Failed to send verification email. Please try again.');
     }
   },

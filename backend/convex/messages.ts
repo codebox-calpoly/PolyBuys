@@ -1,10 +1,12 @@
 import { internalMutation, mutation, query, action, internalQuery } from './_generated/server';
 import { v, ConvexError } from 'convex/values';
+import { paginationOptsValidator } from 'convex/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { hasBlockBetween } from './blocks';
 import { requireAuthUserId } from './lib/authIdentity';
+import { logError } from './lib/logger';
 import { getReportedConversationListingIdSetByReporter } from './lib/reportedConversationListings';
 
 export const PAYLOAD_BOUNDS = {
@@ -14,6 +16,16 @@ export const PAYLOAD_BOUNDS = {
 const MAX_REPORTS_PER_DAY = 10;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_REPORT_NOTES_LENGTH = 500;
+const DEFAULT_INBOX_LIMIT = 100;
+const MAX_INBOX_LIMIT = 200;
+const MAX_INBOX_SCAN_PER_ROLE = 400;
+const DEFAULT_MESSAGE_HISTORY_LIMIT = 500;
+const MAX_MESSAGE_HISTORY_LIMIT = 5000;
+const MAX_MESSAGE_PAGE_SIZE = 100;
+const DEFAULT_BACKFILL_BATCH_SIZE = 100;
+const MAX_BACKFILL_BATCH_SIZE = 200;
+const CONVERSATION_STARTED_PREVIEW = 'Conversation started';
+const READ_PATCH_CHUNK_SIZE = 100;
 type ConversationInboxHiddenReason = 'deleted' | 'reported';
 type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
 const REPORT_REASON_VALIDATOR = v.union(
@@ -46,6 +58,230 @@ function displayNameFromProfile(profile: { name?: string } | null, user: { name?
   }
 
   return 'User';
+}
+
+function normalizeQueryLimit(
+  limit: number | undefined,
+  defaultValue: number,
+  maxValue: number,
+  label: string
+) {
+  if (limit === undefined) {
+    return defaultValue;
+  }
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new ConvexError(`${label} must be a positive integer`);
+  }
+
+  return Math.min(limit, maxValue);
+}
+
+function getConversationViewerUnreadCount(
+  conversation: Doc<'conversations'>,
+  userId: string
+): number | undefined {
+  if (conversation.buyerId === userId) {
+    return conversation.buyerUnreadCount;
+  }
+
+  if (conversation.sellerId === userId) {
+    return conversation.sellerUnreadCount;
+  }
+
+  return undefined;
+}
+
+function getMessagePreview(body: string) {
+  return body;
+}
+
+type MessagePageCursor = {
+  createdAt: number;
+  messageId: Id<'messages'>;
+};
+
+function compareMessagesDescending(left: Doc<'messages'>, right: Doc<'messages'>) {
+  if (left.createdAt !== right.createdAt) {
+    return right.createdAt - left.createdAt;
+  }
+
+  return right._id.localeCompare(left._id);
+}
+
+function compareMessagesAscending(left: Doc<'messages'>, right: Doc<'messages'>) {
+  return -compareMessagesDescending(left, right);
+}
+
+function encodeMessagePageCursor(message: Doc<'messages'>) {
+  return JSON.stringify({
+    createdAt: message.createdAt,
+    messageId: message._id,
+  } satisfies MessagePageCursor);
+}
+
+function decodeMessagePageCursor(cursor: string | null | undefined): MessagePageCursor | null {
+  if (!cursor) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(cursor) as Partial<MessagePageCursor>;
+    if (
+      typeof parsed.createdAt !== 'number' ||
+      typeof parsed.messageId !== 'string' ||
+      parsed.messageId.length === 0
+    ) {
+      throw new Error('Invalid cursor shape');
+    }
+
+    return {
+      createdAt: parsed.createdAt,
+      messageId: parsed.messageId as Id<'messages'>,
+    };
+  } catch {
+    throw new ConvexError('Invalid message pagination cursor');
+  }
+}
+
+function isMessageStrictlyOlderThanCursor(message: Doc<'messages'>, cursor: MessagePageCursor) {
+  if (message.createdAt !== cursor.createdAt) {
+    return message.createdAt < cursor.createdAt;
+  }
+
+  return message._id < cursor.messageId;
+}
+
+function validatePaginatedBatchSize(numItems: number, label: string, maxValue: number) {
+  if (!Number.isInteger(numItems) || numItems < 1 || numItems > maxValue) {
+    throw new ConvexError(`${label} numItems must be between 1 and ${maxValue}`);
+  }
+}
+
+async function getUnreadMessageCount(
+  ctx: MutationCtx | QueryCtx,
+  conversationId: Id<'conversations'>,
+  recipientId: string
+) {
+  const unreadMessages = await ctx.db
+    .query('messages')
+    .withIndex('by_conversation_recipient_readAt', (q) =>
+      q.eq('conversationId', conversationId).eq('recipientId', recipientId).eq('readAt', 0)
+    )
+    .collect();
+
+  return unreadMessages.length;
+}
+
+async function getLatestMessageForConversation(
+  ctx: MutationCtx | QueryCtx,
+  conversationId: Id<'conversations'>
+) {
+  return await ctx.db
+    .query('messages')
+    .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversationId))
+    .order('desc')
+    .first();
+}
+
+async function buildConversationMessageStatePatch(
+  ctx: MutationCtx | QueryCtx,
+  conversation: Doc<'conversations'>
+): Promise<Partial<Doc<'conversations'>>> {
+  const [latestMessage, buyerUnreadCount, sellerUnreadCount] = await Promise.all([
+    getLatestMessageForConversation(ctx, conversation._id),
+    getUnreadMessageCount(ctx, conversation._id, conversation.buyerId),
+    getUnreadMessageCount(ctx, conversation._id, conversation.sellerId),
+  ]);
+
+  if (!latestMessage) {
+    return {
+      lastMessageId: undefined,
+      lastMessagePreview: undefined,
+      lastMessageAt: undefined,
+      updatedAt: conversation.createdAt,
+      buyerUnreadCount,
+      sellerUnreadCount,
+    };
+  }
+
+  return {
+    lastMessageId: latestMessage._id,
+    lastMessagePreview: getMessagePreview(latestMessage.body),
+    lastMessageAt: latestMessage.createdAt,
+    updatedAt: latestMessage.createdAt,
+    buyerUnreadCount,
+    sellerUnreadCount,
+  };
+}
+
+function buildConversationStateDiff(
+  conversation: Doc<'conversations'>,
+  nextState: Partial<Doc<'conversations'>>
+) {
+  const patch: Partial<Doc<'conversations'>> = {};
+
+  if (conversation.lastMessageId !== nextState.lastMessageId) {
+    patch.lastMessageId = nextState.lastMessageId;
+  }
+  if (conversation.lastMessagePreview !== nextState.lastMessagePreview) {
+    patch.lastMessagePreview = nextState.lastMessagePreview;
+  }
+  if (conversation.lastMessageAt !== nextState.lastMessageAt) {
+    patch.lastMessageAt = nextState.lastMessageAt;
+  }
+  if (conversation.updatedAt !== nextState.updatedAt && nextState.updatedAt !== undefined) {
+    patch.updatedAt = nextState.updatedAt;
+  }
+  if (conversation.buyerUnreadCount !== nextState.buyerUnreadCount) {
+    patch.buyerUnreadCount = nextState.buyerUnreadCount;
+  }
+  if (conversation.sellerUnreadCount !== nextState.sellerUnreadCount) {
+    patch.sellerUnreadCount = nextState.sellerUnreadCount;
+  }
+
+  return patch;
+}
+
+async function resolveConversationInboxState(
+  ctx: QueryCtx,
+  conversation: Doc<'conversations'>,
+  userId: string
+) {
+  let latestMessage: Doc<'messages'> | null = null;
+
+  if (!conversation.lastMessageId) {
+    latestMessage = await getLatestMessageForConversation(ctx, conversation._id);
+    if (!latestMessage) {
+      return null;
+    }
+  } else if (
+    conversation.lastMessagePreview === undefined ||
+    conversation.lastMessageAt === undefined
+  ) {
+    latestMessage = await ctx.db.get(conversation.lastMessageId);
+    if (!latestMessage) {
+      latestMessage = await getLatestMessageForConversation(ctx, conversation._id);
+      if (!latestMessage) {
+        return null;
+      }
+    }
+  }
+
+  const storedUnreadCount = getConversationViewerUnreadCount(conversation, userId);
+  const unreadCount =
+    storedUnreadCount ?? (await getUnreadMessageCount(ctx, conversation._id, userId));
+  const lastMessagePreview =
+    conversation.lastMessagePreview ?? latestMessage?.body ?? CONVERSATION_STARTED_PREVIEW;
+  const lastMessageAt =
+    conversation.lastMessageAt ?? latestMessage?.createdAt ?? conversation.updatedAt;
+
+  return {
+    lastMessagePreview,
+    lastMessageAt,
+    unreadCount,
+    effectiveUpdatedAt: lastMessageAt,
+  };
 }
 
 /** Returns the stable auth user ID. Throws if not authenticated. */
@@ -114,9 +350,25 @@ export const internalSendMessage = internalMutation({
       type: args.type,
     });
 
+    let unreadCountPatch: Partial<Doc<'conversations'>>;
+    if (conversation.buyerId === args.recipientId) {
+      unreadCountPatch = {
+        buyerUnreadCount: await getUnreadMessageCount(ctx, args.conversationId, args.recipientId),
+      };
+    } else if (conversation.sellerId === args.recipientId) {
+      unreadCountPatch = {
+        sellerUnreadCount: await getUnreadMessageCount(ctx, args.conversationId, args.recipientId),
+      };
+    } else {
+      throw new ConvexError('Conversation recipient mismatch');
+    }
+
     await ctx.db.patch(args.conversationId, {
       updatedAt: now,
       lastMessageId: messageId,
+      lastMessagePreview: getMessagePreview(args.body),
+      lastMessageAt: now,
+      ...unreadCountPatch,
       ...hiddenFieldPatch,
     });
 
@@ -219,7 +471,11 @@ export const sendMessage = action({
         );
       }
     } catch (error) {
-      console.error('Failed to enqueue push notification for message', error);
+      logError('messages.push_notification_enqueue_failed', {
+        conversationId: args.conversationId,
+        recipientId,
+        error,
+      });
     }
 
     return result;
@@ -314,7 +570,11 @@ export const createConversationAndSendFirstMessage = action({
         );
       }
     } catch (error) {
-      console.error('Failed to enqueue push notification for message', error);
+      logError('messages.push_notification_enqueue_failed', {
+        conversationId,
+        recipientId: sellerId,
+        error,
+      });
     }
 
     return { conversationId };
@@ -340,6 +600,8 @@ export const debugCreateConversationID = internalMutation({
       updatedAt: now,
       buyerLastReadAt: now,
       sellerLastReadAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 0,
     });
 
     return { conversationId };
@@ -351,30 +613,40 @@ export const getConversationHistory = query({
   args: {
     conversationId: v.id('conversations'),
     siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { conversationIds } = await requireConversationScope(ctx, args);
-    return await collectMessagesForConversationScope(ctx, conversationIds);
+    return await collectMessagesForConversationScope(ctx, conversationIds, args.limit);
   },
 });
 
 //List all user conversations a user participates in, ordered by most recent activity
 export const listUserConversations = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const userId = await requireStableUserId(ctx);
+    const limit = normalizeQueryLimit(
+      args.limit,
+      DEFAULT_INBOX_LIMIT,
+      MAX_INBOX_LIMIT,
+      'Inbox limit'
+    );
+    const scanLimit = Math.min(MAX_INBOX_SCAN_PER_ROLE, limit * 4);
 
     const [buyerConversations, sellerConversations] = await Promise.all([
       ctx.db
         .query('conversations')
         .withIndex('by_buyer', (q) => q.eq('buyerId', userId))
         .order('desc')
-        .collect(),
+        .take(scanLimit),
       ctx.db
         .query('conversations')
         .withIndex('by_seller', (q) => q.eq('sellerId', userId))
         .order('desc')
-        .collect(),
+        .take(scanLimit),
     ]);
 
     const dedupedConversationIds = new Set<Id<'conversations'>>();
@@ -389,31 +661,43 @@ export const listUserConversations = query({
     )
       .filter((conversation): conversation is Doc<'conversations'> => conversation !== null)
       .filter((conversation) => conversation.buyerId === userId || conversation.sellerId === userId)
-      .filter((conversation) => conversation.lastMessageId !== undefined)
       .filter((conversation) => {
         if (conversation.buyerId === userId) {
           return conversation.buyerInboxHiddenAt === undefined;
         }
         return conversation.sellerInboxHiddenAt === undefined;
-      })
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      });
 
-    // One conversation per listing (stable IDs, no sibling merging needed)
-    const groupedConversations = participantConversations.map((conversation) => {
-      const isBuyer = conversation.buyerId === userId;
-      const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
-      return {
-        dedupeKey: `${conversation.listingId}:${otherUserId}`,
-        primaryConversation: conversation,
-        siblingConversations: [conversation],
-        otherUserId,
-        canonicalOtherUserId: otherUserId,
-        mergedUpdatedAt: conversation.updatedAt,
-      };
-    });
+    const visibleConversations = (
+      await Promise.all(
+        participantConversations.map(async (conversation) => {
+          const state = await resolveConversationInboxState(ctx, conversation, userId);
+          if (!state) {
+            return null;
+          }
+
+          return { conversation, state };
+        })
+      )
+    )
+      .filter(
+        (
+          entry
+        ): entry is {
+          conversation: Doc<'conversations'>;
+          state: {
+            lastMessagePreview: string;
+            lastMessageAt: number;
+            unreadCount: number;
+            effectiveUpdatedAt: number;
+          };
+        } => entry !== null
+      )
+      .sort((left, right) => right.state.effectiveUpdatedAt - left.state.effectiveUpdatedAt)
+      .slice(0, limit);
 
     const listingIds = [
-      ...new Set(groupedConversations.map((group) => group.primaryConversation.listingId)),
+      ...new Set(visibleConversations.map(({ conversation }) => conversation.listingId)),
     ];
     const listingDocs = await Promise.all(listingIds.map((listingId) => ctx.db.get(listingId)));
     const listingById = new Map<Id<'listings'>, Doc<'listings'> | null>();
@@ -451,7 +735,11 @@ export const listUserConversations = query({
     );
 
     const canonicalOtherUserIds = [
-      ...new Set(groupedConversations.map((group) => group.canonicalOtherUserId)),
+      ...new Set(
+        visibleConversations.map(({ conversation }) =>
+          conversation.buyerId === userId ? conversation.sellerId : conversation.buyerId
+        )
+      ),
     ];
     const [userEntries, profileEntries] = await Promise.all([
       Promise.all(
@@ -476,113 +764,34 @@ export const listUserConversations = query({
     const userDocsByCanonicalUserId = new Map<string, Doc<'users'> | null>(userEntries);
     const profilesByCanonicalUserId = new Map<string, Doc<'profiles'> | null>(profileEntries);
 
-    const lastMessageIds = [
-      ...new Set(
-        groupedConversations.flatMap((group) =>
-          group.siblingConversations
-            .map((conversation) => conversation.lastMessageId)
-            .filter((lastMessageId): lastMessageId is Id<'messages'> => lastMessageId !== undefined)
-        )
-      ),
-    ];
-    const lastMessageDocs = await Promise.all(
-      lastMessageIds.map((lastMessageId) => ctx.db.get(lastMessageId))
-    );
-    const lastMessagesById = new Map<Id<'messages'>, Doc<'messages'>>();
-    for (let index = 0; index < lastMessageIds.length; index += 1) {
-      const message = lastMessageDocs[index];
-      if (message) {
-        lastMessagesById.set(lastMessageIds[index], message);
-      }
-    }
+    return visibleConversations.map(({ conversation, state }) => {
+      const isBuyer = conversation.buyerId === userId;
+      const otherUserId = isBuyer ? conversation.sellerId : conversation.buyerId;
+      const otherProfile = profilesByCanonicalUserId.get(otherUserId) ?? null;
+      const otherUserDoc = userDocsByCanonicalUserId.get(otherUserId) ?? null;
 
-    return await Promise.all(
-      groupedConversations.map(async (group) => {
-        let latestMessage: Doc<'messages'> | null = null;
-        for (const siblingConversation of group.siblingConversations) {
-          const siblingLastMessageId = siblingConversation.lastMessageId;
-          if (!siblingLastMessageId) {
-            continue;
-          }
-          const siblingLastMessage = lastMessagesById.get(siblingLastMessageId);
-          if (
-            siblingLastMessage &&
-            (!latestMessage || siblingLastMessage.createdAt > latestMessage.createdAt)
-          ) {
-            latestMessage = siblingLastMessage;
-          }
-        }
-
-        const conversationsMissingLastMessageId = group.siblingConversations.filter(
-          (siblingConversation) => !siblingConversation.lastMessageId
-        );
-        if (conversationsMissingLastMessageId.length > 0) {
-          const fallbackMessages = await Promise.all(
-            conversationsMissingLastMessageId.map((siblingConversation) =>
-              ctx.db
-                .query('messages')
-                .withIndex('by_conversation_createdAt', (q) =>
-                  q.eq('conversationId', siblingConversation._id)
-                )
-                .order('desc')
-                .first()
-            )
-          );
-          for (const fallbackMessage of fallbackMessages) {
-            if (
-              fallbackMessage &&
-              (!latestMessage || fallbackMessage.createdAt > latestMessage.createdAt)
-            ) {
-              latestMessage = fallbackMessage;
-            }
-          }
-        }
-
-        const unreadByConversation = await Promise.all(
-          group.siblingConversations.map((siblingConversation) =>
-            ctx.db
-              .query('messages')
-              .withIndex('by_conversation_recipient_readAt', (q) =>
-                q.eq('conversationId', siblingConversation._id)
-              )
-              .filter((q) => q.eq(q.field('readAt'), 0))
-              .collect()
-          )
-        );
-        const unreadCount = unreadByConversation.reduce(
-          (count, unreadMessages) =>
-            count + unreadMessages.filter((message) => message.recipientId === userId).length,
-          0
-        );
-
-        const otherProfile = profilesByCanonicalUserId.get(group.canonicalOtherUserId) ?? null;
-        const otherUserDoc = userDocsByCanonicalUserId.get(group.canonicalOtherUserId) ?? null;
-
-        return {
-          ...group.primaryConversation,
-          updatedAt: group.mergedUpdatedAt,
-          mergedConversationId: group.primaryConversation._id,
-          siblingConversationIds: group.siblingConversations.map(
-            (siblingConversation) => siblingConversation._id
-          ),
-          canonicalOtherUserId: group.canonicalOtherUserId,
-          otherUser: {
-            id: group.otherUserId,
-            name: displayNameFromProfile(otherProfile, otherUserDoc),
-            picture: otherProfile?.picture,
-          },
-          listing: listingSummariesById.get(group.primaryConversation.listingId) ?? {
-            id: group.primaryConversation.listingId,
-            title: 'Listing unavailable',
-            thumbnailUrl: null,
-          },
-          lastMessagePreview: latestMessage?.body ?? 'Conversation started',
-          lastMessageAt: latestMessage?.createdAt ?? group.mergedUpdatedAt,
-          unreadCount,
-          hasUnread: unreadCount > 0,
-        };
-      })
-    );
+      return {
+        ...conversation,
+        updatedAt: state.effectiveUpdatedAt,
+        mergedConversationId: conversation._id,
+        siblingConversationIds: [conversation._id],
+        canonicalOtherUserId: otherUserId,
+        otherUser: {
+          id: otherUserId,
+          name: displayNameFromProfile(otherProfile, otherUserDoc),
+          picture: otherProfile?.picture,
+        },
+        listing: listingSummariesById.get(conversation.listingId) ?? {
+          id: conversation.listingId,
+          title: 'Listing unavailable',
+          thumbnailUrl: null,
+        },
+        lastMessagePreview: state.lastMessagePreview,
+        lastMessageAt: state.lastMessageAt,
+        unreadCount: state.unreadCount,
+        hasUnread: state.unreadCount > 0,
+      };
+    });
   },
 });
 
@@ -663,18 +872,81 @@ async function requireConversationScope(
 
 async function collectMessagesForConversationScope(
   ctx: MutationCtx | QueryCtx,
-  conversationIds: Id<'conversations'>[]
+  conversationIds: Id<'conversations'>[],
+  limit?: number
 ) {
+  const normalizedLimit = normalizeQueryLimit(
+    limit,
+    DEFAULT_MESSAGE_HISTORY_LIMIT,
+    MAX_MESSAGE_HISTORY_LIMIT,
+    'Message history limit'
+  );
   const messageBatches = await Promise.all(
     conversationIds.map((conversationId) =>
       ctx.db
         .query('messages')
         .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversationId))
-        .collect()
+        .order('desc')
+        .take(normalizedLimit)
     )
   );
 
-  return messageBatches.flat().sort((left, right) => left.createdAt - right.createdAt);
+  return messageBatches
+    .flat()
+    .sort((left, right) => left.createdAt - right.createdAt)
+    .slice(-normalizedLimit);
+}
+
+async function collectMessagePageForConversationScope(
+  ctx: MutationCtx | QueryCtx,
+  conversationIds: Id<'conversations'>[],
+  paginationOpts: {
+    numItems: number;
+    cursor: string | null;
+  }
+) {
+  validatePaginatedBatchSize(paginationOpts.numItems, 'Message page', MAX_MESSAGE_PAGE_SIZE);
+  const cursor = decodeMessagePageCursor(paginationOpts.cursor);
+  const perConversationFetchLimit = paginationOpts.numItems + (cursor ? 2 : 1);
+
+  const messageBatches = await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      const batch = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation_createdAt', (q) => {
+          const scopedQuery = q.eq('conversationId', conversationId);
+          if (!cursor) {
+            return scopedQuery;
+          }
+          return scopedQuery.lte('createdAt', cursor.createdAt);
+        })
+        .order('desc')
+        .take(perConversationFetchLimit);
+
+      if (!cursor) {
+        return batch;
+      }
+
+      return batch.filter((message) => isMessageStrictlyOlderThanCursor(message, cursor));
+    })
+  );
+
+  const pageDescending = messageBatches
+    .flat()
+    .sort(compareMessagesDescending)
+    .slice(0, paginationOpts.numItems + 1);
+
+  const page = pageDescending.slice(0, paginationOpts.numItems);
+  const continueCursor =
+    pageDescending.length > paginationOpts.numItems && page.length > 0
+      ? encodeMessagePageCursor(page[page.length - 1])
+      : null;
+
+  return {
+    page: [...page].sort(compareMessagesAscending),
+    continueCursor,
+    isDone: continueCursor === null,
+  };
 }
 
 function normalizeAndValidateReportNotes(reason: ReportReason, notes?: string) {
@@ -732,30 +1004,14 @@ async function hideConversationForParticipant(
 async function updateConversationAfterDeletedMessage(
   ctx: MutationCtx,
   conversation: Doc<'conversations'>,
-  deletedMessageId: Id<'messages'>
+  _deletedMessageId: Id<'messages'>
 ) {
-  if (conversation.lastMessageId !== deletedMessageId) {
+  const nextState = await buildConversationMessageStatePatch(ctx, conversation);
+  const patch = buildConversationStateDiff(conversation, nextState);
+  if (Object.keys(patch).length === 0) {
     return;
   }
-
-  const latestRemainingMessage = await ctx.db
-    .query('messages')
-    .withIndex('by_conversation_createdAt', (q) => q.eq('conversationId', conversation._id))
-    .order('desc')
-    .first();
-
-  if (!latestRemainingMessage) {
-    await ctx.db.patch(conversation._id, {
-      lastMessageId: undefined,
-      updatedAt: conversation.createdAt,
-    });
-    return;
-  }
-
-  await ctx.db.patch(conversation._id, {
-    lastMessageId: latestRemainingMessage._id,
-    updatedAt: latestRemainingMessage.createdAt,
-  });
+  await ctx.db.patch(conversation._id, patch);
 }
 
 // Internal: create conversation if not exists (used by createConversationAndSendFirstMessage)
@@ -785,6 +1041,8 @@ export const internalGetOrCreateConversation = internalMutation({
       updatedAt: now,
       buyerLastReadAt: now,
       sellerLastReadAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 0,
     });
 
     return { conversationId };
@@ -839,6 +1097,8 @@ export const getOrCreateConversation = mutation({
       updatedAt: now,
       buyerLastReadAt: now,
       sellerLastReadAt: now,
+      buyerUnreadCount: 0,
+      sellerUnreadCount: 0,
     });
 
     return { conversationId };
@@ -859,9 +1119,9 @@ export const markMessagesAsRead = mutation({
     await Promise.all(
       conversationScope.map(async ({ conversation, isBuyer, isSeller }) => {
         if (isBuyer) {
-          await ctx.db.patch(conversation._id, { buyerLastReadAt: now });
+          await ctx.db.patch(conversation._id, { buyerLastReadAt: now, buyerUnreadCount: 0 });
         } else if (isSeller) {
-          await ctx.db.patch(conversation._id, { sellerLastReadAt: now });
+          await ctx.db.patch(conversation._id, { sellerLastReadAt: now, sellerUnreadCount: 0 });
         }
       })
     );
@@ -882,9 +1142,15 @@ export const markMessagesAsRead = mutation({
         unreadMessageIds.add(message._id);
       }
     }
-    await Promise.all(
-      [...unreadMessageIds].map((messageId) => ctx.db.patch(messageId, { readAt: now }))
-    );
+    const unreadMessageIdList = [...unreadMessageIds];
+    for (
+      let chunkStart = 0;
+      chunkStart < unreadMessageIdList.length;
+      chunkStart += READ_PATCH_CHUNK_SIZE
+    ) {
+      const chunk = unreadMessageIdList.slice(chunkStart, chunkStart + READ_PATCH_CHUNK_SIZE);
+      await Promise.all(chunk.map((messageId) => ctx.db.patch(messageId, { readAt: now })));
+    }
 
     return { ok: true };
   },
@@ -1055,8 +1321,16 @@ export const backfillMessagingFields = internalMutation({
     let conversationPatches = 0;
 
     for (const convo of conversations) {
-      if (!convo.participantIds || convo.participantIds.length !== 2) {
-        await ctx.db.patch(convo._id, { participantIds: [convo.buyerId, convo.sellerId] });
+      const participantIdsPatch =
+        !convo.participantIds || convo.participantIds.length !== 2
+          ? { participantIds: [convo.buyerId, convo.sellerId] }
+          : {};
+      const nextMessageState = await buildConversationMessageStatePatch(ctx, convo);
+      const messageStatePatch = buildConversationStateDiff(convo, nextMessageState);
+      const patch = { ...participantIdsPatch, ...messageStatePatch };
+
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(convo._id, patch);
         conversationPatches += 1;
       }
     }
@@ -1075,13 +1349,117 @@ export const backfillMessagingFields = internalMutation({
   },
 });
 
+export const backfillMessagingFieldsBatch = internalMutation({
+  args: {
+    conversationPagination: v.optional(paginationOptsValidator),
+    messagePagination: v.optional(paginationOptsValidator),
+  },
+  handler: async (ctx, args) => {
+    const hasConversationPagination = args.conversationPagination !== undefined;
+    const hasMessagePagination = args.messagePagination !== undefined;
+
+    if (hasConversationPagination === hasMessagePagination) {
+      throw new ConvexError('Provide exactly one of conversationPagination or messagePagination');
+    }
+
+    if (args.conversationPagination) {
+      const conversationPagination = args.conversationPagination ?? {
+        numItems: DEFAULT_BACKFILL_BATCH_SIZE,
+        cursor: null,
+      };
+
+      validatePaginatedBatchSize(
+        conversationPagination.numItems,
+        'Conversation backfill batch',
+        MAX_BACKFILL_BATCH_SIZE
+      );
+
+      const conversationPage = await ctx.db.query('conversations').paginate(conversationPagination);
+
+      let conversationPatches = 0;
+      for (const convo of conversationPage.page) {
+        const participantIdsPatch =
+          !convo.participantIds || convo.participantIds.length !== 2
+            ? { participantIds: [convo.buyerId, convo.sellerId] }
+            : {};
+        const nextMessageState = await buildConversationMessageStatePatch(ctx, convo);
+        const messageStatePatch = buildConversationStateDiff(convo, nextMessageState);
+        const patch = { ...participantIdsPatch, ...messageStatePatch };
+
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(convo._id, patch);
+          conversationPatches += 1;
+        }
+      }
+
+      return {
+        target: 'conversations' as const,
+        conversationPatches,
+        messagePatches: 0,
+        conversationScanned: conversationPage.page.length,
+        messageScanned: 0,
+        conversationContinueCursor: conversationPage.isDone
+          ? null
+          : conversationPage.continueCursor,
+        messageContinueCursor: null,
+        isDone: conversationPage.isDone,
+      };
+    }
+
+    const messagePagination = args.messagePagination ?? {
+      numItems: DEFAULT_BACKFILL_BATCH_SIZE,
+      cursor: null,
+    };
+
+    validatePaginatedBatchSize(
+      messagePagination.numItems,
+      'Message backfill batch',
+      MAX_BACKFILL_BATCH_SIZE
+    );
+
+    const messagePage = await ctx.db.query('messages').paginate(messagePagination);
+
+    let messagePatches = 0;
+    for (const message of messagePage.page) {
+      if (!message.type) {
+        await ctx.db.patch(message._id, { type: 'text' });
+        messagePatches += 1;
+      }
+    }
+
+    return {
+      target: 'messages' as const,
+      conversationPatches: 0,
+      messagePatches,
+      conversationScanned: 0,
+      messageScanned: messagePage.page.length,
+      conversationContinueCursor: null,
+      messageContinueCursor: messagePage.isDone ? null : messagePage.continueCursor,
+      isDone: messagePage.isDone,
+    };
+  },
+});
+
 export const messagesByConversation = query({
   args: {
     conversationId: v.id('conversations'),
     siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { conversationIds } = await requireConversationScope(ctx, args);
-    return await collectMessagesForConversationScope(ctx, conversationIds);
+    return await collectMessagesForConversationScope(ctx, conversationIds, args.limit);
+  },
+});
+
+export const messagesByConversationPage = query({
+  args: {
+    conversationId: v.id('conversations'),
+    siblingConversationIds: v.optional(v.array(v.id('conversations'))),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const { conversationIds } = await requireConversationScope(ctx, args);
+    return await collectMessagePageForConversationScope(ctx, conversationIds, args.paginationOpts);
   },
 });

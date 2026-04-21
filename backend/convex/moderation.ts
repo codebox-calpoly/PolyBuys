@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
 import { internalAction, internalMutation } from './_generated/server';
 import { internal } from './_generated/api';
+import { logWarn } from './lib/logger';
 
 const OPENAI_MODERATION_URL = 'https://api.openai.com/v1/moderations';
+const MODERATION_TIMEOUT_MS = 5000;
 
 /**
  * Screens text content against the OpenAI Moderation API.
@@ -22,7 +24,9 @@ export const moderateContent = internalAction({
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      console.warn('[moderation] OPENAI_API_KEY not set — skipping moderation');
+      logWarn('moderation.skipped_missing_api_key', {
+        contentType: args.contentType,
+      });
       return { flagged: false, categories: {} };
     }
 
@@ -36,6 +40,7 @@ export const moderateContent = internalAction({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
+        signal: AbortSignal.timeout(MODERATION_TIMEOUT_MS),
         body: JSON.stringify({
           model: 'omni-moderation-latest',
           input: args.text,
@@ -43,10 +48,11 @@ export const moderateContent = internalAction({
       });
 
       if (!response.ok) {
-        const errorBody = await response.text().catch(() => 'unknown');
-        console.warn(
-          `[moderation] OpenAI API returned ${response.status}: ${errorBody} — allowing content through`
-        );
+        logWarn('moderation.upstream_non_ok', {
+          contentType: args.contentType,
+          status: response.status,
+          statusText: response.statusText,
+        });
         return { flagged: false, categories: {} };
       }
 
@@ -54,15 +60,20 @@ export const moderateContent = internalAction({
       const result = data.results?.[0];
 
       if (!result) {
-        console.warn('[moderation] Unexpected API response shape — allowing content through');
+        logWarn('moderation.unexpected_response_shape', {
+          contentType: args.contentType,
+        });
         return { flagged: false, categories: {} };
       }
 
       flagged = result.flagged ?? false;
       categories = result.categories ?? {};
     } catch (error) {
-      // Graceful degradation: API unreachable, network error, etc.
-      console.warn('[moderation] OpenAI API call failed — allowing content through:', error);
+      // Graceful degradation: API unreachable, timeout, network error, etc.
+      logWarn('moderation.upstream_failed', {
+        contentType: args.contentType,
+        error,
+      });
       return { flagged: false, categories: {} };
     }
 

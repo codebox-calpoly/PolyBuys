@@ -13,6 +13,7 @@
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "start:prod:web": "node ./scripts/serve-static.mjs frontend/dist",
+    "backfill:messaging": "node ./scripts/run-messaging-backfill.mjs",
     "lint": "./scripts/lint.sh",
     "format": "./scripts/format.sh",
     "build": "npm run build --workspaces --if-present",
