@@ -1,9 +1,6 @@
 import { APP_STORE_URL } from '../../constants/app';
 import qrDownloadPng from '../../assets/images/polybuys-download-qr.png';
 
-export const APP_STORE_BADGE_URI =
-  'https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83';
-
 export { APP_STORE_URL };
 
 type QrAsset = string | { uri?: string; default?: string };

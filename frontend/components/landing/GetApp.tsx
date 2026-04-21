@@ -36,8 +36,7 @@ export function GetApp() {
           </div>
 
           <p className="pb-getapp__footnote">
-            Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and other
-            countries.
+            TestFlight is Apple&apos;s beta distribution platform for iOS apps.
           </p>
         </div>
       </div>
