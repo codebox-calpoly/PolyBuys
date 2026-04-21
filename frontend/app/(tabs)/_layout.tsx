@@ -23,7 +23,7 @@ function WebHeaderLayout() {
   }, [q]);
   const [searchInput, setSearchInput] = useState(currentQuery);
   const searchActive =
-    pathname === '/home'
+    pathname === '/' || pathname === '/(tabs)'
       ? searchInput.trim().length > 0
       : pathname === '/search' || pathname.startsWith('/search/');
   const searchControlStyle = StyleSheet.flatten([
@@ -55,7 +55,7 @@ function WebHeaderLayout() {
       }
 
       router.replace({
-        pathname: '/home' as never,
+        pathname: '/',
         params: trimmed.length > 0 ? { ...mergedParams, q: trimmed } : mergedParams,
       });
     }, 250);
@@ -67,7 +67,7 @@ function WebHeaderLayout() {
     <View style={styles.webRoot}>
       <View style={styles.webHeaderBorder}>
         <View style={styles.webHeaderContent}>
-          <Link href="/home" asChild>
+          <Link href="/" asChild>
             <Pressable accessibilityRole="link" accessibilityLabel="Go to home">
               <Text style={styles.brand}>PolyBuys</Text>
             </Pressable>

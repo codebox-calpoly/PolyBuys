@@ -31,7 +31,7 @@ export function Hero() {
 
           <div className="pb-hero__ctas">
             <DownloadButton size="lg" />
-            <Button variant="ghost" size="lg" onClick={() => router.push('/home')} trailingArrow>
+            <Button variant="ghost" size="lg" onClick={() => router.push('/')} trailingArrow>
               Browse listings
             </Button>
           </div>

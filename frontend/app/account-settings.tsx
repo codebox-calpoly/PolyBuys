@@ -315,7 +315,7 @@ export default function AccountSettingsScreen() {
         path="/account-settings"
         buttonLabel="Open in app"
         secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/home')}
+        onSecondaryAction={() => router.replace('/')}
       />
     );
   }

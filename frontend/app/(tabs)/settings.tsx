@@ -85,7 +85,7 @@ export default function SettingsScreen() {
         path="/settings"
         buttonLabel="Open Profile in App"
         secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/home')}
+        onSecondaryAction={() => router.replace('/')}
       />
     );
   }

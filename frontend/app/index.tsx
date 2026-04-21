@@ -8,7 +8,7 @@ export default function IndexRoute() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (Platform.OS !== 'web') {
-    return <Redirect href="/home" />;
+    return <Redirect href="/" />;
   }
 
   if (isLoading) {
@@ -20,7 +20,7 @@ export default function IndexRoute() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/home" />;
+    return <Redirect href="/" />;
   }
 
   return <LandingScreen />;
