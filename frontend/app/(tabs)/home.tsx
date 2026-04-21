@@ -19,6 +19,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilterBar } from '../../components/FilterBar';
 import { CategoryPicker } from '../../components/CategoryPicker';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { PriceRangePicker } from '../../components/PriceRangePicker';
 import { SortPicker } from '../../components/SortPicker';
 import ListingCard from '../../components/ListingCard';
@@ -28,10 +29,19 @@ import type { Filters, Category, ListingSortBy } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 const PAGE_SIZE = 20;
 const FOCUS_REFETCH_STALE_MS = 45_000;
+
+type WebHandoffPrompt = {
+  key: 'create-listing' | 'save-listing';
+  title: string;
+  body: string;
+  path: string;
+  buttonLabel: string;
+};
 
 function buildWebRows(items: Doc<'listings'>[], size: number) {
   const rows: Array<{
@@ -72,6 +82,7 @@ export default function HomeScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
   const [showSortPicker, setShowSortPicker] = useState(false);
+  const [webHandoffPrompt, setWebHandoffPrompt] = useState<WebHandoffPrompt | null>(null);
 
   const [allListings, setAllListings] = useState<Doc<'listings'>[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -203,7 +214,13 @@ export default function HomeScreen() {
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
       if (isWeb) {
-        Alert.alert('Open in the PolyBuys app', 'Saving listings is available in the mobile app.');
+        setWebHandoffPrompt({
+          key: 'save-listing',
+          title: 'Save listings in the mobile app',
+          body: 'Bookmarks and saved listings are available in the PolyBuys mobile app.',
+          path: `/listings/${listingId}`,
+          buttonLabel: 'Open Listing in App',
+        });
         return;
       }
 
@@ -215,9 +232,7 @@ export default function HomeScreen() {
       try {
         await toggleSavedListing({ listingId });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unable to save listing right now.';
-        Alert.alert('Save failed', message);
+        Alert.alert('Save Failed', getUserFlowErrorMessage(error, 'save-listing'));
       }
     },
     [isAuthenticated, isWeb, router, toggleSavedListing]
@@ -262,7 +277,13 @@ export default function HomeScreen() {
 
   const handleCreateListing = () => {
     if (isWeb) {
-      Alert.alert('Open in the PolyBuys app', 'Creating listings is available in the mobile app.');
+      setWebHandoffPrompt({
+        key: 'create-listing',
+        title: 'Create listings in the mobile app',
+        body: 'Posting items is available in the PolyBuys mobile app.',
+        path: '/listings/new',
+        buttonLabel: 'Open Create Listing in App',
+      });
       return;
     }
 
@@ -423,6 +444,20 @@ export default function HomeScreen() {
             onClearPrice={handleClearPrice}
             onClearAll={handleClearAll}
           />
+
+          {webHandoffPrompt ? (
+            <OpenInAppPrompt
+              key={webHandoffPrompt.key}
+              variant="card"
+              title={webHandoffPrompt.title}
+              body={webHandoffPrompt.body}
+              path={webHandoffPrompt.path}
+              buttonLabel={webHandoffPrompt.buttonLabel}
+              secondaryActionLabel="Keep browsing"
+              onSecondaryAction={() => setWebHandoffPrompt(null)}
+              cardStyle={styles.webHandoffCard}
+            />
+          ) : null}
 
           {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
             <View style={styles.centerContainer}>
@@ -650,6 +685,9 @@ const styles = StyleSheet.create({
   },
   webGrid: {
     gap: spacing.lg,
+  },
+  webHandoffCard: {
+    maxWidth: '100%',
   },
   webGridItem: {
     flex: 1,

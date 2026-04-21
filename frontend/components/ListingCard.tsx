@@ -2,14 +2,13 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
 import { formatRelativeDate } from '../lib/formatDate';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
-import { nativeChrome } from '../theme/nativeChrome';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { GlassIconButton } from './ui';
 
 /** LRU-capped ids that already ran the entrance animation. */
 const MAX_ANIMATED_CACHE = 200;
@@ -310,14 +309,13 @@ export default function ListingCard({
           )}
         </Pressable>
         {onToggleSave && (
-          <Pressable
-            style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
+          <GlassIconButton
+            containerStyle={styles.saveButton}
             onPress={onToggleSave}
             accessibilityLabel={`${isSaved ? 'Unsave' : 'Save'} listing: ${listing.title?.trim() || listing._id || 'listing'}`}
-            accessibilityRole="button"
             hitSlop={8}
+            pressedScale={0.94}
           >
-            <BlurView intensity={40} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
             <Animated.View style={{ transform: [{ scale: heartScale }] }}>
               <Ionicons
                 name={isSaved ? 'bookmark' : 'bookmark-outline'}
@@ -325,23 +323,22 @@ export default function ListingCard({
                 color={isSaved ? colors.category : colors.textDark}
               />
             </Animated.View>
-          </Pressable>
+          </GlassIconButton>
         )}
         {onManagePress && (
-          <Pressable
-            style={({ pressed }) => [styles.manageButton, pressed && styles.manageButtonPressed]}
+          <GlassIconButton
+            containerStyle={styles.manageButton}
             onPress={onManagePress}
             accessibilityLabel={`Manage listing: ${listing.title?.trim() || listing._id || 'listing'}`}
-            accessibilityRole="button"
             hitSlop={8}
+            pressedScale={0.94}
           >
-            <BlurView intensity={40} tint={nativeChrome.blurTint} style={StyleSheet.absoluteFill} />
             <View style={styles.manageDots}>
               <View style={styles.manageDot} />
               <View style={styles.manageDot} />
               <View style={styles.manageDot} />
             </View>
-          </Pressable>
+          </GlassIconButton>
         )}
       </View>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
@@ -422,16 +419,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderWidth: 1,
-    borderColor: 'rgba(21, 71, 52, 0.12)',
-    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.14)',
-  },
-  saveButtonPressed: {
-    opacity: 0.9,
   },
   manageButton: {
     position: 'absolute',
@@ -440,17 +427,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderWidth: 1,
-    borderColor: 'rgba(21, 71, 52, 0.12)',
-    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.14)',
-  },
-  manageButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.96 }],
   },
   manageDots: {
     flexDirection: 'row',

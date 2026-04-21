@@ -19,6 +19,7 @@ import { requestPermissionAndSyncToken } from '../hooks/usePushNotifications';
 import OpenInAppPrompt from '../components/OpenInAppPrompt';
 import { ScreenState } from '../components/ScreenState';
 import { formatMajorLabel } from '../constants/calPolyMajors';
+import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 type BlockedRow = {
@@ -81,8 +82,7 @@ export default function AccountSettingsScreen() {
       setIsSigningOut(true);
       await signOut();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to sign out';
-      Alert.alert('Sign Out Failed', message);
+      Alert.alert('Sign Out Failed', getUserFlowErrorMessage(error, 'sign-out'));
     } finally {
       signOutInProgressRef.current = false;
       setIsSigningOut(false);
@@ -102,19 +102,17 @@ export default function AccountSettingsScreen() {
             try {
               await deleteAccount({});
             } catch (error) {
-              const message = error instanceof Error ? error.message : 'Failed to delete account';
-              Alert.alert('Delete Account Failed', message);
+              Alert.alert(
+                'Delete Account Failed',
+                getUserFlowErrorMessage(error, 'delete-account')
+              );
               return;
             }
 
             try {
               await signOut();
             } catch (error) {
-              const details = error instanceof Error ? `\n\nDetails: ${error.message}` : '';
-              Alert.alert(
-                'Account Deleted',
-                `Your account was deleted, but we could not sign you out automatically. Please sign out manually.${details}`
-              );
+              Alert.alert('Account Deleted', getUserFlowErrorMessage(error, 'post-delete-signout'));
             }
           },
         },
@@ -137,10 +135,7 @@ export default function AccountSettingsScreen() {
                 try {
                   await unblockUser({ blockedId: row.blockedId });
                 } catch (err) {
-                  Alert.alert(
-                    'Could not unblock',
-                    err instanceof Error ? err.message : 'Please try again.'
-                  );
+                  Alert.alert('Could Not Unblock', getUserFlowErrorMessage(err, 'unblock-user'));
                 } finally {
                   setUnblockingId(null);
                 }
@@ -168,9 +163,10 @@ export default function AccountSettingsScreen() {
           permissionGranted = await requestPermissionAndSyncToken(recordPushToken);
         } catch (error) {
           setMessageNotificationsValue(previousValue);
-          const message =
-            error instanceof Error ? error.message : 'Unable to enable notifications right now.';
-          Alert.alert('Notification Update Failed', message);
+          Alert.alert(
+            'Notification Update Failed',
+            getUserFlowErrorMessage(error, 'notifications-enable')
+          );
           return;
         }
 
@@ -187,9 +183,10 @@ export default function AccountSettingsScreen() {
           await updateMessageNotificationsEnabled({ enabled: true });
         } catch (error) {
           setMessageNotificationsValue(previousValue);
-          const message =
-            error instanceof Error ? error.message : 'Failed to update notification preference';
-          Alert.alert('Notification Update Failed', message);
+          Alert.alert(
+            'Notification Update Failed',
+            getUserFlowErrorMessage(error, 'notifications-enable')
+          );
         }
       } else {
         let removePushTokenSucceeded = false;
@@ -204,36 +201,24 @@ export default function AccountSettingsScreen() {
         try {
           await updateMessageNotificationsEnabled({ enabled: false });
           if (!removePushTokenSucceeded) {
-            const removeTokenMessage =
-              removePushTokenError instanceof Error
-                ? removePushTokenError.message
-                : 'Failed to remove this device push token.';
             Alert.alert(
-              'Notification partially disabled',
-              `Your notification preference was saved, but we could not remove this device's push token. You may still receive some notifications.\n\nDetails: ${removeTokenMessage}`
+              'Notifications Turned Off',
+              'Notifications were turned off for your account, but this device may still receive a few alerts for a short time.'
             );
           }
         } catch (error) {
-          const updatePreferenceMessage =
-            error instanceof Error ? error.message : 'Failed to update notification preference';
-
           if (removePushTokenSucceeded) {
             Alert.alert(
-              'Notification partially updated',
-              `This device push token was removed, but we could not save your notification preference.\n\nDetails: ${updatePreferenceMessage}`
+              'Notification Preference Not Saved',
+              'This device was updated, but we could not save your account preference. Try again in a moment.'
             );
             return;
           }
 
           setMessageNotificationsValue(previousValue);
-          const removeTokenMessage =
-            removePushTokenError instanceof Error
-              ? removePushTokenError.message
-              : 'Failed to remove this device push token.';
-
           Alert.alert(
             'Notification Update Failed',
-            `We could not disable notifications.\n\nToken removal: ${removeTokenMessage}\nPreference update: ${updatePreferenceMessage}`
+            getUserFlowErrorMessage(error ?? removePushTokenError, 'notifications-disable')
           );
           return;
         }

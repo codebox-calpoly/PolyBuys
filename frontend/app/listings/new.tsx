@@ -29,7 +29,8 @@ import {
   validateListingFields,
   validatePrice,
   validateTitle,
-} from './newListingValidation';
+} from '../../lib/listings/newListingValidation';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
@@ -56,7 +57,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
   return {
     title: fallbackTitle,
-    message: rawMessage,
+    message: getUserFlowErrorMessage(error, 'create-listing'),
   };
 }
 function RequiredLabel({ text }: { text: string }) {

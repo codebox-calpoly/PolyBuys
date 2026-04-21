@@ -30,6 +30,7 @@ import ProfileAvatar from '../../components/ProfileAvatar';
 import { KeyboardAwareScreen } from '../../components/ui';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { useFlash } from '../../contexts/FlashContext';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const PROFILE_IMAGE_BOUNDS = {
@@ -230,8 +231,7 @@ export default function ProfileEditScreen() {
 
       setPendingPictureUri(manipulated.uri);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to prepare profile image';
-      setFlash(message);
+      setFlash(getUserFlowErrorMessage(error, 'prepare-profile-image'));
     } finally {
       setIsPreparingPicture(false);
     }
@@ -316,8 +316,7 @@ export default function ProfileEditScreen() {
       ]);
     } catch (error) {
       uploadAbortRef.current = null;
-      const message = error instanceof Error ? error.message : 'Failed to save profile';
-      setFlash(message);
+      setFlash(getUserFlowErrorMessage(error, 'save-profile'));
     } finally {
       setIsSubmitting(false);
     }

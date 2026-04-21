@@ -24,6 +24,7 @@ import { ReportModal } from '../../components/ReportModal';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
 import { KeyboardDockScreen } from '../../components/ui';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
@@ -282,7 +283,7 @@ export default function ConversationDetailScreen() {
 
     if (isBlockingOther === true) {
       unblockUser({ blockedId: otherUserId }).catch((err) => {
-        Alert.alert('Could not unblock', err instanceof Error ? err.message : 'Please try again.');
+        Alert.alert('Could Not Unblock', getUserFlowErrorMessage(err, 'unblock-user'));
       });
       return;
     }
@@ -297,7 +298,7 @@ export default function ConversationDetailScreen() {
 
         Alert.alert('User blocked', 'You will no longer receive messages from this user.');
       } catch (err) {
-        Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
+        Alert.alert('Could Not Block', getUserFlowErrorMessage(err, 'block-user'));
       }
     };
 
@@ -330,8 +331,7 @@ export default function ConversationDetailScreen() {
       setMessageBody('');
       scrollToBottom(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-message'));
     } finally {
       setIsSending(false);
     }

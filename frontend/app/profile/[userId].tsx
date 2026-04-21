@@ -22,6 +22,7 @@ import { ReportModal } from '../../components/ReportModal';
 import { ScreenState } from '../../components/ScreenState';
 import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 function yearToOrdinal(gradYear: number): string {
@@ -98,8 +99,8 @@ export default function PublicProfileScreen() {
         setFlash('User unblocked.');
       } catch (error) {
         Alert.alert(
-          nextBlocked ? 'Could not block' : 'Could not unblock',
-          error instanceof Error ? error.message : 'Please try again.'
+          nextBlocked ? 'Could Not Block' : 'Could Not Unblock',
+          getUserFlowErrorMessage(error, nextBlocked ? 'block-user' : 'unblock-user')
         );
       } finally {
         setIsUpdatingBlock(false);
