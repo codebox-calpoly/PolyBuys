@@ -10,7 +10,7 @@ export function Nav({ scrolled }: NavProps) {
   return (
     <div className={cx('pb-nav', scrolled && 'is-scrolled')}>
       <div className="pb-nav__inner">
-        <Brand href="/home" ariaLabel="PolyBuys home" />
+        <Brand href="/" ariaLabel="PolyBuys home" />
 
         <nav className="pb-nav__links" aria-label="Primary">
           <a href="#why" className="pb-nav__link">

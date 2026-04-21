@@ -4,7 +4,7 @@ export default function ShortListingRedirect() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   if (typeof id !== 'string' || id.trim().length === 0) {
-    return <Redirect href="/home" />;
+    return <Redirect href="/" />;
   }
 
   return <Redirect href={`/listings/${encodeURIComponent(id.trim())}`} />;

@@ -458,7 +458,7 @@ export default function InboxScreen() {
         path="/inbox"
         buttonLabel="Open Inbox in App"
         secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/home')}
+        onSecondaryAction={() => router.replace('/')}
       />
     );
   }
