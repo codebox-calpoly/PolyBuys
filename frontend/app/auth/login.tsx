@@ -69,7 +69,7 @@ export default function LoginScreen() {
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
-      : '/';
+      : '/home';
   const [successRedirect, setSuccessRedirect] = useState<Href>(postAuthRedirect);
 
   useEffect(() => {

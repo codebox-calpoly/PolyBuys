@@ -25,7 +25,7 @@ const APP_STORE_BADGE_URI =
 
 const LAYOUT_BREAKPOINT = 768;
 
-const HOME_HREF = '/' as Href;
+const HOME_HREF = '/home' as Href;
 const SUPPORT_PAGE_HREF = '/support' as Href;
 const PRIVACY_PAGE_HREF = '/privacy' as Href;
 const TERMS_PAGE_HREF = '/terms' as Href;
