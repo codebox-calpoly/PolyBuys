@@ -20,6 +20,16 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
 import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
+import {
+  hasFieldErrors,
+  type FieldErrors,
+  upsertFieldError,
+  validateDescription,
+  validateImages,
+  validateListingFields,
+  validatePrice,
+  validateTitle,
+} from './newListingValidation';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
@@ -58,6 +68,19 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
     message: rawMessage,
   };
 }
+function RequiredLabel({ text }: { text: string }) {
+  return (
+    <Text style={styles.label}>
+      {text}
+      <Text style={styles.requiredAsterisk}> *</Text>
+    </Text>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <Text style={styles.fieldError}>{message}</Text>;
+}
 
 export default function NewListingScreen() {
   const router = useRouter();
@@ -76,7 +99,10 @@ export default function NewListingScreen() {
   const [images, setImages] = useState<string[]>([]);
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const submittingRef = useRef(false);
+  const hasActiveFieldErrors = hasFieldErrors(fieldErrors);
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
@@ -98,6 +124,40 @@ export default function NewListingScreen() {
     );
   }
 
+  // After the first failed submit, keep each field's error state in sync with its current value.
+  const handleTitleChange = (text: string) => {
+    setTitle(text);
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'title', validateTitle(text)));
+    }
+  };
+
+  const handleDescriptionChange = (text: string) => {
+    setDescription(text);
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'description', validateDescription(text)));
+    }
+  };
+
+  const handlePriceChange = (text: string) => {
+    const filtered = text.replace(/[^0-9.]/g, '');
+    const parts = filtered.split('.');
+    if (parts.length > 2) return;
+    if (parts[1]?.length > 2) return;
+    setPrice(filtered);
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'price', validatePrice(filtered)));
+    }
+  };
+
+  const handleImagesChange = (newImages: string[] | ((prev: string[]) => string[])) => {
+    const nextImages = typeof newImages === 'function' ? newImages(images) : newImages;
+    setImages(nextImages);
+    if (hasAttemptedSubmit) {
+      setFieldErrors((prev) => upsertFieldError(prev, 'images', validateImages(nextImages)));
+    }
+  };
+
   async function onSubmit() {
     if (submittingRef.current) {
       return;
@@ -116,35 +176,28 @@ export default function NewListingScreen() {
       return;
     }
 
-    const trimmedTitle = title.trim();
-    const trimmedDescription = description.trim();
-
-    if (!trimmedTitle || trimmedTitle.length < 5) {
-      showAlert('Missing fields', 'Title must be at least 5 characters.');
-      return;
-    }
-
-    if (!trimmedDescription) {
-      showAlert('Missing fields', 'Description is required.');
-      return;
-    }
-
-    const trimmed = price.trim();
-    const parsedPrice = trimmed === '' ? NaN : Number(trimmed);
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      showAlert('Invalid price', 'Please enter a valid non-negative price in dollars.');
-      return;
-    }
-
     if (hasPendingUploads) {
       showAlert('Uploads in progress', 'Please wait for image uploads to finish.');
       return;
     }
 
-    if (images.length < 1 || images.length > 8) {
-      showAlert('Invalid images', 'Please upload between 1 and 8 images.');
+    setHasAttemptedSubmit(true);
+
+    const errors = validateListingFields({
+      title,
+      description,
+      price,
+      images,
+    });
+    setFieldErrors(errors);
+
+    if (hasFieldErrors(errors)) {
       return;
     }
+
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    const parsedPrice = Number(price.trim());
 
     try {
       submittingRef.current = true;
@@ -198,15 +251,16 @@ export default function NewListingScreen() {
         />
 
         <View style={styles.section}>
-          <Text style={styles.label}>Photos</Text>
+          <RequiredLabel text="Photos" />
           <Text style={styles.labelHint}>
             Add 1–8 photos. Listings with clear photos sell faster.
           </Text>
           <ImageUploader
             images={images}
-            onImagesChange={setImages}
+            onImagesChange={handleImagesChange}
             onPendingChange={setHasPendingUploads}
           />
+          <FieldError message={fieldErrors.images} />
         </View>
 
         {profile === null && (
@@ -224,57 +278,56 @@ export default function NewListingScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.label}>Title</Text>
+          <RequiredLabel text="Title" />
           <TextInput
-            style={styles.input}
+            style={[styles.input, fieldErrors.title && styles.inputError]}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={handleTitleChange}
             placeholder="Enter listing title"
-            accessibilityLabel="Listing title"
+            accessibilityLabel="Listing title (required)"
             placeholderTextColor={colors.muted}
             selectionColor={colors.primary}
             cursorColor={colors.primary}
             maxLength={100}
           />
+          <FieldError message={fieldErrors.title} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
+          <RequiredLabel text="Description" />
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[styles.input, styles.textArea, fieldErrors.description && styles.inputError]}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={handleDescriptionChange}
             placeholder="Describe your item"
             placeholderTextColor={colors.muted}
             selectionColor={colors.primary}
             cursorColor={colors.primary}
             multiline
             numberOfLines={4}
+            accessibilityLabel="Description (required)"
           />
+          <FieldError message={fieldErrors.description} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Price</Text>
-          <View style={styles.priceInputWrap}>
+          <RequiredLabel text="Price" />
+          <View style={[styles.priceInputWrap, fieldErrors.price && styles.priceInputWrapError]}>
             <Text style={styles.pricePrefix}>$</Text>
             <TextInput
               style={[styles.input, styles.priceInput]}
               value={price}
-              onChangeText={(text) => {
-                const filtered = text.replace(/[^0-9.]/g, '');
-                const parts = filtered.split('.');
-                if (parts.length > 2) return;
-                if (parts[1]?.length > 2) return;
-                setPrice(filtered);
-              }}
+              onChangeText={handlePriceChange}
               placeholder="15"
               placeholderTextColor={colors.muted}
               selectionColor={colors.primary}
               cursorColor={colors.primary}
               keyboardType="decimal-pad"
+              accessibilityLabel="Price (required)"
             />
           </View>
-          <Text style={styles.helperText}>Enter amount in dollars</Text>
+          <FieldError message={fieldErrors.price} />
+          {!fieldErrors.price && <Text style={styles.helperText}>Enter amount in dollars</Text>}
         </View>
 
         <View style={styles.section}>
@@ -326,6 +379,12 @@ export default function NewListingScreen() {
             ))}
           </View>
         </View>
+
+        {hasAttemptedSubmit && hasActiveFieldErrors && (
+          <View style={styles.formErrorBanner}>
+            <Text style={styles.formErrorText}>Please fix the errors above before submitting.</Text>
+          </View>
+        )}
 
         <View style={styles.buttonContainer}>
           <Pressable
@@ -398,6 +457,10 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     marginBottom: 4,
   },
+  requiredAsterisk: {
+    color: colors.errorText,
+    fontWeight: '700',
+  },
   labelHint: {
     ...typography.footnote,
     color: colors.muted,
@@ -412,6 +475,9 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     backgroundColor: colors.white,
   },
+  inputError: {
+    borderColor: colors.errorText,
+  },
   textArea: {
     minHeight: 112,
     textAlignVertical: 'top',
@@ -423,6 +489,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     backgroundColor: colors.white,
+  },
+  priceInputWrapError: {
+    borderColor: colors.errorText,
   },
   pricePrefix: {
     ...typography.body,
@@ -438,6 +507,24 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.muted,
     marginTop: spacing.xs,
+  },
+  fieldError: {
+    ...typography.footnote,
+    color: colors.errorText,
+    marginTop: spacing.xs,
+  },
+  formErrorBanner: {
+    backgroundColor: colors.errorBg,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  formErrorText: {
+    ...typography.footnote,
+    color: colors.errorText,
+    textAlign: 'center',
   },
   optionsContainer: {
     flexDirection: 'row',
