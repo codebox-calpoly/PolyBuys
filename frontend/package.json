@@ -14,12 +14,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sentry/react-native": "^8.3.0",
     "@convex-dev/auth": "^0.0.90",
     "@expo/metro-runtime": "~55.0.6",
     "@expo/vector-icons": "^15.0.3",
     "@polybuys/shared": "*",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "^8.3.0",
     "convex": "^1.32.0",
     "expo": "~55.0.5",
     "expo-blur": "~55.0.8",
@@ -49,6 +49,7 @@
     "@babel/plugin-transform-optional-chaining": "^7.25.9",
     "@types/node": "^24.10.1",
     "@types/react": "~19.2.10",
+    "@types/react-dom": "~19.2.0",
     "babel-preset-expo": "^55.0.10",
     "typescript": "^5.7.2"
   },
