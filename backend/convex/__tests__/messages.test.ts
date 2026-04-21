@@ -331,6 +331,42 @@ describe('Messages queries and mutations', () => {
       expect(messages[1].body).toBe('Second message');
       expect(messages[2].body).toBe('Third message');
     });
+
+    it('returns only the latest bounded history when a limit is provided', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+
+      await t.run(async (ctx: any) => {
+        for (let index = 0; index < 5; index += 1) {
+          await ctx.db.insert('messages', {
+            conversationId,
+            listingId,
+            senderId: index % 2 === 0 ? buyer.id : seller.id,
+            recipientId: index % 2 === 0 ? seller.id : buyer.id,
+            type: 'text',
+            body: `Message ${index + 1}`,
+            createdAt: Date.now() + index,
+            readAt: 0,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const messages = await asBuyer.query(api.messages.getConversationHistory, {
+        conversationId,
+        limit: 3,
+      });
+
+      expect(messages.map((message) => message.body)).toEqual([
+        'Message 3',
+        'Message 4',
+        'Message 5',
+      ]);
+    });
   });
 
   describe('listUserConversations', () => {
@@ -522,6 +558,48 @@ describe('Messages queries and mutations', () => {
 
       expect(conversations).toHaveLength(1);
       expect(conversations[0].otherUser.name).toBe('User');
+    });
+
+    it('returns stored unread counts without re-scanning the whole inbox', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(conversationId, {
+          buyerUnreadCount: 2,
+          sellerUnreadCount: 5,
+          lastMessagePreview: 'Latest preview',
+          lastMessageAt: Date.now(),
+        });
+      });
+
+      const asSeller = t.withIdentity(seller.identity);
+      const conversations = await asSeller.query(api.messages.listUserConversations, { limit: 10 });
+
+      expect(conversations).toHaveLength(1);
+      expect(conversations[0].unreadCount).toBe(5);
+      expect(conversations[0].lastMessagePreview).toBe('Latest preview');
+    });
+
+    it('caps the inbox response to the requested limit', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+
+      for (let index = 0; index < 3; index += 1) {
+        const listingId = await createTestListing(t, seller.id, { title: `Listing ${index + 1}` });
+        await createTestConversation(t, listingId, buyer.id, seller.id);
+      }
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const conversations = await asBuyer.query(api.messages.listUserConversations, { limit: 2 });
+
+      expect(conversations).toHaveLength(2);
     });
   });
 
@@ -1232,6 +1310,39 @@ describe('Messages queries and mutations', () => {
 
       expect(message!.readAt).toBe(0);
     });
+
+    it('resets the stored unread count for the caller after marking as read', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversation(t, listingId, buyer.id, seller.id);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert('messages', {
+          conversationId,
+          listingId,
+          senderId: seller.id,
+          recipientId: buyer.id,
+          type: 'text',
+          body: 'Unread for buyer',
+          createdAt: Date.now() + 1,
+          readAt: 0,
+        });
+        await ctx.db.patch(conversationId, {
+          buyerUnreadCount: 1,
+        });
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      await asBuyer.mutation(api.messages.markMessagesAsRead, {
+        conversationId,
+      });
+
+      const conversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+      expect(conversation?.buyerUnreadCount).toBe(0);
+    });
   });
 
   describe('messagesByConversation', () => {
@@ -1294,6 +1405,38 @@ describe('Messages queries and mutations', () => {
       expect(messages).toHaveLength(2);
       expect(messages[0].body).toBe('Message 1');
       expect(messages[1].body).toBe('Message 2');
+    });
+
+    it('returns only the latest message slice when a limit is provided', async () => {
+      const t = createConvexTest();
+
+      const buyer = await createTestUser(t, 'buyer@calpoly.edu', 'Buyer');
+      const seller = await createTestUser(t, 'seller@calpoly.edu', 'Seller');
+      const listingId = await createTestListing(t, seller.id);
+      const conversationId = await createTestConversationEmpty(t, listingId, buyer.id, seller.id);
+
+      await t.run(async (ctx: any) => {
+        for (let index = 0; index < 4; index += 1) {
+          await ctx.db.insert('messages', {
+            conversationId,
+            listingId,
+            senderId: index % 2 === 0 ? buyer.id : seller.id,
+            recipientId: index % 2 === 0 ? seller.id : buyer.id,
+            type: 'text',
+            body: `Body ${index + 1}`,
+            createdAt: Date.now() + index,
+            readAt: 0,
+          });
+        }
+      });
+
+      const asBuyer = t.withIdentity(buyer.identity);
+      const messages = await asBuyer.query(api.messages.messagesByConversation, {
+        conversationId,
+        limit: 2,
+      });
+
+      expect(messages.map((message) => message.body)).toEqual(['Body 3', 'Body 4']);
     });
   });
 

@@ -4,6 +4,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import { paginationOptsValidator } from 'convex/server';
 import { requireAuthUserId, getStableUserId } from './lib/authIdentity';
 
+const MAX_SAVED_STATE_LISTING_IDS = 100;
+
 function isListingUnavailable(listing: Doc<'listings'>): boolean {
   return (
     listing.status === 'deleted' ||
@@ -11,6 +13,10 @@ function isListingUnavailable(listing: Doc<'listings'>): boolean {
     listing.status === 'sold' ||
     listing.isHidden === true
   );
+}
+
+function shouldHideSavedListingDetails(listing: Doc<'listings'>): boolean {
+  return listing.status === 'deleted' || listing.isHidden === true;
 }
 
 export const toggleSavedListing = mutation({
@@ -107,9 +113,14 @@ export const getSavedStateForListings = query({
     if (!userId || args.listingIds.length === 0) {
       return {} as Record<string, boolean>;
     }
+    if (args.listingIds.length > MAX_SAVED_STATE_LISTING_IDS) {
+      throw new ConvexError(
+        `listingIds must contain at most ${MAX_SAVED_STATE_LISTING_IDS} entries`
+      );
+    }
 
     const result: Record<string, boolean> = {};
-    for (const id of args.listingIds) {
+    for (const id of new Set(args.listingIds)) {
       const saved = await ctx.db
         .query('savedListings')
         .withIndex('by_user_listing', (q) => q.eq('userId', userId).eq('listingId', id))
@@ -172,6 +183,9 @@ export const getMySavedListings = query({
     const resolvedItems: SavedListingItem[] = [];
     for (const saved of result.page) {
       const listingDoc = await ctx.db.get(saved.listingId);
+      if (listingDoc && shouldHideSavedListingDetails(listingDoc)) {
+        continue;
+      }
       resolvedItems.push({
         _id: saved._id,
         listingId: saved.listingId,

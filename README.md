@@ -29,6 +29,7 @@ PolyBuys/
 - Local setup without Convex account: [docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md](docs/LOCAL_DEV_WITHOUT_CONVEX_ACCOUNT.md)
 - Convex migration runbook: [docs/CONVEX_CLOUD_MIGRATION.md](docs/CONVEX_CLOUD_MIGRATION.md)
 - Vercel + Convex deployment: [docs/VERCEL_CONVEX_DEPLOYMENT.md](docs/VERCEL_CONVEX_DEPLOYMENT.md)
+- Production deployment runbook: [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)
 - Legacy self-hosted reference: [docs/SELF_HOSTED_CONVEX.md](docs/SELF_HOSTED_CONVEX.md)
 - Schema migration guide: [docs/SCHEMA_MIGRATION.md](docs/SCHEMA_MIGRATION.md)
 - Backend specifics: [backend/convex/README.md](backend/convex/README.md)
