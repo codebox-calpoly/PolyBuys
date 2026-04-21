@@ -115,7 +115,7 @@ async function uploadImageToConvex(
 export default function ProfileEditScreen() {
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isUserLoading } = useAuth();
   const { setFlash } = useFlash();
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
   const createProfile = useMutation(api.profiles.createProfile);
@@ -124,7 +124,6 @@ export default function ProfileEditScreen() {
   const uploadAbortRef = useRef<AbortController | null>(null);
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
   const [year, setYear] = useState(DEFAULT_YEAR);
@@ -135,6 +134,8 @@ export default function ProfileEditScreen() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { mappedUrls: pictureUrls } = useResolvedImageUrls(picture ? [picture] : []);
   const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
+  const profileEmail = profile?.email ?? user?.email ?? '';
+  const isScreenLoading = !isAuthenticated || profile === undefined || (!profile && isUserLoading);
 
   useEffect(() => {
     if (!isAuthenticated || profile === undefined) return;
@@ -144,14 +145,12 @@ export default function ProfileEditScreen() {
 
     if (profile) {
       setName(profile.name);
-      setEmail(profile.email);
       setBio(profile.bio ?? '');
       setMajor(profile.major);
       setYear(String(profile.year));
       setPicture(profile.picture ?? null);
     } else {
       setName('');
-      setEmail('');
       setBio('');
       setMajor('');
       setYear(DEFAULT_YEAR);
@@ -239,7 +238,7 @@ export default function ProfileEditScreen() {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
     const trimmedBio = bio.trim();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = profileEmail.trim().toLowerCase();
 
     if (!trimmedName) {
       setFlash('Name is required.');
@@ -250,10 +249,12 @@ export default function ProfileEditScreen() {
       return;
     }
 
-    const emailError = getEmailValidationError(normalizedEmail);
-    if (emailError) {
-      setFlash(emailError);
-      return;
+    if (normalizedEmail) {
+      const emailError = getEmailValidationError(normalizedEmail);
+      if (emailError) {
+        setFlash(emailError);
+        return;
+      }
     }
 
     const parsedYear = Number(year);
@@ -285,7 +286,6 @@ export default function ProfileEditScreen() {
       if (!profile) {
         await createProfile({
           name: trimmedName,
-          email: normalizedEmail,
           bio: trimmedBio || undefined,
           picture: nextPicture ?? undefined,
           major: trimmedMajor,
@@ -294,7 +294,6 @@ export default function ProfileEditScreen() {
       } else {
         await updateProfile({
           name: trimmedName,
-          email: normalizedEmail,
           bio: trimmedBio || undefined,
           picture: nextPicture,
           major: trimmedMajor,
@@ -329,7 +328,7 @@ export default function ProfileEditScreen() {
     );
   }
 
-  if (!isAuthenticated || profile === undefined) {
+  if (isScreenLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="small" color={colors.primary} />
@@ -394,19 +393,15 @@ export default function ProfileEditScreen() {
         />
       </View>
       <View style={styles.field}>
-        <Text style={styles.label}>Email *</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@calpoly.edu"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Text style={styles.label}>Cal Poly email *</Text>
+        <View style={[styles.input, styles.readOnlyInput]}>
+          <Text selectable style={styles.readOnlyValue}>
+            {profileEmail || 'Email unavailable'}
+          </Text>
+        </View>
+        <Text selectable style={styles.helperText}>
+          Your campus email is managed by your sign-in and can&apos;t be changed here.
+        </Text>
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Bio</Text>
@@ -547,6 +542,19 @@ const styles = StyleSheet.create({
     ...typography.body,
     backgroundColor: colors.white,
     color: colors.textDark,
+  },
+  readOnlyInput: {
+    minHeight: 52,
+    justifyContent: 'center',
+    backgroundColor: colors.placeholderBg,
+  },
+  readOnlyValue: {
+    ...typography.body,
+    color: colors.textDark,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.gray,
   },
   textArea: {
     minHeight: 90,

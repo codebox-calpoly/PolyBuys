@@ -200,9 +200,8 @@ export const updateProfile = mutation({
       }
       update.name = args.name;
     }
-    if (args.email !== undefined) {
-      update.email = normalizeEmailInput(args.email);
-    }
+    // Backwards compatibility: released clients still send `email` on profile updates.
+    // Ignore it so the authenticated Cal Poly email remains immutable after onboarding.
     if (args.bio !== undefined) {
       if (args.bio.length > PAYLOAD_BOUNDS.BIO_MAX) {
         throw new ConvexError(`Bio must be ${PAYLOAD_BOUNDS.BIO_MAX} characters or less`);
