@@ -105,6 +105,20 @@ Run these against production immediately after deploy:
 6. Send a message in an existing conversation.
 7. Verify a new error appears in Sentry if you trigger a controlled test error in a non-user-impacting environment only.
 
+## Messaging backfill
+
+After deploying messaging schema or denormalization changes, run the bounded backfill until it reports `isDone: true`:
+
+```bash
+npm run backfill:messaging -- --prod
+```
+
+Notes:
+
+- The script calls `messages:backfillMessagingFieldsBatch` repeatedly in bounded batches.
+- Default batch size is `100`. Override with `MESSAGING_BACKFILL_BATCH_SIZE=50` or similar if needed.
+- Run this only after the new backend code is deployed.
+
 ## Rollback
 
 Web / frontend rollback:
