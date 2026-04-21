@@ -208,7 +208,7 @@ export default function HomeScreen() {
       }
 
       if (!isAuthenticated) {
-        router.replace('/auth/login?returnTo=%2F' as never);
+        router.replace('/auth/login?returnTo=%2Fhome' as never);
         return;
       }
 

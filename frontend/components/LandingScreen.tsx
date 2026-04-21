@@ -66,7 +66,7 @@ export default function LandingScreen() {
       ) : null}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <Link href="/" asChild>
+          <Link href="/home" asChild>
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Go to marketplace"
@@ -94,7 +94,7 @@ export default function LandingScreen() {
             <View style={styles.ctaRow}>
               <AppButton
                 size="lg"
-                onPress={() => router.push('/')}
+                onPress={() => router.push('/home')}
                 accessibilityLabel="Browse marketplace"
               >
                 Browse marketplace
