@@ -282,9 +282,16 @@ export default function ConversationDetailScreen() {
     if (!otherUserId) return;
 
     if (isBlockingOther === true) {
-      unblockUser({ blockedId: otherUserId }).catch((err) => {
-        Alert.alert('Could Not Unblock', getUserFlowErrorMessage(err, 'unblock-user'));
-      });
+      const unblockAction = () => {
+        unblockUser({ blockedId: otherUserId }).catch((err) => {
+          Alert.alert('Could Not Unblock', getUserFlowErrorMessage(err, 'unblock-user'));
+        });
+      };
+
+      Alert.alert('Unblock user', 'Allow this user to message you again?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Unblock', onPress: () => void unblockAction() },
+      ]);
       return;
     }
 

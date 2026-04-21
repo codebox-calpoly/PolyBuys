@@ -102,4 +102,31 @@ describe('Profiles mutations', () => {
     expect(profile?.name).toBe('Alice Updated');
     expect(profile?.email).toBe('alice@calpoly.edu');
   });
+
+  it('updateProfile rejects email-only updates and keeps the stored email unchanged', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-stable-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    const profileId = await asUser.mutation(api.profiles.createProfile, {
+      name: 'Alice',
+      major: 'Computer Science',
+      year: 2026,
+    });
+
+    await expect(
+      asUser.mutation(api.profiles.updateProfile, {
+        email: 'updated@calpoly.edu',
+      })
+    ).rejects.toThrowError('No valid fields to update');
+
+    const profile = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(profile?.email).toBe('alice@calpoly.edu');
+  });
 });

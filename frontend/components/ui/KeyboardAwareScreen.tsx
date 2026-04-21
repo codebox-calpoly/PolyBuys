@@ -20,6 +20,26 @@ interface KeyboardAwareScreenProps {
   keyboardUnderlayColor?: string;
 }
 
+function getNumericPadding(value: ViewStyle['padding'] | ViewStyle['paddingVertical']) {
+  return typeof value === 'number' ? value : 0;
+}
+
+function getCallerPaddingBottom(style?: ViewStyle) {
+  if (!style) {
+    return 0;
+  }
+
+  if (style.paddingBottom !== undefined) {
+    return getNumericPadding(style.paddingBottom);
+  }
+
+  if (style.paddingVertical !== undefined) {
+    return getNumericPadding(style.paddingVertical);
+  }
+
+  return getNumericPadding(style.padding);
+}
+
 export function KeyboardAwareScreen({
   children,
   contentContainerStyle,
@@ -33,6 +53,9 @@ export function KeyboardAwareScreen({
   const headerHeight = useHeaderHeight();
   const keyboardHeight = useKeyboardHeight();
   const bottomPadding = disableSafeAreaBottom ? 0 : insets.bottom + 8;
+  const flattenedContentContainerStyle = StyleSheet.flatten(contentContainerStyle);
+  const callerPaddingBottom = getCallerPaddingBottom(flattenedContentContainerStyle);
+  const mergedPaddingBottom = bottomPadding + callerPaddingBottom;
 
   return (
     <KeyboardAvoidingView
@@ -44,8 +67,8 @@ export function KeyboardAwareScreen({
       <ScreenScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: bottomPadding },
           contentContainerStyle,
+          { paddingBottom: mergedPaddingBottom },
         ]}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       >
