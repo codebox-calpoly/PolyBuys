@@ -1,12 +1,6 @@
 import Head from 'expo-router/head';
 import { Footer, GetApp, GLOBAL_CSS, Hero, Nav, Why, useScrolled } from './landing';
 
-/**
- * Marketing landing page (web only). The app redirects non-web clients to `/home`
- * in `app/index.tsx`, so this file only runs in the browser.
- *
- * Each section lives in `./landing/` as its own component; this file composes them.
- */
 export default function LandingScreen() {
   const scrolled = useScrolled();
 
@@ -22,7 +16,7 @@ export default function LandingScreen() {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700&display=swap"
         />
       </Head>
       <style>{GLOBAL_CSS}</style>

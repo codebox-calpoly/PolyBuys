@@ -7,7 +7,6 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 type CommonProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Appends an animated `→` glyph that slides on hover. */
   trailingArrow?: boolean;
   className?: string;
   children: ReactNode;
@@ -33,7 +32,6 @@ function classesFor(variant: ButtonVariant, size: ButtonSize, extra?: string) {
   return cx('pb-btn', `pb-btn--${size}`, `pb-btn--${variant}`, extra);
 }
 
-/** Single entry point for all CTAs — renders `<a>` when given `href`, else `<button>`. */
 export function Button(props: ButtonProps) {
   const { variant = 'primary', size = 'md', trailingArrow, className, children } = props;
   const classes = classesFor(variant, size, className);

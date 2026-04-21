@@ -1,12 +1,10 @@
 import { cx } from './cx';
 
 interface AppleIconProps {
-  /** Size in pixels. Height scales proportionally. Defaults to 14. */
   size?: number;
   className?: string;
 }
 
-/** Apple logo glyph. Use only to refer to Apple products (App Store, iOS), per Apple guidelines. */
 export function AppleIcon({ size = 14, className }: AppleIconProps) {
   return (
     <svg

@@ -5,7 +5,6 @@ export type EyebrowTone = 'default' | 'muted' | 'onDark';
 
 interface EyebrowProps {
   tone?: EyebrowTone;
-  /** Render as a `<p>` for section heads, or keep the default `<div>` inside flex rows. */
   as?: 'p' | 'div';
   className?: string;
   children: ReactNode;

@@ -1,6 +1,5 @@
 import { APP_STORE_URL } from './data';
 
-/** Open the user's mail client with a pre-filled download link. */
 export function openDownloadLinkEmail(): void {
   const subject = encodeURIComponent('PolyBuys — download link');
   const body = encodeURIComponent(

@@ -1,11 +1,20 @@
 import { Button } from './Button';
 import { DownloadButton } from './DownloadButton';
 import { Eyebrow } from './Eyebrow';
+import { cx } from './cx';
 import { openDownloadLinkEmail } from './helpers';
+import { useRevealOnVisible } from './useRevealOnVisible';
 
 export function GetApp() {
+  const { ref, visible } = useRevealOnVisible<HTMLElement>();
+
   return (
-    <section id="get-app" className="pb-section pb-getapp" aria-labelledby="getapp-title">
+    <section
+      ref={ref}
+      id="get-app"
+      className={cx('pb-section pb-getapp pb-reveal', visible && 'pb-reveal--visible')}
+      aria-labelledby="getapp-title"
+    >
       <div className="pb-getapp__panel">
         <div className="pb-getapp__text">
           <Eyebrow tone="onDark" as="p">

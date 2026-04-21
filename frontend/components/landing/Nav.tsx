@@ -3,7 +3,6 @@ import { DownloadButton } from './DownloadButton';
 import { cx } from './cx';
 
 interface NavProps {
-  /** Whether the page has scrolled past the top — used to bump background opacity. */
   scrolled: boolean;
 }
 

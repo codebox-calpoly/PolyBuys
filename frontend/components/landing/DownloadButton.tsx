@@ -8,16 +8,10 @@ import { APP_STORE_URL, QR_SRC } from './data';
 interface DownloadButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Visible button label. Defaults to "Download on iOS". */
   label?: string;
   className?: string;
 }
 
-/**
- * Smart download CTA. On touch-primary devices, clicks open the App Store
- * directly. On desktop (hover-capable pointer), clicks open a QR code modal
- * so the visitor can scan from their phone.
- */
 export function DownloadButton({
   variant = 'primary',
   size = 'lg',
@@ -28,7 +22,6 @@ export function DownloadButton({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const handleClick = useCallback(() => {
-    if (typeof window === 'undefined') return;
     const touchPrimary = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     if (touchPrimary) {
       window.location.href = APP_STORE_URL;
@@ -39,7 +32,6 @@ export function DownloadButton({
 
   const handleClose = useCallback(() => {
     setModalOpen(false);
-    // Return focus to the trigger button on close.
     triggerRef.current?.focus();
   }, []);
 
@@ -57,9 +49,7 @@ export function DownloadButton({
         {label}
       </button>
 
-      {modalOpen && typeof document !== 'undefined'
-        ? createPortal(<QrModal onClose={handleClose} />, document.body)
-        : null}
+      {modalOpen ? createPortal(<QrModal onClose={handleClose} />, document.body) : null}
     </>
   );
 }
@@ -79,7 +69,6 @@ function QrModal({ onClose }: { onClose: () => void }) {
     };
 
     window.addEventListener('keydown', onKey);
-    // Defer so the triggering click doesn't immediately close the modal.
     const t = window.setTimeout(() => document.addEventListener('mousedown', onClickAway), 0);
 
     return () => {

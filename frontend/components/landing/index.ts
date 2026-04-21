@@ -7,3 +7,4 @@ export { Footer } from './Footer';
 export { DownloadButton } from './DownloadButton';
 export { GLOBAL_CSS } from './styles';
 export { useScrolled } from './useScrolled';
+export { useRevealOnVisible } from './useRevealOnVisible';

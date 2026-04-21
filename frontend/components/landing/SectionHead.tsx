@@ -5,9 +5,7 @@ import { cx } from './cx';
 interface SectionHeadProps {
   eyebrow: ReactNode;
   eyebrowTone?: EyebrowTone;
-  /** Accepts rich content so callers can embed `<em>` accents. */
   title: ReactNode;
-  /** Optional `id` for the heading, used to wire `aria-labelledby` on the parent section. */
   titleId?: string;
   subtitle?: ReactNode;
   className?: string;

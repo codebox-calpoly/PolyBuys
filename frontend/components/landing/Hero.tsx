@@ -7,8 +7,6 @@ import { ListingCard } from './ListingCard';
 import { Ticker } from './Ticker';
 import { AVATAR_STACK, HERO_LISTINGS } from './data';
 
-/** Eyebrow → headline → subtitle → CTAs → social proof on the left,
- *  floating preview cards + ambient orbs on the right. Includes the ticker. */
 export function Hero() {
   const router = useRouter();
 
@@ -19,7 +17,7 @@ export function Hero() {
           <Eyebrow>Cal Poly · Student marketplace</Eyebrow>
 
           <h1 id="hero-title" className="pb-hero__title">
-            Buy &amp; sell on campus,{' '}
+            Buy {'&'} sell on campus,{' '}
             <span className="pb-hero__accent">
               without the noise.
               <HeroUnderline />

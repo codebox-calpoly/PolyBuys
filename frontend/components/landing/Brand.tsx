@@ -1,9 +1,7 @@
 import { cx } from './cx';
 
 interface BrandProps {
-  /** Render as a subtle monochrome lockup (used in the footer). */
   muted?: boolean;
-  /** Href for the anchor. When omitted, renders as a `<span>`. */
   href?: string;
   ariaLabel?: string;
   className?: string;
