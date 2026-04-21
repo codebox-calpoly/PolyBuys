@@ -102,4 +102,45 @@ describe('Profiles mutations', () => {
     expect(profile?.name).toBe('Alice Updated');
     expect(profile?.email).toBe('alice@calpoly.edu');
   });
+
+  it('updateProfile ignores reserved server-controlled profile fields', async () => {
+    const t = convexTest(schema as any, modules);
+    const asUser = t.withIdentity({
+      name: 'Alice',
+      subject: 'alice-stable-id',
+      email: 'alice@calpoly.edu',
+    });
+
+    const profileId = await asUser.mutation(api.profiles.createProfile, {
+      name: 'Alice',
+      major: 'Computer Science',
+      year: 2026,
+    });
+
+    const originalProfile = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    await asUser.mutation(api.profiles.updateProfile, {
+      name: 'Alice Updated',
+      joinDate: 1,
+      rating: 5,
+      review_count: 99,
+      isHidden: true,
+      hiddenAt: 123,
+      hiddenReason: 'client should not be able to set this',
+    });
+
+    const updatedProfile = await t.run(async (ctx) => {
+      return await ctx.db.get(profileId);
+    });
+
+    expect(updatedProfile?.name).toBe('Alice Updated');
+    expect(updatedProfile?.joinDate).toBe(originalProfile?.joinDate);
+    expect(updatedProfile?.rating).toBe(originalProfile?.rating);
+    expect(updatedProfile?.review_count).toBe(originalProfile?.review_count);
+    expect(updatedProfile?.isHidden).toBeUndefined();
+    expect(updatedProfile?.hiddenAt).toBeUndefined();
+    expect(updatedProfile?.hiddenReason).toBeUndefined();
+  });
 });

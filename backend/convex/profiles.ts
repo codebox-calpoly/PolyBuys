@@ -7,10 +7,16 @@ import { getStableUserId, requireAuthUserId } from './lib/authIdentity';
 
 export const PAYLOAD_BOUNDS = {
   ...PROFILE_BOUNDS,
-  MIN_RATING: 0,
-  MAX_RATING: 5,
-  HIDDEN_REASON_MAX: 500,
 };
+
+const RESERVED_PROFILE_FIELDS = [
+  'joinDate',
+  'rating',
+  'review_count',
+  'isHidden',
+  'hiddenAt',
+  'hiddenReason',
+] as const;
 
 function normalizeEmailInput(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -202,6 +208,11 @@ export const updateProfile = mutation({
     }
     // Backwards compatibility: released clients still send `email` on profile updates.
     // Ignore it so the authenticated Cal Poly email remains immutable after onboarding.
+    // These stay in the args schema so older clients keep working, but they are
+    // server-controlled and must never be client-mutable.
+    for (const reservedField of RESERVED_PROFILE_FIELDS) {
+      void args[reservedField];
+    }
     if (args.bio !== undefined) {
       if (args.bio.length > PAYLOAD_BOUNDS.BIO_MAX) {
         throw new ConvexError(`Bio must be ${PAYLOAD_BOUNDS.BIO_MAX} characters or less`);
@@ -251,47 +262,6 @@ export const updateProfile = mutation({
         );
       }
       update.year = args.year;
-    }
-    if (args.joinDate !== undefined) {
-      if (!Number.isFinite(args.joinDate) || args.joinDate < 0) {
-        throw new ConvexError('Join date must be a valid timestamp');
-      }
-      update.joinDate = args.joinDate;
-    }
-    if (args.rating !== undefined) {
-      if (
-        !Number.isFinite(args.rating) ||
-        args.rating < PAYLOAD_BOUNDS.MIN_RATING ||
-        args.rating > PAYLOAD_BOUNDS.MAX_RATING
-      ) {
-        throw new ConvexError(
-          `Rating must be between ${PAYLOAD_BOUNDS.MIN_RATING} and ${PAYLOAD_BOUNDS.MAX_RATING}`
-        );
-      }
-      update.rating = args.rating;
-    }
-    if (args.review_count !== undefined) {
-      if (!Number.isInteger(args.review_count) || args.review_count < 0) {
-        throw new ConvexError('Review count must be a non-negative integer');
-      }
-      update.review_count = args.review_count;
-    }
-    if (args.isHidden !== undefined) {
-      update.isHidden = args.isHidden;
-    }
-    if (args.hiddenAt !== undefined) {
-      if (!Number.isFinite(args.hiddenAt) || args.hiddenAt < 0) {
-        throw new ConvexError('Hidden timestamp must be a valid timestamp');
-      }
-      update.hiddenAt = args.hiddenAt;
-    }
-    if (args.hiddenReason !== undefined) {
-      if (args.hiddenReason.length > PAYLOAD_BOUNDS.HIDDEN_REASON_MAX) {
-        throw new ConvexError(
-          `Hidden reason must be ${PAYLOAD_BOUNDS.HIDDEN_REASON_MAX} characters or less`
-        );
-      }
-      update.hiddenReason = args.hiddenReason;
     }
 
     if (Object.keys(update).length === 0) {
