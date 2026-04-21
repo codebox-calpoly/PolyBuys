@@ -31,12 +31,12 @@
             {
               "scheme": "https",
               "host": "poly-buys.vercel.app",
-              "pathPrefix": "/l"
+              "pathPrefix": "/l/"
             },
             {
               "scheme": "https",
               "host": "polybuys.com",
-              "pathPrefix": "/l"
+              "pathPrefix": "/l/"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

@@ -15,7 +15,7 @@ interface DownloadButtonProps {
 export function DownloadButton({
   variant = 'primary',
   size = 'lg',
-  label = 'Join TestFlight',
+  label = 'Download the app',
   className,
 }: DownloadButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -133,16 +133,16 @@ function QrModal({ onClose }: { onClose: () => void }) {
           ✕
         </button>
         <p id="pb-qrmodal-title" className="pb-qrmodal__title">
-          Join on <AppleIcon size={14} /> TestFlight
+          Download the app on <AppleIcon size={14} /> iPhone
         </p>
         {QR_SRC ? (
           <img
             src={QR_SRC}
-            alt="QR code for the PolyBuys TestFlight invite"
+            alt="QR code for the PolyBuys app download link"
             className="pb-qrmodal__qr"
           />
         ) : null}
-        <p className="pb-qrmodal__caption">Scan with your iPhone to join the beta</p>
+        <p className="pb-qrmodal__caption">Scan with your iPhone to open the download link</p>
       </div>
     </div>
   );

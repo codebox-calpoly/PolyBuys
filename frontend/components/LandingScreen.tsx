@@ -128,10 +128,10 @@ export default function LandingScreen() {
                   <Image
                     source={qrDownloadPng}
                     style={styles.qrImage}
-                    accessibilityLabel="QR code linking to the PolyBuys TestFlight invite"
+                    accessibilityLabel="QR code linking to the PolyBuys app download link"
                   />
                   <AppText variant="footnoteMed" color="text" style={styles.qrCaption}>
-                    Scan with your phone to join the iOS TestFlight.
+                    Scan with your phone to open the app download link.
                   </AppText>
                 </View>
                 <View style={styles.emailBlock}>
@@ -140,7 +140,7 @@ export default function LandingScreen() {
                     a friend.
                   </AppText>
                   <AppButton variant="ghost" size="md" onPress={openDownloadLinkEmail}>
-                    Email the TestFlight link
+                    Email the download link
                   </AppButton>
                 </View>
               </View>
@@ -151,16 +151,16 @@ export default function LandingScreen() {
                     href={APP_STORE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    accessibilityLabel="Join on TestFlight"
+                    accessibilityLabel="Download the app"
                     asChild
                   >
                     <View style={styles.mobileCtaWrap}>
                       <AppButton
                         size="lg"
                         onPress={() => void 0}
-                        accessibilityLabel="Join on TestFlight"
+                        accessibilityLabel="Download the app"
                       >
-                        Join on TestFlight
+                        Download the app
                       </AppButton>
                     </View>
                   </Link>
@@ -169,14 +169,14 @@ export default function LandingScreen() {
                     <AppButton
                       size="lg"
                       onPress={() => void Linking.openURL(APP_STORE_URL)}
-                      accessibilityLabel="Join on TestFlight"
+                      accessibilityLabel="Download the app"
                     >
-                      Join on TestFlight
+                      Download the app
                     </AppButton>
                   </View>
                 )}
                 <AppText variant="footnote" color="muted" style={styles.badgeFootnote}>
-                  TestFlight is Apple&apos;s beta distribution platform for iOS apps.
+                  Open the link on your iPhone to install PolyBuys.
                 </AppText>
               </View>
             )}

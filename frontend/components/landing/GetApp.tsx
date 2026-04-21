@@ -35,9 +35,7 @@ export function GetApp() {
             </Button>
           </div>
 
-          <p className="pb-getapp__footnote">
-            TestFlight is Apple&apos;s beta distribution platform for iOS apps.
-          </p>
+          <p className="pb-getapp__footnote">Open the link on your iPhone to install PolyBuys.</p>
         </div>
       </div>
     </section>
