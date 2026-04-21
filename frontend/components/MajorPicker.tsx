@@ -1,20 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Animated,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { CAL_POLY_MAJORS, formatMajorLabel, majorMatchesQuery } from '../constants/calPolyMajors';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { ModalSheet } from './ui';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 type MajorPickerProps = {
@@ -26,7 +14,6 @@ type MajorPickerProps = {
 
 export function MajorPicker({ visible, selectedMajor, onSelect, onClose }: MajorPickerProps) {
   const entranceStyle = useEntranceAnimation(40, 8);
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -46,112 +33,62 @@ export function MajorPicker({ visible, selectedMajor, onSelect, onClose }: Major
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <Animated.View
-            style={[styles.sheet, entranceStyle, { marginTop: insets.top + spacing.sm }]}
-          >
-            <Pressable
-              style={[
-                styles.sheetTapArea,
-                { paddingBottom: Math.max(insets.bottom + spacing.md, spacing.xl) },
-              ]}
-              onPress={(event) => event.stopPropagation()}
+    <ModalSheet visible={visible} onClose={onClose} sheetStyle={entranceStyle}>
+      <View style={styles.handle} />
+      <Text style={styles.title}>Select your major</Text>
+      <Text style={styles.subtitle}>
+        Search the official Cal Poly majors list and choose the best match.
+      </Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search majors"
+        placeholderTextColor={colors.muted}
+        selectionColor={colors.primary}
+        cursorColor={colors.primary}
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="words"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+      />
+      <FlatList
+        data={filteredMajors}
+        keyExtractor={(item) => item}
+        style={styles.list}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        renderItem={({ item }) => {
+          const isSelected = item === selectedMajor;
+          return (
+            <TouchableOpacity
+              style={[styles.option, isSelected && styles.optionSelected]}
+              onPress={() => handleSelect(item)}
             >
-              <View style={styles.handle} />
-              <Text style={styles.title}>Select your major</Text>
-              <Text style={styles.subtitle}>
-                Search the official Cal Poly majors list and choose the best match.
+              <Text
+                style={[styles.optionText, isSelected && styles.optionTextSelected]}
+                numberOfLines={2}
+              >
+                {formatMajorLabel(item)}
               </Text>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search majors"
-                placeholderTextColor={colors.muted}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
-                value={query}
-                onChangeText={setQuery}
-                autoCapitalize="words"
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-              <FlatList
-                data={filteredMajors}
-                keyExtractor={(item) => item}
-                style={styles.list}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                contentInsetAdjustmentBehavior="automatic"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => {
-                  const isSelected = item === selectedMajor;
-                  return (
-                    <TouchableOpacity
-                      style={[styles.option, isSelected && styles.optionSelected]}
-                      onPress={() => handleSelect(item)}
-                    >
-                      <Text
-                        style={[styles.optionText, isSelected && styles.optionTextSelected]}
-                        numberOfLines={2}
-                      >
-                        {formatMajorLabel(item)}
-                      </Text>
-                      {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-                    </TouchableOpacity>
-                  );
-                }}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyStateTitle}>No majors found</Text>
-                    <Text style={styles.emptyStateText}>Try a broader search term.</Text>
-                  </View>
-                }
-              />
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+              {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No majors found</Text>
+            <Text style={styles.emptyStateText}>Try a broader search term.</Text>
+          </View>
+        }
+      />
+    </ModalSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.18)',
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-  },
-  sheetTapArea: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-  },
   handle: {
     width: 40,
     height: 4,

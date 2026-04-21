@@ -20,6 +20,12 @@ import { api } from 'convex/_generated/api';
 import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
 import { MajorPicker } from '../../components/MajorPicker';
 import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
+import {
+  GRADUATION_YEAR_DEFAULT,
+  GRADUATION_YEAR_MAX,
+  GRADUATION_YEAR_MIN,
+  GRADUATION_YEAR_OPTIONS,
+} from '../../constants/graduationYears';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
@@ -27,10 +33,6 @@ import { getLoginEntryAction, type LoginStep } from './loginRedirect';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
-const ONBOARDING_YEAR_OPTIONS = ['2026', '2027', '2028', '2029', '2030', '2031'] as const;
-const ONBOARDING_YEAR_MIN = Number(ONBOARDING_YEAR_OPTIONS[0]);
-const ONBOARDING_YEAR_MAX = Number(ONBOARDING_YEAR_OPTIONS[ONBOARDING_YEAR_OPTIONS.length - 1]);
-const ONBOARDING_DEFAULT_YEAR = ONBOARDING_YEAR_OPTIONS[0];
 
 type LoginErrorContext = 'send-code' | 'verify-code' | 'resend-code' | 'create-profile';
 
@@ -128,7 +130,7 @@ export default function LoginScreen() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState<string>(ONBOARDING_DEFAULT_YEAR);
+  const [year, setYear] = useState<string>(GRADUATION_YEAR_DEFAULT);
   const [isLoading, setIsLoading] = useState(false);
   const [isMajorPickerVisible, setIsMajorPickerVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -347,12 +349,12 @@ export default function LoginScreen() {
     const parsedYear = Number(year);
     if (
       !Number.isInteger(parsedYear) ||
-      parsedYear < ONBOARDING_YEAR_MIN ||
-      parsedYear > ONBOARDING_YEAR_MAX
+      parsedYear < GRADUATION_YEAR_MIN ||
+      parsedYear > GRADUATION_YEAR_MAX
     ) {
       Alert.alert(
         'Invalid year',
-        `Graduation year must be between ${ONBOARDING_YEAR_MIN} and ${ONBOARDING_YEAR_MAX}.`
+        `Graduation year must be between ${GRADUATION_YEAR_MIN} and ${GRADUATION_YEAR_MAX}.`
       );
       return;
     }
@@ -620,7 +622,7 @@ export default function LoginScreen() {
                     itemStyle={styles.yearPickerItem}
                     style={styles.yearPicker}
                   >
-                    {ONBOARDING_YEAR_OPTIONS.map((option) => (
+                    {GRADUATION_YEAR_OPTIONS.map((option) => (
                       <Picker.Item
                         key={option}
                         label={option}
