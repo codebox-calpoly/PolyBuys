@@ -1,19 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Pressable,
-  TextInput,
   Keyboard,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardUnderlay } from './ui';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { motion } from '../theme/motion';
 import { colors } from '../theme/tokens';
@@ -185,6 +186,7 @@ export function PriceRangePicker({
           onPress={onClose}
           accessibilityLabel="Close price filter"
         />
+        <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.white} />
         <View style={styles.sheetContainer}>
           <Animated.View
             style={[

@@ -1,35 +1,113 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
 import {
   ActivityIndicator,
   Animated,
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { getEmailValidationError, PROFILE_BOUNDS } from '@polybuys/shared';
+import { MajorPicker } from '../../components/MajorPicker';
+import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
+import {
+  GRADUATION_YEAR_DEFAULT,
+  GRADUATION_YEAR_MAX,
+  GRADUATION_YEAR_MIN,
+  GRADUATION_YEAR_OPTIONS,
+} from '../../constants/graduationYears';
+import { KeyboardUnderlay } from '../../components/ui';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
-import { getLoginEntryAction, type LoginStep } from './loginRedirect';
+import { getLoginEntryAction, type LoginStep } from '../../lib/auth/loginRedirect';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
+
+type LoginErrorContext = 'send-code' | 'verify-code' | 'resend-code' | 'create-profile';
 
 function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp' {
   const normalized = emailAddress.toLowerCase().trim();
   return APP_REVIEW_EMAIL.length > 0 && normalized === APP_REVIEW_EMAIL
     ? 'ios-review-otp'
     : 'resend-otp';
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message.trim() : '';
+}
+
+function isExistingProfileError(error: unknown): boolean {
+  return getErrorMessage(error).toLowerCase().includes('profile already exists');
+}
+
+function getLoginErrorMessage(error: unknown, context: LoginErrorContext): string {
+  const rawMessage = getErrorMessage(error);
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (context === 'send-code' || context === 'resend-code') {
+    if (
+      normalizedMessage.includes('too many') ||
+      normalizedMessage.includes('rate limit') ||
+      normalizedMessage.includes('rate-limit')
+    ) {
+      return 'Too many attempts. Wait a minute, then request a new code.';
+    }
+
+    return context === 'resend-code'
+      ? 'We could not resend your code right now. Please try again in a minute.'
+      : 'We could not send your code right now. Please try again in a minute.';
+  }
+
+  if (context === 'verify-code') {
+    if (
+      normalizedMessage.includes('could not verify code') ||
+      normalizedMessage.includes('invalid code') ||
+      normalizedMessage.includes('expired')
+    ) {
+      return 'That code is invalid or expired. Request a new one and try again.';
+    }
+
+    if (
+      normalizedMessage.includes('matching `email`') ||
+      normalizedMessage.includes('requires an `email`')
+    ) {
+      return 'That code no longer matches this email. Request a new one and try again.';
+    }
+
+    return 'We could not verify that code. Request a new one and try again.';
+  }
+
+  if (normalizedMessage.includes('email is required')) {
+    return 'We could not finish setting up your profile. Please sign in again.';
+  }
+
+  if (normalizedMessage.includes('name must be')) {
+    return `Display name must be ${PROFILE_BOUNDS.NAME_MIN}-${PROFILE_BOUNDS.NAME_MAX} characters.`;
+  }
+
+  if (normalizedMessage.includes('major must be')) {
+    return 'Choose your major from the official Cal Poly majors list.';
+  }
+
+  if (normalizedMessage.includes('bio must be')) {
+    return 'Your bio is too long. Shorten it and try again.';
+  }
+
+  return 'We could not complete your profile right now. Please try again.';
 }
 
 export default function LoginScreen() {
@@ -55,11 +133,13 @@ export default function LoginScreen() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState('');
+  const [year, setYear] = useState<string>(GRADUATION_YEAR_DEFAULT);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMajorPickerVisible, setIsMajorPickerVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
   const verifiedEmailRef = useRef<string | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,8 +260,7 @@ export default function LoginScreen() {
       await signIn(providerForEmail(normalizedEmail), { email: normalizedEmail });
       setStep({ email: normalizedEmail });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send code';
-      setError(errorMessage);
+      setError(getLoginErrorMessage(err, 'send-code'));
     } finally {
       setIsLoading(false);
     }
@@ -207,8 +286,7 @@ export default function LoginScreen() {
       verifiedEmailRef.current = step.email;
       setStep('checking');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Invalid code. Please try again.';
-      setError(errorMessage);
+      setError(getLoginErrorMessage(err, 'verify-code'));
     } finally {
       setIsLoading(false);
     }
@@ -226,8 +304,7 @@ export default function LoginScreen() {
       setCode('');
       setSuccessMessage('A new code has been sent to your email');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
-      setError(errorMessage);
+      setError(getLoginErrorMessage(err, 'resend-code'));
     } finally {
       setIsLoading(false);
     }
@@ -239,6 +316,11 @@ export default function LoginScreen() {
     setError(null);
     setSuccessMessage(null);
   };
+
+  function finishAndRedirect() {
+    setSuccessRedirect(postAuthRedirect);
+    setStep('success');
+  }
 
   const handleCompleteProfile = async () => {
     const trimmedName = name.trim();
@@ -254,6 +336,14 @@ export default function LoginScreen() {
       );
       return;
     }
+    if (!trimmedMajor) {
+      Alert.alert('Select major', 'Choose your Cal Poly major from the official majors list.');
+      return;
+    }
+    if (!isCalPolyMajor(trimmedMajor)) {
+      Alert.alert('Invalid major', 'Choose a major from the official Cal Poly majors list.');
+      return;
+    }
     if (
       trimmedMajor.length < PROFILE_BOUNDS.MAJOR_MIN ||
       trimmedMajor.length > PROFILE_BOUNDS.MAJOR_MAX
@@ -265,21 +355,15 @@ export default function LoginScreen() {
       return;
     }
 
-    const currentYear = new Date().getFullYear();
-    const boundedCurrentYear = Math.min(
-      Math.max(currentYear, PROFILE_BOUNDS.MIN_YEAR),
-      PROFILE_BOUNDS.MAX_YEAR
-    );
-    const yearInput = year.trim().length > 0 ? year.trim() : String(boundedCurrentYear);
-    const parsedYear = Number(yearInput);
+    const parsedYear = Number(year);
     if (
       !Number.isInteger(parsedYear) ||
-      parsedYear < PROFILE_BOUNDS.MIN_YEAR ||
-      parsedYear > PROFILE_BOUNDS.MAX_YEAR
+      parsedYear < GRADUATION_YEAR_MIN ||
+      parsedYear > GRADUATION_YEAR_MAX
     ) {
       Alert.alert(
         'Invalid year',
-        `Year must be between ${PROFILE_BOUNDS.MIN_YEAR} and ${PROFILE_BOUNDS.MAX_YEAR}.`
+        `Graduation year must be between ${GRADUATION_YEAR_MIN} and ${GRADUATION_YEAR_MAX}.`
       );
       return;
     }
@@ -296,8 +380,12 @@ export default function LoginScreen() {
       });
       setStep('push');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create profile';
-      setError(message);
+      if (isExistingProfileError(err)) {
+        finishAndRedirect();
+        return;
+      }
+
+      setError(getLoginErrorMessage(err, 'create-profile'));
     } finally {
       setIsLoading(false);
     }
@@ -315,6 +403,8 @@ export default function LoginScreen() {
   if (isWeb) {
     return null;
   }
+
+  const selectedMajorLabel = major ? formatMajorLabel(major) : '';
 
   if (isWelcomeStep) {
     return (
@@ -375,11 +465,6 @@ export default function LoginScreen() {
     );
   }
 
-  const finishAndRedirect = () => {
-    setSuccessRedirect(postAuthRedirect);
-    setStep('success');
-  };
-
   const persistMessageNotificationsPreference = async (enabled: boolean) => {
     await updateMessageNotificationsEnabled({ enabled });
   };
@@ -395,9 +480,10 @@ export default function LoginScreen() {
     try {
       await persistMessageNotificationsPreference(messageNotificationsEnabled);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to save notification preference.';
-      Alert.alert('Notification preference not saved', message);
+      Alert.alert(
+        'Notification Preference Not Saved',
+        getUserFlowErrorMessage(error, 'notifications-enable')
+      );
       return;
     }
 
@@ -409,9 +495,10 @@ export default function LoginScreen() {
     try {
       await persistMessageNotificationsPreference(messageNotificationsEnabled);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to save notification preference.';
-      Alert.alert('Notification preference not saved', message);
+      Alert.alert(
+        'Notification Preference Not Saved',
+        getUserFlowErrorMessage(error, 'notifications-disable')
+      );
       return;
     }
 
@@ -479,6 +566,7 @@ export default function LoginScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.surface} />
         <View style={styles.background}>
           <View style={styles.orbTop} />
           <View style={styles.orbBottom} />
@@ -509,31 +597,48 @@ export default function LoginScreen() {
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Major</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Computer Science"
-                  placeholderTextColor={colors.muted}
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                  value={major}
-                  onChangeText={setMajor}
-                  autoCapitalize="words"
-                  editable={!isLoading}
-                />
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.input,
+                    styles.selectionInput,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={() => setIsMajorPickerVisible(true)}
+                  disabled={isLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    selectedMajorLabel ? `Selected major ${selectedMajorLabel}` : 'Select major'
+                  }
+                >
+                  <Text
+                    style={[styles.selectionInputText, !major && styles.selectionInputPlaceholder]}
+                    numberOfLines={1}
+                  >
+                    {selectedMajorLabel || 'Search and select your major'}
+                  </Text>
+                </Pressable>
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Graduation year</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="2026"
-                  placeholderTextColor={colors.muted}
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                  value={year}
-                  onChangeText={setYear}
-                  keyboardType="number-pad"
-                  editable={!isLoading}
-                />
+                <View style={[styles.yearPickerFrame, isLoading && styles.yearPickerDisabled]}>
+                  <Picker
+                    selectedValue={year}
+                    onValueChange={(nextValue) => setYear(String(nextValue))}
+                    enabled={!isLoading}
+                    itemStyle={styles.yearPickerItem}
+                    style={styles.yearPicker}
+                  >
+                    {GRADUATION_YEAR_OPTIONS.map((option) => (
+                      <Picker.Item
+                        key={option}
+                        label={option}
+                        value={option}
+                        color={colors.textDark}
+                      />
+                    ))}
+                  </Picker>
+                </View>
               </View>
 
               {error && (
@@ -560,6 +665,12 @@ export default function LoginScreen() {
             </Animated.View>
           </ScrollView>
         </View>
+        <MajorPicker
+          visible={isMajorPickerVisible}
+          selectedMajor={major || undefined}
+          onSelect={setMajor}
+          onClose={() => setIsMajorPickerVisible(false)}
+        />
       </KeyboardAvoidingView>
     );
   }
@@ -569,6 +680,7 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.surface} />
       <View style={styles.background}>
         <View style={styles.orbTop} />
         <View style={styles.orbBottom} />
@@ -807,6 +919,36 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     ...typography.body,
     backgroundColor: colors.background,
+  },
+  selectionInput: {
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  selectionInputText: {
+    ...typography.body,
+    color: colors.textDark,
+  },
+  selectionInputPlaceholder: {
+    color: colors.muted,
+  },
+  yearPickerFrame: {
+    height: Platform.OS === 'ios' ? 168 : 56,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  yearPickerDisabled: {
+    opacity: 0.75,
+  },
+  yearPicker: {
+    flex: 1,
+    color: colors.textDark,
+  },
+  yearPickerItem: {
+    color: colors.textDark,
+    fontSize: 20,
   },
   codeInput: {
     textAlign: 'center',

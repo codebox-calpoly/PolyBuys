@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -43,10 +44,15 @@ import ListingUnavailable from '../../components/ListingUnavailable';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { ReportModal } from '../../components/ReportModal';
+import { GlassIconButton, KeyboardUnderlay } from '../../components/ui';
+import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
 import { formatRelativeDate } from '../../lib/formatDate';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
@@ -91,6 +97,7 @@ export default function ListingDetailScreen() {
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
   const insets = useSafeAreaInsets();
+  const { reduceMotion } = useReducedMotion();
 
   const listing = useQuery(
     api.listings.getListing,
@@ -115,6 +122,7 @@ export default function ListingDetailScreen() {
   const [imageIndex, setImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [messageComposerOpen, setMessageComposerOpen] = useState(false);
+  const messageComposerKeyboardHeight = useKeyboardHeight({ enabled: messageComposerOpen });
   const [messageBody, setMessageBody] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messageComposerTranslateY = useSharedValue(0);
@@ -136,6 +144,46 @@ export default function ListingDetailScreen() {
   const hasMultipleImages = mappedUrls.length > 1;
   const hasPreviousImage = imageIndex > 0;
   const hasNextImage = imageIndex < mappedUrls.length - 1;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
+  const prevDisplayedSavedRef = useRef<boolean | null>(null);
+  const displayedSaved = savedOptimistic ?? isSaved ?? false;
+
+  const playBookmarkSavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    bookmarkScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(bookmarkScale, {
+        toValue: 1.2,
+        friction: 5,
+        tension: 280,
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkScale, reduceMotion]);
+
+  const playBookmarkUnsavedAnimation = useCallback(() => {
+    if (reduceMotion) return;
+    Animated.sequence([
+      Animated.timing(bookmarkScale, {
+        toValue: 0.88,
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkScale, reduceMotion]);
 
   useEffect(() => {
     setImageIndex((currentIndex) => {
@@ -145,6 +193,29 @@ export default function ListingDetailScreen() {
       return Math.min(currentIndex, mappedUrls.length - 1);
     });
   }, [mappedUrls.length]);
+
+  useEffect(() => {
+    prevDisplayedSavedRef.current = null;
+    setSavedOptimistic(null);
+    bookmarkScale.setValue(1);
+  }, [bookmarkScale, listingId]);
+
+  useEffect(() => {
+    if (prevDisplayedSavedRef.current === null) {
+      prevDisplayedSavedRef.current = displayedSaved;
+      return;
+    }
+    if (prevDisplayedSavedRef.current === displayedSaved) return;
+
+    const wasSaved = prevDisplayedSavedRef.current;
+    prevDisplayedSavedRef.current = displayedSaved;
+
+    if (displayedSaved && !wasSaved) {
+      playBookmarkSavedAnimation();
+    } else if (!displayedSaved && wasSaved) {
+      playBookmarkUnsavedAnimation();
+    }
+  }, [displayedSaved, playBookmarkSavedAnimation, playBookmarkUnsavedAnimation]);
 
   const onMessageSellerPress = () => {
     if (!listing) return;
@@ -191,8 +262,7 @@ export default function ListingDetailScreen() {
         params: { id: String(conversationId) },
       } as never);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-first-message'));
     } finally {
       setIsSendingMessage(false);
     }
@@ -270,9 +340,8 @@ export default function ListingDetailScreen() {
     const shareUrl = `${appOrigin}/l/${listing._id}`;
     try {
       await Share.share({
-        message: `${listing.title} - $${formatPrice(listing.price)}\n${shareUrl}`,
+        message: shareUrl,
         url: shareUrl,
-        title: listing.title,
       });
     } catch {
       Alert.alert('Unable to share listing right now.');
@@ -299,11 +368,7 @@ export default function ListingDetailScreen() {
       await updateListingStatus({ id: listing._id, status: 'sold' });
       setFlash('Listing marked as sold.');
     } catch (error) {
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to mark listing as sold. Please try again.';
-      Alert.alert('Error', message);
+      Alert.alert('Could Not Mark as Sold', getUserFlowErrorMessage(error, 'mark-listing-sold'));
     } finally {
       setMarkingSold(false);
     }
@@ -557,26 +622,28 @@ export default function ListingDetailScreen() {
             >
               <Text style={styles.messageButtonText}>Message Seller</Text>
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
+            <GlassIconButton
+              containerStyle={styles.iconButton}
               onPress={() => void onSavePress()}
-              accessibilityLabel={(savedOptimistic ?? isSaved) ? 'Unsave listing' : 'Save listing'}
-              accessibilityRole="button"
+              accessibilityLabel={displayedSaved ? 'Unsave listing' : 'Save listing'}
+              pressedScale={0.94}
             >
-              <Ionicons
-                name={(savedOptimistic ?? isSaved) ? 'heart' : 'heart-outline'}
-                size={20}
-                color={(savedOptimistic ?? isSaved) ? colors.category : colors.textDark}
-              />
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <Ionicons
+                  name={displayedSaved ? 'bookmark' : 'bookmark-outline'}
+                  size={20}
+                  color={displayedSaved ? colors.category : colors.textDark}
+                />
+              </Animated.View>
+            </GlassIconButton>
+            <GlassIconButton
+              containerStyle={styles.iconButton}
               onPress={() => void shareListing()}
               accessibilityLabel="Share listing"
-              accessibilityRole="button"
+              pressedScale={0.94}
             >
               <Feather name="share" size={18} color={colors.textDark} />
-            </Pressable>
+            </GlassIconButton>
           </View>
         )}
 
@@ -615,7 +682,7 @@ export default function ListingDetailScreen() {
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{sellerProfile.name}</Text>
               <Text style={styles.sellerMeta}>
-                {sellerProfile.major} · Year {sellerProfile.year}
+                {formatMajorLabel(sellerProfile.major)} · Year {sellerProfile.year}
               </Text>
             </View>
           </Pressable>
@@ -689,6 +756,10 @@ export default function ListingDetailScreen() {
       >
         <View style={styles.messageComposerOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMessageComposer} />
+          <KeyboardUnderlay
+            keyboardHeight={messageComposerKeyboardHeight}
+            backgroundColor={colors.white}
+          />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.messageComposerKeyboardWrap}
@@ -995,13 +1066,7 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderColor: 'rgba(21, 71, 52, 0.14)',
-    borderWidth: 1,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.white,
-    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   chipsRow: {
     flexDirection: 'row',

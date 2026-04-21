@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { getLoginEntryAction } from '../loginRedirect';
+import { getLoginEntryAction } from '../../../lib/auth/loginRedirect';
 
 describe('getLoginEntryAction', () => {
   it('keeps waiting while the profile query is unresolved', () => {

@@ -17,9 +17,6 @@ import ImageUploader from '@/components/ImageUploader';
 import { useFlash } from '../../contexts/FlashContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
-import OpenInAppPrompt from '../../components/OpenInAppPrompt';
-import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
-import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
 import {
   hasFieldErrors,
   type FieldErrors,
@@ -29,7 +26,11 @@ import {
   validateListingFields,
   validatePrice,
   validateTitle,
-} from './newListingValidation';
+} from '../../lib/listings/newListingValidation';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
+import { KeyboardAwareScreen, ScreenHeader } from '../../components/ui';
+import { colors, typography, borderRadius, spacing } from '../../theme/tokens';
 
 const categories = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'] as const;
 const conditions = ['new', 'used', 'refurbished'] as const;
@@ -65,7 +66,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
   return {
     title: fallbackTitle,
-    message: rawMessage,
+    message: getUserFlowErrorMessage(error, 'create-listing'),
   };
 }
 function RequiredLabel({ text }: { text: string }) {

@@ -8,6 +8,7 @@ import {
   REPORT_SUBMITTED_ALERT_BODY,
   REPORT_SUBMITTED_ALERT_TITLE,
 } from '../constants/feedbackMessages';
+import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 
 type ReportReason = 'scam' | 'inappropriate' | 'spam' | 'other';
 
@@ -91,8 +92,7 @@ export function ReportModal({
       }
       handleClose();
     } catch (err) {
-      const msg = String((err as Error)?.message ?? 'Unable to submit report right now.');
-      Alert.alert('Could not submit report', msg);
+      Alert.alert('Could Not Submit Report', getUserFlowErrorMessage(err, 'submit-report'));
       setSubmitting(false);
     }
   };

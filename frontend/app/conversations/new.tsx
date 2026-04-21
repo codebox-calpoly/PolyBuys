@@ -14,11 +14,14 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useAction, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
+import { KeyboardUnderlay } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 export default function NewConversationScreen() {
@@ -31,6 +34,7 @@ export default function NewConversationScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const isWeb = Platform.OS === 'web';
+  const keyboardHeight = useKeyboardHeight();
   const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
@@ -67,8 +71,7 @@ export default function NewConversationScreen() {
         params: { id: String(conversationId) },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-first-message'));
     } finally {
       setIsSending(false);
     }
@@ -136,6 +139,7 @@ export default function NewConversationScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
+      <KeyboardUnderlay keyboardHeight={keyboardHeight} backgroundColor={colors.surface} />
       <Stack.Screen
         options={{
           title: `Message ${sellerName}`,

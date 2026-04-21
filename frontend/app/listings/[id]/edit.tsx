@@ -19,6 +19,7 @@ import ListingUnavailable from '../../../components/ListingUnavailable';
 import OpenInAppPrompt from '../../../components/OpenInAppPrompt';
 import { useFlash } from '../../../contexts/FlashContext';
 import { useEntranceAnimation } from '../../../hooks/useEntranceAnimation';
+import { getUserFlowErrorMessage } from '../../../lib/user-flow-errors';
 import { KeyboardAwareScreen, ScreenHeader } from '../../../components/ui';
 import { borderRadius, colors, spacing, typography } from '../../../theme/tokens';
 
@@ -47,7 +48,7 @@ function getListingActionError(error: unknown, fallbackTitle: string) {
 
   return {
     title: fallbackTitle,
-    message: rawMessage,
+    message: getUserFlowErrorMessage(error, 'update-listing'),
   };
 }
 

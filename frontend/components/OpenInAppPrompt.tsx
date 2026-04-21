@@ -1,5 +1,7 @@
 import * as ExpoLinking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
 import { APP_SCHEME, APP_STORE_URL } from '../constants/app';
@@ -11,6 +13,9 @@ type OpenInAppPromptProps = {
   buttonLabel: string;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
+  variant?: 'page' | 'card';
+  pageStyle?: StyleProp<ViewStyle>;
+  cardStyle?: StyleProp<ViewStyle>;
 };
 
 export default function OpenInAppPrompt({
@@ -20,6 +25,9 @@ export default function OpenInAppPrompt({
   buttonLabel,
   secondaryActionLabel,
   onSecondaryAction,
+  variant = 'page',
+  pageStyle,
+  cardStyle,
 }: OpenInAppPromptProps) {
   const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
   const deepLink = `${APP_SCHEME}://${normalizedPath}`;
@@ -28,57 +36,59 @@ export default function OpenInAppPrompt({
     try {
       await ExpoLinking.openURL(deepLink);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to open the PolyBuys app link.';
-      Alert.alert('Open in app failed', message);
+      Alert.alert('Open in App Failed', getUserFlowErrorMessage(error, 'open-in-app'));
     }
   };
 
-  return (
-    <View style={styles.page}>
-      <View style={styles.card}>
-        <Text style={styles.eyebrow}>Mobile app</Text>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.body}>{body}</Text>
+  const handleDownload = async () => {
+    try {
+      await ExpoLinking.openURL(APP_STORE_URL);
+    } catch (error) {
+      Alert.alert('Download Failed', getUserFlowErrorMessage(error, 'download-app'));
+    }
+  };
+
+  const card = (
+    <View style={[styles.card, cardStyle]}>
+      <Text style={styles.eyebrow}>Mobile app</Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{body}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
+        onPress={() => void handleOpenInApp()}
+        accessibilityRole="button"
+        accessibilityLabel={buttonLabel}
+      >
+        <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+      </Pressable>
+      <Text selectable style={styles.deepLinkText}>
+        {deepLink}
+      </Text>
+      {secondaryActionLabel && onSecondaryAction ? (
         <Pressable
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-          onPress={() => void handleOpenInApp()}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+          onPress={onSecondaryAction}
           accessibilityRole="button"
-          accessibilityLabel={buttonLabel}
+          accessibilityLabel={secondaryActionLabel}
         >
-          <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+          <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
         </Pressable>
-        <Text selectable style={styles.deepLinkText}>
-          {deepLink}
-        </Text>
-        {secondaryActionLabel && onSecondaryAction ? (
-          <Pressable
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-            onPress={onSecondaryAction}
-            accessibilityRole="button"
-            accessibilityLabel={secondaryActionLabel}
-          >
-            <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
-          </Pressable>
-        ) : null}
-        <Pressable
-          onPress={async () => {
-            try {
-              await ExpoLinking.openURL(APP_STORE_URL);
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : 'Unable to open the download link.';
-              Alert.alert('Download failed', message);
-            }
-          }}
-          accessibilityRole="link"
-          accessibilityLabel="Download the PolyBuys app"
-        >
-          <Text style={styles.downloadHint}>Don&apos;t have the app? Download it here.</Text>
-        </Pressable>
-      </View>
+      ) : null}
+      <Pressable
+        onPress={() => void handleDownload()}
+        accessibilityRole="link"
+        accessibilityLabel="Download the PolyBuys app"
+      >
+        <Text style={styles.downloadHint}>Don&apos;t have the app? Download it here.</Text>
+      </Pressable>
     </View>
   );
+
+  if (variant === 'card') {
+    return card;
+  }
+
+  return <View style={[styles.page, pageStyle]}>{card}</View>;
 }
 
 const styles = StyleSheet.create({

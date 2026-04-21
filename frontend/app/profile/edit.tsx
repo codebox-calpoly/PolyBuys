@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
 import {
   ActivityIndicator,
   Alert,
@@ -15,20 +16,22 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
-import { getEmailValidationError } from '@polybuys/shared';
+import { MajorPicker } from '../../components/MajorPicker';
+import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
+import {
+  GRADUATION_YEAR_DEFAULT,
+  getGraduationYearOptions,
+  isSupportedGraduationYear,
+} from '../../constants/graduationYears';
 import { useAuth } from '../../hooks/useAuth';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { KeyboardAwareScreen } from '../../components/ui';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { useFlash } from '../../contexts/FlashContext';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-const BOUNDS = {
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
-};
-const DEFAULT_YEAR = '2026';
 const PROFILE_IMAGE_BOUNDS = {
   MAX_WIDTH: 1200,
   MAX_FILE_SIZE_MB: 5,
@@ -115,7 +118,7 @@ async function uploadImageToConvex(
 export default function ProfileEditScreen() {
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isUserLoading } = useAuth();
   const { setFlash } = useFlash();
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
   const createProfile = useMutation(api.profiles.createProfile);
@@ -124,17 +127,23 @@ export default function ProfileEditScreen() {
   const uploadAbortRef = useRef<AbortController | null>(null);
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState(DEFAULT_YEAR);
+  const [year, setYear] = useState<string>(GRADUATION_YEAR_DEFAULT);
   const [picture, setPicture] = useState<Id<'_storage'> | null>(null);
   const [pendingPictureUri, setPendingPictureUri] = useState<string | null>(null);
   const [isPreparingPicture, setIsPreparingPicture] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMajorPickerVisible, setIsMajorPickerVisible] = useState(false);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { mappedUrls: pictureUrls } = useResolvedImageUrls(picture ? [picture] : []);
   const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
+  const profileEmail = profile?.email ?? user?.email ?? '';
+  const isScreenLoading = !isAuthenticated || profile === undefined || (!profile && isUserLoading);
+  const yearOptions = useMemo(
+    () => getGraduationYearOptions({ preserveYear: profile?.year }),
+    [profile?.year]
+  );
 
   useEffect(() => {
     if (!isAuthenticated || profile === undefined) return;
@@ -144,17 +153,15 @@ export default function ProfileEditScreen() {
 
     if (profile) {
       setName(profile.name);
-      setEmail(profile.email);
       setBio(profile.bio ?? '');
       setMajor(profile.major);
       setYear(String(profile.year));
       setPicture(profile.picture ?? null);
     } else {
       setName('');
-      setEmail('');
       setBio('');
       setMajor('');
-      setYear(DEFAULT_YEAR);
+      setYear(GRADUATION_YEAR_DEFAULT);
       setPicture(null);
     }
     setPendingPictureUri(null);
@@ -223,8 +230,7 @@ export default function ProfileEditScreen() {
 
       setPendingPictureUri(manipulated.uri);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to prepare profile image';
-      setFlash(message);
+      setFlash(getUserFlowErrorMessage(error, 'prepare-profile-image'));
     } finally {
       setIsPreparingPicture(false);
     }
@@ -239,32 +245,25 @@ export default function ProfileEditScreen() {
     const trimmedName = name.trim();
     const trimmedMajor = major.trim();
     const trimmedBio = bio.trim();
-    const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
       setFlash('Name is required.');
       return;
     }
     if (!trimmedMajor) {
-      setFlash('Major is required.');
+      setFlash('Choose your major from the official Cal Poly majors list.');
+      return;
+    }
+    if (!isCalPolyMajor(trimmedMajor)) {
+      setFlash('Choose your major from the official Cal Poly majors list.');
       return;
     }
 
-    const emailError = getEmailValidationError(normalizedEmail);
-    if (emailError) {
-      setFlash(emailError);
+    if (!isSupportedGraduationYear(year, yearOptions)) {
+      setFlash('Choose a graduation year from the list.');
       return;
     }
-
     const parsedYear = Number(year);
-    if (
-      !Number.isInteger(parsedYear) ||
-      parsedYear < BOUNDS.MIN_YEAR ||
-      parsedYear > BOUNDS.MAX_YEAR
-    ) {
-      setFlash(`Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`);
-      return;
-    }
 
     try {
       setIsSubmitting(true);
@@ -285,7 +284,6 @@ export default function ProfileEditScreen() {
       if (!profile) {
         await createProfile({
           name: trimmedName,
-          email: normalizedEmail,
           bio: trimmedBio || undefined,
           picture: nextPicture ?? undefined,
           major: trimmedMajor,
@@ -294,7 +292,6 @@ export default function ProfileEditScreen() {
       } else {
         await updateProfile({
           name: trimmedName,
-          email: normalizedEmail,
           bio: trimmedBio || undefined,
           picture: nextPicture,
           major: trimmedMajor,
@@ -309,8 +306,7 @@ export default function ProfileEditScreen() {
       ]);
     } catch (error) {
       uploadAbortRef.current = null;
-      const message = error instanceof Error ? error.message : 'Failed to save profile';
-      setFlash(message);
+      setFlash(getUserFlowErrorMessage(error, 'save-profile'));
     } finally {
       setIsSubmitting(false);
     }
@@ -329,13 +325,16 @@ export default function ProfileEditScreen() {
     );
   }
 
-  if (!isAuthenticated || profile === undefined) {
+  if (isScreenLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
+
+  const selectedMajorLabel = major ? formatMajorLabel(major) : '';
+  const hasInvalidMajorSelection = major.length > 0 && !isCalPolyMajor(major);
 
   return (
     <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
@@ -394,19 +393,15 @@ export default function ProfileEditScreen() {
         />
       </View>
       <View style={styles.field}>
-        <Text style={styles.label}>Email *</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@calpoly.edu"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Text style={styles.label}>Cal Poly email *</Text>
+        <View style={[styles.input, styles.readOnlyInput]}>
+          <Text selectable style={styles.readOnlyValue}>
+            {profileEmail || 'Email unavailable'}
+          </Text>
+        </View>
+        <Text selectable style={styles.helperText}>
+          Your campus email is managed by your sign-in and can&apos;t be changed here.
+        </Text>
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Bio</Text>
@@ -423,28 +418,52 @@ export default function ProfileEditScreen() {
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Major *</Text>
-        <TextInput
-          style={styles.input}
-          value={major}
-          onChangeText={setMajor}
-          placeholder="Computer Science"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-        />
+        <Pressable
+          style={({ pressed }) => [
+            styles.input,
+            styles.selectionInput,
+            pressed && styles.buttonPressed,
+            isSubmitting && styles.buttonDisabled,
+          ]}
+          onPress={() => setIsMajorPickerVisible(true)}
+          disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selectedMajorLabel ? `Selected major ${selectedMajorLabel}` : 'Select major'
+          }
+        >
+          <Text
+            style={[
+              styles.selectionInputText,
+              !major && styles.selectionInputPlaceholder,
+              hasInvalidMajorSelection && styles.selectionInputWarning,
+            ]}
+            numberOfLines={1}
+          >
+            {selectedMajorLabel || 'Search and select your major'}
+          </Text>
+        </Pressable>
+        {hasInvalidMajorSelection ? (
+          <Text style={styles.helperText}>
+            Please reselect your major from the official Cal Poly majors list before saving.
+          </Text>
+        ) : null}
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Graduation year *</Text>
-        <TextInput
-          style={styles.input}
-          value={year}
-          onChangeText={setYear}
-          placeholder="2026"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="number-pad"
-        />
+        <View style={[styles.yearPickerFrame, isSubmitting && styles.yearPickerDisabled]}>
+          <Picker
+            selectedValue={year}
+            onValueChange={(nextValue) => setYear(String(nextValue))}
+            enabled={!isSubmitting}
+            itemStyle={styles.yearPickerItem}
+            style={styles.yearPicker}
+          >
+            {yearOptions.map((option) => (
+              <Picker.Item key={option} label={option} value={option} color={colors.textDark} />
+            ))}
+          </Picker>
+        </View>
       </View>
 
       <Pressable
@@ -464,6 +483,12 @@ export default function ProfileEditScreen() {
           <Text style={styles.saveButtonText}>Save profile</Text>
         )}
       </Pressable>
+      <MajorPicker
+        visible={isMajorPickerVisible}
+        selectedMajor={isCalPolyMajor(major) ? major : undefined}
+        onSelect={setMajor}
+        onClose={() => setIsMajorPickerVisible(false)}
+      />
     </KeyboardAwareScreen>
   );
 }
@@ -548,9 +573,55 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     color: colors.textDark,
   },
+  selectionInput: {
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  selectionInputText: {
+    ...typography.body,
+    color: colors.textDark,
+  },
+  selectionInputPlaceholder: {
+    color: colors.muted,
+  },
+  selectionInputWarning: {
+    color: colors.warningText,
+  },
+  readOnlyInput: {
+    minHeight: 52,
+    justifyContent: 'center',
+    backgroundColor: colors.placeholderBg,
+  },
+  readOnlyValue: {
+    ...typography.body,
+    color: colors.textDark,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.gray,
+  },
   textArea: {
     minHeight: 90,
     textAlignVertical: 'top',
+  },
+  yearPickerFrame: {
+    height: Platform.OS === 'ios' ? 168 : 56,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+  },
+  yearPickerDisabled: {
+    opacity: 0.75,
+  },
+  yearPicker: {
+    flex: 1,
+    color: colors.textDark,
+  },
+  yearPickerItem: {
+    color: colors.textDark,
+    fontSize: 20,
   },
   saveButton: {
     backgroundColor: colors.primary,

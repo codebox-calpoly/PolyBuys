@@ -6,7 +6,7 @@ import {
   validateListingFields,
   validatePrice,
   validateTitle,
-} from '../newListingValidation';
+} from '../../../lib/listings/newListingValidation';
 
 describe('new listing validation', () => {
   it('collects required field errors for an empty submission', () => {

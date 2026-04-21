@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
@@ -25,6 +23,8 @@ import ProfileAvatar from '../../components/ProfileAvatar';
 import { ReportModal } from '../../components/ReportModal';
 import SafetyBanner from '../../components/SafetyBanner';
 import { ScreenState } from '../../components/ScreenState';
+import { KeyboardDockScreen } from '../../components/ui';
+import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type ConversationId = Id<'conversations'>;
@@ -120,7 +120,6 @@ export default function ConversationDetailScreen() {
 
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
-  const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { user, isAuthenticated, isSessionLoading } = useAuth();
   const sendMessage = useAction(api.messages.sendMessage);
@@ -283,9 +282,16 @@ export default function ConversationDetailScreen() {
     if (!otherUserId) return;
 
     if (isBlockingOther === true) {
-      unblockUser({ blockedId: otherUserId }).catch((err) => {
-        Alert.alert('Could not unblock', err instanceof Error ? err.message : 'Please try again.');
-      });
+      const unblockAction = () => {
+        unblockUser({ blockedId: otherUserId }).catch((err) => {
+          Alert.alert('Could Not Unblock', getUserFlowErrorMessage(err, 'unblock-user'));
+        });
+      };
+
+      Alert.alert('Unblock user', 'Allow this user to message you again?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Unblock', onPress: () => void unblockAction() },
+      ]);
       return;
     }
 
@@ -299,7 +305,7 @@ export default function ConversationDetailScreen() {
 
         Alert.alert('User blocked', 'You will no longer receive messages from this user.');
       } catch (err) {
-        Alert.alert('Could not block', err instanceof Error ? err.message : 'Please try again.');
+        Alert.alert('Could Not Block', getUserFlowErrorMessage(err, 'block-user'));
       }
     };
 
@@ -332,8 +338,7 @@ export default function ConversationDetailScreen() {
       setMessageBody('');
       scrollToBottom(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-      Alert.alert('Message failed', message);
+      Alert.alert('Message Failed', getUserFlowErrorMessage(error, 'send-message'));
     } finally {
       setIsSending(false);
     }
@@ -402,143 +407,147 @@ export default function ConversationDetailScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={handleBackgroundPress} accessible={false}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
-      >
-        <Stack.Screen
-          options={{
-            title: headerConversationTitle,
-            headerBackTitle: 'Inbox',
-            headerRight: otherUserId
-              ? () => (
-                  <Pressable
-                    onPress={handleBlockPress}
-                    style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.headerActionText}>
-                      {isBlockingOther === true ? 'Unblock' : 'Block'}
-                    </Text>
-                  </Pressable>
-                )
-              : undefined,
-          }}
-        />
-
-        <View style={styles.headerCard}>
-          <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {headerOtherUserName}
-            </Text>
-            <Text style={styles.headerListing} numberOfLines={1}>
-              {headerListingTitle}
-            </Text>
-          </View>
-          {listingId ? (
-            <Pressable
-              onPress={() => router.push(`/listings/${listingId}`)}
-              style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="View listing"
-            >
-              <Text style={styles.headerListingLinkText}>View listing</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <SafetyBanner />
-
-        <FlatList
-          ref={listRef}
-          data={messages ?? []}
-          keyExtractor={(item) => item._id}
-          style={styles.messagesList}
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={styles.messagesContent}
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={() => {
-            setActiveMessageActionId(null);
-          }}
-          renderItem={({ item }) => {
-            const isSent = currentUserId !== null && item.senderId === currentUserId;
-            const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
-            return (
-              <ReportableMessageRow
-                message={item}
-                isSent={isSent}
-                receiptLabel={receiptLabel}
-                activeMessageActionId={activeMessageActionId}
-                setActiveMessageActionId={setActiveMessageActionId}
-                onReport={(messageId) => {
-                  Alert.alert(
-                    'Report message',
-                    'This will submit a report and hide this conversation from your inbox.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Report',
-                        style: 'destructive',
-                        onPress: () => setReportingMessageId(messageId),
-                      },
-                    ]
-                  );
-                }}
-              />
-            );
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No messages yet. Say hello.</Text>
-            </View>
+      <View style={styles.touchWrapper}>
+        <KeyboardDockScreen
+          style={styles.container}
+          keyboardVerticalOffset={headerHeight}
+          dockStyle={styles.composerWrap}
+          dock={
+            isBlockingOther === true ? (
+              <View style={styles.blockedComposer}>
+                <Text style={styles.blockedText}>
+                  You have blocked this user. Tap Unblock above to send messages.
+                </Text>
+              </View>
+            ) : isBlockedByOther === true ? (
+              <View style={styles.blockedComposer}>
+                <Text style={styles.blockedText}>
+                  You cannot send messages in this conversation because this user has blocked you.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  value={messageBody}
+                  onChangeText={setMessageBody}
+                  placeholder="Type a message..."
+                  placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
+                  style={styles.input}
+                  multiline
+                  maxLength={2000}
+                  editable={!isSending}
+                  textAlignVertical="top"
+                />
+                <Pressable
+                  onPress={() => {
+                    void onSend();
+                  }}
+                  style={({ pressed }) => [
+                    styles.sendButton,
+                    (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                  disabled={!messageBody.trim() || isSending}
+                >
+                  <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+                </Pressable>
+              </>
+            )
           }
-        />
+        >
+          <Stack.Screen
+            options={{
+              title: headerConversationTitle,
+              headerBackTitle: 'Inbox',
+              headerRight: otherUserId
+                ? () => (
+                    <Pressable
+                      onPress={handleBlockPress}
+                      style={({ pressed }) => [
+                        styles.headerAction,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={styles.headerActionText}>
+                        {isBlockingOther === true ? 'Unblock' : 'Block'}
+                      </Text>
+                    </Pressable>
+                  )
+                : undefined,
+            }}
+          />
 
-        <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-          {isBlockingOther === true ? (
-            <View style={styles.blockedComposer}>
-              <Text style={styles.blockedText}>
-                You have blocked this user. Tap Unblock above to send messages.
+          <View style={styles.headerCard}>
+            <ProfileAvatar uri={headerAvatarUrl} name={headerOtherUserName} size={64} />
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {headerOtherUserName}
+              </Text>
+              <Text style={styles.headerListing} numberOfLines={1}>
+                {headerListingTitle}
               </Text>
             </View>
-          ) : isBlockedByOther === true ? (
-            <View style={styles.blockedComposer}>
-              <Text style={styles.blockedText}>
-                You cannot send messages in this conversation because this user has blocked you.
-              </Text>
-            </View>
-          ) : (
-            <>
-              <TextInput
-                value={messageBody}
-                onChangeText={setMessageBody}
-                placeholder="Type a message..."
-                placeholderTextColor={colors.muted}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
-                style={styles.input}
-                multiline
-                maxLength={2000}
-                editable={!isSending}
-                textAlignVertical="top"
-              />
+            {listingId ? (
               <Pressable
-                onPress={() => {
-                  void onSend();
-                }}
-                style={({ pressed }) => [
-                  styles.sendButton,
-                  (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-                  pressed && styles.buttonPressed,
-                ]}
-                disabled={!messageBody.trim() || isSending}
+                onPress={() => router.push(`/listings/${listingId}`)}
+                style={({ pressed }) => [styles.headerListingLink, pressed && styles.buttonPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="View listing"
               >
-                <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+                <Text style={styles.headerListingLinkText}>View listing</Text>
               </Pressable>
-            </>
-          )}
-        </View>
+            ) : null}
+          </View>
+
+          <SafetyBanner />
+
+          <FlatList
+            ref={listRef}
+            data={messages ?? []}
+            keyExtractor={(item) => item._id}
+            style={styles.messagesList}
+            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={styles.messagesContent}
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={() => {
+              setActiveMessageActionId(null);
+            }}
+            renderItem={({ item }) => {
+              const isSent = currentUserId !== null && item.senderId === currentUserId;
+              const receiptLabel = item.readAt > 0 ? 'Read' : 'Sent';
+              return (
+                <ReportableMessageRow
+                  message={item}
+                  isSent={isSent}
+                  receiptLabel={receiptLabel}
+                  activeMessageActionId={activeMessageActionId}
+                  setActiveMessageActionId={setActiveMessageActionId}
+                  onReport={(messageId) => {
+                    Alert.alert(
+                      'Report message',
+                      'This will submit a report and hide this conversation from your inbox.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Report',
+                          style: 'destructive',
+                          onPress: () => setReportingMessageId(messageId),
+                        },
+                      ]
+                    );
+                  }}
+                />
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No messages yet. Say hello.</Text>
+              </View>
+            }
+          />
+        </KeyboardDockScreen>
         <ReportModal
           isVisible={reportingMessageId !== null}
           onClose={() => setReportingMessageId(null)}
@@ -549,7 +558,7 @@ export default function ConversationDetailScreen() {
             router.replace('/inbox' as never);
           }}
         />
-      </KeyboardAvoidingView>
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -558,6 +567,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  touchWrapper: {
+    flex: 1,
   },
   centeredState: {
     flex: 1,
