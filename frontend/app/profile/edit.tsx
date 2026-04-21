@@ -16,7 +16,8 @@ import { Id } from 'convex/_generated/dataModel';
 import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { getEmailValidationError } from '@polybuys/shared';
-import { formatMajorLabel } from '../../constants/calPolyMajors';
+import { MajorPicker } from '../../components/MajorPicker';
+import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
 import { useAuth } from '../../hooks/useAuth';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
@@ -132,6 +133,7 @@ export default function ProfileEditScreen() {
   const [pendingPictureUri, setPendingPictureUri] = useState<string | null>(null);
   const [isPreparingPicture, setIsPreparingPicture] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMajorPickerVisible, setIsMajorPickerVisible] = useState(false);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { mappedUrls: pictureUrls } = useResolvedImageUrls(picture ? [picture] : []);
   const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
@@ -147,7 +149,7 @@ export default function ProfileEditScreen() {
     if (profile) {
       setName(profile.name);
       setBio(profile.bio ?? '');
-      setMajor(formatMajorLabel(profile.major));
+      setMajor(profile.major);
       setYear(String(profile.year));
       setPicture(profile.picture ?? null);
     } else {
@@ -246,7 +248,11 @@ export default function ProfileEditScreen() {
       return;
     }
     if (!trimmedMajor) {
-      setFlash('Major is required.');
+      setFlash('Choose your major from the official Cal Poly majors list.');
+      return;
+    }
+    if (!isCalPolyMajor(trimmedMajor)) {
+      setFlash('Choose your major from the official Cal Poly majors list.');
       return;
     }
 
@@ -337,6 +343,9 @@ export default function ProfileEditScreen() {
     );
   }
 
+  const selectedMajorLabel = major ? formatMajorLabel(major) : '';
+  const hasInvalidMajorSelection = major.length > 0 && !isCalPolyMajor(major);
+
   return (
     <KeyboardAwareScreen style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.field}>
@@ -419,15 +428,36 @@ export default function ProfileEditScreen() {
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Major *</Text>
-        <TextInput
-          style={styles.input}
-          value={major}
-          onChangeText={setMajor}
-          placeholder="Computer Science"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-        />
+        <Pressable
+          style={({ pressed }) => [
+            styles.input,
+            styles.selectionInput,
+            pressed && styles.buttonPressed,
+            isSubmitting && styles.buttonDisabled,
+          ]}
+          onPress={() => setIsMajorPickerVisible(true)}
+          disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selectedMajorLabel ? `Selected major ${selectedMajorLabel}` : 'Select major'
+          }
+        >
+          <Text
+            style={[
+              styles.selectionInputText,
+              !major && styles.selectionInputPlaceholder,
+              hasInvalidMajorSelection && styles.selectionInputWarning,
+            ]}
+            numberOfLines={1}
+          >
+            {selectedMajorLabel || 'Search and select your major'}
+          </Text>
+        </Pressable>
+        {hasInvalidMajorSelection ? (
+          <Text style={styles.helperText}>
+            Please reselect your major from the official Cal Poly majors list before saving.
+          </Text>
+        ) : null}
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Graduation year *</Text>
@@ -460,6 +490,12 @@ export default function ProfileEditScreen() {
           <Text style={styles.saveButtonText}>Save profile</Text>
         )}
       </Pressable>
+      <MajorPicker
+        visible={isMajorPickerVisible}
+        selectedMajor={isCalPolyMajor(major) ? major : undefined}
+        onSelect={setMajor}
+        onClose={() => setIsMajorPickerVisible(false)}
+      />
     </KeyboardAwareScreen>
   );
 }
@@ -543,6 +579,20 @@ const styles = StyleSheet.create({
     ...typography.body,
     backgroundColor: colors.white,
     color: colors.textDark,
+  },
+  selectionInput: {
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  selectionInputText: {
+    ...typography.body,
+    color: colors.textDark,
+  },
+  selectionInputPlaceholder: {
+    color: colors.muted,
+  },
+  selectionInputWarning: {
+    color: colors.warningText,
   },
   readOnlyInput: {
     minHeight: 52,

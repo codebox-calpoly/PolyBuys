@@ -9,7 +9,6 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
 import { api } from 'convex/_generated/api';
@@ -46,11 +45,9 @@ const ACCOUNT_SETTINGS = '/account-settings';
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const entranceStyle = useEntranceAnimation();
-  const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
@@ -113,7 +110,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.centeredState}
-        contentInsetAdjustmentBehavior="never"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <Animated.View style={[styles.signInCard, entranceStyle]}>
           <Text style={styles.signInTitle}>Complete your profile</Text>
@@ -147,10 +144,9 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentInsetAdjustmentBehavior="never"
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
     >
-      {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
       <Animated.View style={[styles.profileBlock, entranceStyle]}>
         <View style={styles.profileHeader}>
           <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
