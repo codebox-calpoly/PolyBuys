@@ -136,7 +136,7 @@ export default function NewListingScreen() {
     }
   };
 
-  const handleImagesChange = (newImages: string[]) => {
+  const handleImagesChange = (newImages: string[] | ((prev: string[]) => string[])) => {
     setImages(newImages);
     if (fieldErrors.images) {
       setFieldErrors((prev) => ({ ...prev, images: undefined }));
