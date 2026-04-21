@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   View,
@@ -8,8 +8,14 @@ import {
   Modal,
   Pressable,
   TextInput,
+  Keyboard,
+  Platform,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { motion } from '../theme/motion';
 import { colors } from '../theme/tokens';
 
 interface PriceRangePickerProps {
@@ -26,6 +32,7 @@ const PRESETS = [
   { label: 'Under $100', min: undefined, max: 100 },
   { label: 'Any Price', min: undefined, max: undefined },
 ];
+const SHEET_TOP_MARGIN = 24;
 
 export function PriceRangePicker({
   visible,
@@ -34,11 +41,19 @@ export function PriceRangePicker({
   onApply,
   onClose,
 }: PriceRangePickerProps) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation(40, 8);
   const [min, setMin] = useState<string>(minPrice?.toString() ?? '');
   const [max, setMax] = useState<string>(maxPrice?.toString() ?? '');
   const [error, setError] = useState<string>('');
-  const prevVisibleRef = React.useRef(visible);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [shouldKeepInputsVisible, setShouldKeepInputsVisible] = useState(false);
+  const prevVisibleRef = useRef(visible);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const availableSheetHeight = Math.max(windowHeight - insets.top - SHEET_TOP_MARGIN, 0);
+  const sheetMaxHeight = Math.max(availableSheetHeight - keyboardHeight, 0);
 
   // Reset inputs only when modal transitions from closed to open
   useEffect(() => {
@@ -49,6 +64,66 @@ export function PriceRangePicker({
     }
     prevVisibleRef.current = visible;
   }, [visible, minPrice, maxPrice]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      setShouldKeepInputsVisible(false);
+      keyboardOffset.stopAnimation();
+      keyboardOffset.setValue(0);
+      return;
+    }
+
+    const animateKeyboardOffset = (toValue: number, duration?: number) => {
+      keyboardOffset.stopAnimation();
+      Animated.timing(keyboardOffset, {
+        toValue,
+        duration: duration ?? motion.duration,
+        easing: motion.easing,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      const nextKeyboardHeight = Math.max(event.endCoordinates.height, 0);
+      setKeyboardHeight(nextKeyboardHeight);
+      animateKeyboardOffset(nextKeyboardHeight, event.duration);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, (event) => {
+      setKeyboardHeight(0);
+      animateKeyboardOffset(0, event.duration);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [keyboardOffset, visible]);
+
+  useEffect(() => {
+    if (!visible || keyboardHeight === 0 || !shouldKeepInputsVisible) {
+      return;
+    }
+
+    const timeout = setTimeout(
+      () => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      },
+      Platform.OS === 'ios' ? 80 : 0
+    );
+
+    return () => clearTimeout(timeout);
+  }, [keyboardHeight, shouldKeepInputsVisible, visible]);
+
+  const handleCustomInputFocus = () => {
+    setShouldKeepInputsVisible(true);
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    });
+  };
 
   const handleApply = () => {
     // Trim and treat empty/whitespace-only as undefined
@@ -104,65 +179,106 @@ export function PriceRangePicker({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Animated.View style={[styles.sheet, entranceStyle]}>
-          <Pressable style={styles.sheetTapArea} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.handle} />
-            <Text style={styles.title}>Price Range</Text>
-
-            {/* Quick Presets */}
-            <View style={styles.presetsContainer}>
-              {PRESETS.map((preset) => (
-                <TouchableOpacity
-                  key={preset.label}
-                  style={styles.presetButton}
-                  onPress={() => handlePreset(preset)}
+      <View style={styles.overlay}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityLabel="Close price filter"
+        />
+        <View style={styles.sheetContainer}>
+          <Animated.View
+            style={[
+              styles.sheetLift,
+              {
+                transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.sheet,
+                entranceStyle,
+                {
+                  maxHeight: sheetMaxHeight,
+                },
+              ]}
+            >
+              <View style={styles.sheetTapArea}>
+                <ScrollView
+                  ref={scrollViewRef}
+                  style={styles.scrollView}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                  contentContainerStyle={[
+                    styles.scrollContent,
+                    {
+                      paddingBottom: Math.max(insets.bottom, 16),
+                    },
+                  ]}
                 >
-                  <Text style={styles.presetText}>{preset.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <View style={styles.handle} />
+                  <Text style={styles.title}>Price Range</Text>
 
-            {/* Custom Range Inputs */}
-            <Text style={styles.sectionTitle}>Custom Range</Text>
-            <View style={styles.inputRow}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Min</Text>
-                <TextInput
-                  style={styles.input}
-                  value={min}
-                  onChangeText={setMin}
-                  placeholder="$0"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                />
+                  {/* Quick Presets */}
+                  <View style={styles.presetsContainer}>
+                    {PRESETS.map((preset) => (
+                      <TouchableOpacity
+                        key={preset.label}
+                        style={styles.presetButton}
+                        onPress={() => handlePreset(preset)}
+                      >
+                        <Text style={styles.presetText}>{preset.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Custom Range Inputs */}
+                  <Text style={styles.sectionTitle}>Custom Range</Text>
+                  <View style={styles.inputRow}>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>Min</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={min}
+                        onChangeText={setMin}
+                        onFocus={handleCustomInputFocus}
+                        placeholder="$0"
+                        keyboardType="numeric"
+                        placeholderTextColor="#999"
+                        selectionColor={colors.primary}
+                        cursorColor={colors.primary}
+                      />
+                    </View>
+                    <Text style={styles.separator}>–</Text>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>Max</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={max}
+                        onChangeText={setMax}
+                        onFocus={handleCustomInputFocus}
+                        placeholder="Any"
+                        keyboardType="numeric"
+                        placeholderTextColor="#999"
+                        selectionColor={colors.primary}
+                        cursorColor={colors.primary}
+                      />
+                    </View>
+                  </View>
+
+                  {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                  <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+                    <Text style={styles.applyButtonText}>Apply</Text>
+                  </TouchableOpacity>
+                </ScrollView>
               </View>
-              <Text style={styles.separator}>–</Text>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Max</Text>
-                <TextInput
-                  style={styles.input}
-                  value={max}
-                  onChangeText={setMax}
-                  placeholder="Any"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  selectionColor={colors.primary}
-                  cursorColor={colors.primary}
-                />
-              </View>
-            </View>
-
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
-              <Text style={styles.applyButtonText}>Apply</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+            </Animated.View>
+          </Animated.View>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -170,13 +286,26 @@ export function PriceRangePicker({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  sheetContainer: {
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxHeight: '100%',
+  },
+  sheetLift: {
+    width: '100%',
+    maxHeight: '100%',
   },
   sheet: {
     backgroundColor: 'transparent',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   sheetTapArea: {
     backgroundColor: '#fff',
@@ -185,7 +314,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#dbe6e1',
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    maxHeight: '100%',
+    flexShrink: 1,
+  },
+  scrollView: {
+    maxHeight: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 0,
   },
   handle: {
     width: 40,

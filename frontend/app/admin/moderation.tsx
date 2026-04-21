@@ -19,6 +19,11 @@ import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 type StatusFilter = 'pending' | 'reviewed' | 'dismissed';
 type TargetTypeFilter = 'all' | 'listing' | 'profile';
+type VisibilityTargetType = 'listing' | 'profile';
+
+function canToggleVisibility(targetType: string): targetType is VisibilityTargetType {
+  return targetType === 'listing' || targetType === 'profile';
+}
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('en-US', {
@@ -197,122 +202,139 @@ export default function AdminModerationScreen() {
             </View>
           )}
 
-          {reports?.map((report) => (
-            <View key={report._id} style={styles.reportCard}>
-              <View style={styles.reportHeader}>
-                <View style={styles.reportMeta}>
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      report.targetType === 'listing'
-                        ? styles.typeBadgeListing
-                        : styles.typeBadgeProfile,
-                    ]}
-                  >
-                    <Text style={styles.typeBadgeText}>
-                      {report.targetType === 'listing' ? 'Listing' : 'Profile'}
+          {reports?.map((report) => {
+            const visibilityTargetType = canToggleVisibility(report.targetType)
+              ? report.targetType
+              : null;
+            const supportsVisibilityActions = visibilityTargetType !== null;
+
+            return (
+              <View key={report._id} style={styles.reportCard}>
+                <View style={styles.reportHeader}>
+                  <View style={styles.reportMeta}>
+                    <View
+                      style={[
+                        styles.typeBadge,
+                        report.targetType === 'listing'
+                          ? styles.typeBadgeListing
+                          : styles.typeBadgeProfile,
+                      ]}
+                    >
+                      <Text style={styles.typeBadgeText}>
+                        {report.targetType === 'listing' ? 'Listing' : 'Profile'}
+                      </Text>
+                    </View>
+                    <View style={styles.reasonBadge}>
+                      <Text style={styles.reasonBadgeText}>{report.reason}</Text>
+                    </View>
+                    {report.targetIsHidden && (
+                      <View style={styles.hiddenBadge}>
+                        <Text style={styles.hiddenBadgeText}>Hidden</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.reportDate}>{formatDate(report.createdAt)}</Text>
+                </View>
+
+                <Text style={styles.reportTarget} numberOfLines={2}>
+                  {report.targetTitle ?? 'Unknown target'}
+                </Text>
+
+                <Text style={styles.reportReporter}>Reported by: {report.reporterName}</Text>
+
+                {report.notes && (
+                  <View style={styles.notesBox}>
+                    <Text style={styles.notesText} numberOfLines={3}>
+                      {report.notes}
                     </Text>
                   </View>
-                  <View style={styles.reasonBadge}>
-                    <Text style={styles.reasonBadgeText}>{report.reason}</Text>
-                  </View>
-                  {report.targetIsHidden && (
-                    <View style={styles.hiddenBadge}>
-                      <Text style={styles.hiddenBadgeText}>Hidden</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.reportDate}>{formatDate(report.createdAt)}</Text>
-              </View>
+                )}
 
-              <Text style={styles.reportTarget} numberOfLines={2}>
-                {report.targetTitle ?? 'Unknown target'}
-              </Text>
-
-              <Text style={styles.reportReporter}>Reported by: {report.reporterName}</Text>
-
-              {report.notes && (
-                <View style={styles.notesBox}>
-                  <Text style={styles.notesText} numberOfLines={3}>
-                    {report.notes}
-                  </Text>
-                </View>
-              )}
-
-              {/* Actions */}
-              {(report.status ?? 'pending') === 'pending' && (
-                <View style={styles.actionsRow}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.actionButton,
-                      styles.actionDismiss,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => void handleResolve(report._id, 'dismissed')}
-                    disabled={actionLoading === report._id}
-                  >
-                    <Text style={styles.actionDismissText}>Dismiss</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.actionButton,
-                      styles.actionReview,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => void handleResolve(report._id, 'reviewed', false)}
-                    disabled={actionLoading === report._id}
-                  >
-                    <Text style={styles.actionReviewText}>Mark Reviewed</Text>
-                  </Pressable>
-
-                  {!report.targetIsHidden && (
+                {/* Actions */}
+                {(report.status ?? 'pending') === 'pending' && (
+                  <View style={styles.actionsRow}>
                     <Pressable
                       style={({ pressed }) => [
                         styles.actionButton,
-                        styles.actionHide,
+                        styles.actionDismiss,
                         pressed && styles.buttonPressed,
                       ]}
-                      onPress={() => void handleResolve(report._id, 'reviewed', true)}
+                      onPress={() => void handleResolve(report._id, 'dismissed')}
                       disabled={actionLoading === report._id}
                     >
-                      <Text style={styles.actionHideText}>Hide & Resolve</Text>
+                      <Text style={styles.actionDismissText}>Dismiss</Text>
                     </Pressable>
-                  )}
 
-                  {report.targetIsHidden && (
                     <Pressable
                       style={({ pressed }) => [
                         styles.actionButton,
-                        styles.actionUnhide,
+                        styles.actionReview,
                         pressed && styles.buttonPressed,
                       ]}
-                      onPress={() => void handleUnhide(report.targetId, report.targetType)}
-                      disabled={actionLoading === report.targetId}
+                      onPress={() => void handleResolve(report._id, 'reviewed', false)}
+                      disabled={actionLoading === report._id}
                     >
-                      <Text style={styles.actionUnhideText}>Unhide</Text>
+                      <Text style={styles.actionReviewText}>Mark Reviewed</Text>
                     </Pressable>
-                  )}
-                </View>
-              )}
 
-              {report.status === 'reviewed' && report.targetIsHidden && (
-                <View style={styles.actionsRow}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.actionButton,
-                      styles.actionUnhide,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => void handleUnhide(report.targetId, report.targetType)}
-                    disabled={actionLoading === report.targetId}
-                  >
-                    <Text style={styles.actionUnhideText}>Unhide Content</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          ))}
+                    {!report.targetIsHidden && supportsVisibilityActions && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          styles.actionHide,
+                          pressed && styles.buttonPressed,
+                        ]}
+                        onPress={() => void handleResolve(report._id, 'reviewed', true)}
+                        disabled={actionLoading === report._id}
+                      >
+                        <Text style={styles.actionHideText}>Hide & Resolve</Text>
+                      </Pressable>
+                    )}
+
+                    {report.targetIsHidden && supportsVisibilityActions && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          styles.actionUnhide,
+                          pressed && styles.buttonPressed,
+                        ]}
+                        onPress={() => {
+                          if (visibilityTargetType) {
+                            void handleUnhide(report.targetId, visibilityTargetType);
+                          }
+                        }}
+                        disabled={actionLoading === report.targetId}
+                      >
+                        <Text style={styles.actionUnhideText}>Unhide</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+
+                {report.status === 'reviewed' &&
+                  report.targetIsHidden &&
+                  supportsVisibilityActions && (
+                    <View style={styles.actionsRow}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          styles.actionUnhide,
+                          pressed && styles.buttonPressed,
+                        ]}
+                        onPress={() => {
+                          if (visibilityTargetType) {
+                            void handleUnhide(report.targetId, visibilityTargetType);
+                          }
+                        }}
+                        disabled={actionLoading === report.targetId}
+                      >
+                        <Text style={styles.actionUnhideText}>Unhide Content</Text>
+                      </Pressable>
+                    </View>
+                  )}
+              </View>
+            );
+          })}
         </View>
       </Animated.View>
     </ScrollView>

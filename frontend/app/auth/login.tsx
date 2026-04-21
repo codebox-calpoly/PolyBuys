@@ -21,7 +21,6 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { getLoginEntryAction, type LoginStep } from './loginRedirect';
-import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -70,12 +69,18 @@ export default function LoginScreen() {
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
-      : '/';
+      : '/home';
   const [successRedirect, setSuccessRedirect] = useState<Href>(postAuthRedirect);
 
   useEffect(() => {
     setSuccessRedirect(postAuthRedirect);
   }, [postAuthRedirect]);
+
+  useEffect(() => {
+    if (isWeb) {
+      router.replace(postAuthRedirect);
+    }
+  }, [isWeb, postAuthRedirect, router]);
 
   useEffect(() => {
     const entryAction = getLoginEntryAction({
@@ -308,16 +313,7 @@ export default function LoginScreen() {
   const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
 
   if (isWeb) {
-    return (
-      <OpenInAppPrompt
-        title="Sign in on mobile"
-        body="Login is only available in the PolyBuys mobile app."
-        path={String(postAuthRedirect)}
-        buttonLabel="Open PolyBuys App"
-        secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/')}
-      />
-    );
+    return null;
   }
 
   if (isWelcomeStep) {
@@ -371,7 +367,7 @@ export default function LoginScreen() {
           ) : (
             <>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.stateText}>Setting up your account...</Text>
+              <Text style={styles.stateText}>Signing you in...</Text>
             </>
           )}
         </View>
@@ -380,7 +376,7 @@ export default function LoginScreen() {
   }
 
   const finishAndRedirect = () => {
-    setSuccessRedirect('/');
+    setSuccessRedirect(postAuthRedirect);
     setStep('success');
   };
 
@@ -581,11 +577,11 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Animated.View style={[styles.content, panelEntrance]}>
-            <Text style={styles.eyebrow}>PolyBuys Access</Text>
-            <Text style={styles.title}>{isEmailStep ? 'Welcome back' : 'Check your inbox'}</Text>
+            <Text style={styles.eyebrow}>PolyBuys</Text>
+            <Text style={styles.title}>{isEmailStep ? 'Sign in' : 'Check your inbox'}</Text>
             <Text style={styles.subtitle}>
               {isEmailStep
-                ? 'Sign in with your Cal Poly email to continue.'
+                ? 'Enter your Cal Poly email to continue.'
                 : 'Enter the 8-digit code we sent to your email.'}
             </Text>
 
@@ -664,11 +660,27 @@ export default function LoginScreen() {
               <Text style={styles.footerText}>Only @calpoly.edu emails are allowed.</Text>
             ) : (
               <View style={styles.secondaryActions}>
-                <Pressable onPress={handleResendCode} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleResendCode}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Resend code</Text>
                 </Pressable>
 
-                <Pressable onPress={handleBack} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleBack}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Use different email</Text>
                 </Pressable>
               </View>
@@ -874,12 +886,31 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     marginTop: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
   },
   skipButtonText: {
-    color: colors.muted,
+    color: colors.primary,
     ...typography.subhead,
     fontWeight: '600',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.16)',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    boxShadow: '0 6px 16px rgba(21, 71, 52, 0.06)',
   },
 });

@@ -51,5 +51,16 @@ module.exports = {
         '@typescript-eslint/no-require-imports': 'off',
       },
     },
+    {
+      // Web-only marketing pages render raw DOM (not React Native <Text>),
+      // so the RN text-wrapping rule doesn't apply.
+      files: [
+        'frontend/components/landing/**/*.{ts,tsx}',
+        'frontend/components/LandingScreen.web.tsx',
+      ],
+      rules: {
+        'react-native/no-raw-text': 'off',
+      },
+    },
   ],
 };

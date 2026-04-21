@@ -11,6 +11,7 @@
 import type * as AppReviewOTP from "../AppReviewOTP.js";
 import type * as ResendOTP from "../ResendOTP.js";
 import type * as __tests___testUtils from "../__tests__/testUtils.js";
+import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as blocks from "../blocks.js";
 import type * as http from "../http.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   AppReviewOTP: typeof AppReviewOTP;
   ResendOTP: typeof ResendOTP;
   "__tests__/testUtils": typeof __tests___testUtils;
+  admin: typeof admin;
   auth: typeof auth;
   blocks: typeof blocks;
   http: typeof http;

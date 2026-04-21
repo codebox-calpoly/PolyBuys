@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Platform,
@@ -14,6 +16,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -22,7 +25,15 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import Constants from 'expo-constants';
-import { useMutation, useQuery } from 'convex/react';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useFlash } from '../../contexts/FlashContext';
@@ -35,9 +46,11 @@ import { ReportModal } from '../../components/ReportModal';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { formatPrice } from '../../lib/formatPrice';
+import { formatRelativeDate } from '../../lib/formatDate';
 import { colors, borderRadius, spacing, typography } from '../../theme/tokens';
 import { Chip } from '../../components/ui';
 import ImageLightbox from '../../components/ImageLightbox';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_STORE_URL } from '../../constants/app';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
@@ -77,6 +90,7 @@ export default function ListingDetailScreen() {
   const isWeb = Platform.OS === 'web';
   const entranceStyle = useEntranceAnimation();
   const appOrigin = getAppOrigin();
+  const insets = useSafeAreaInsets();
 
   const listing = useQuery(
     api.listings.getListing,
@@ -85,6 +99,9 @@ export default function ListingDetailScreen() {
   const currentUserSubject = useQuery(
     api.listings.getCurrentUserSubject,
     isAuthenticated && !isWeb ? {} : 'skip'
+  );
+  const createConversationAndSendFirstMessage = useAction(
+    api.messages.createConversationAndSendFirstMessage
   );
   const toggleSavedListing = useMutation(api.savedListings.toggleSavedListing);
   const updateListingStatus = useMutation(api.listings.updateListingStatus);
@@ -97,6 +114,10 @@ export default function ListingDetailScreen() {
   const [savedOptimistic, setSavedOptimistic] = useState<boolean | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [messageComposerOpen, setMessageComposerOpen] = useState(false);
+  const [messageBody, setMessageBody] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const messageComposerTranslateY = useSharedValue(0);
   const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
   const { width: screenWidth } = useWindowDimensions();
   const contentMaxWidth = 980;
@@ -142,11 +163,74 @@ export default function ListingDetailScreen() {
       return;
     }
 
-    router.push({
-      pathname: '/conversations/new',
-      params: { listingId: String(listing._id) },
-    } as never);
+    setMessageComposerOpen(true);
   };
+
+  const closeMessageComposer = useCallback(() => {
+    if (isSendingMessage) return;
+    messageComposerTranslateY.value = 0;
+    setMessageComposerOpen(false);
+    setMessageBody('');
+  }, [isSendingMessage, messageComposerTranslateY]);
+
+  const onSendFirstMessage = async () => {
+    if (!listing || isSendingMessage) return;
+    const trimmed = messageBody.trim();
+    if (!trimmed) return;
+
+    try {
+      setIsSendingMessage(true);
+      const { conversationId } = await createConversationAndSendFirstMessage({
+        listingId: listing._id,
+        body: trimmed,
+      });
+      setMessageComposerOpen(false);
+      setMessageBody('');
+      router.push({
+        pathname: '/conversations/[id]',
+        params: { id: String(conversationId) },
+      } as never);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send message right now.';
+      Alert.alert('Message failed', message);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (messageComposerOpen) {
+      messageComposerTranslateY.value = 0;
+    }
+  }, [messageComposerOpen, messageComposerTranslateY]);
+
+  const messageComposerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: messageComposerTranslateY.value }],
+  }));
+
+  const messageComposerPanGesture = Gesture.Pan()
+    .enabled(!isSendingMessage)
+    .activeOffsetY(8)
+    .failOffsetX([-24, 24])
+    .onUpdate((event) => {
+      if (event.translationY > 0) {
+        messageComposerTranslateY.value = event.translationY;
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationY > 120 || event.velocityY > 1000) {
+        messageComposerTranslateY.value = withTiming(420, { duration: 180 }, (finished) => {
+          if (finished) {
+            runOnJS(closeMessageComposer)();
+          }
+        });
+        return;
+      }
+      messageComposerTranslateY.value = withSpring(0, {
+        damping: 18,
+        stiffness: 180,
+      });
+    });
 
   const onSavePress = async () => {
     if (!listingId) return;
@@ -507,6 +591,10 @@ export default function ListingDetailScreen() {
           />
         </View>
 
+        <Text style={styles.postedDate}>
+          Posted {formatRelativeDate(listing.postedOn ?? listing.createdAt)}
+        </Text>
+
         <Text style={styles.descriptionLabel}>Description</Text>
         <Text style={styles.description}>{listing.description}</Text>
 
@@ -593,6 +681,117 @@ export default function ListingDetailScreen() {
         visible={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
       />
+      <Modal
+        visible={messageComposerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={closeMessageComposer}
+      >
+        <View style={styles.messageComposerOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMessageComposer} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.messageComposerKeyboardWrap}
+          >
+            <Reanimated.View
+              style={[
+                styles.messageComposerSheet,
+                messageComposerAnimatedStyle,
+                { paddingBottom: insets.bottom + spacing.lg },
+              ]}
+            >
+              <GestureDetector gesture={messageComposerPanGesture}>
+                <View style={styles.messageComposerDragRegion}>
+                  <View style={styles.messageComposerHandleArea}>
+                    <View style={styles.messageComposerGrabber} />
+                  </View>
+                  <View style={styles.messageComposerHeader}>
+                    <View style={styles.messageComposerTitleWrap}>
+                      <Text style={styles.messageComposerEyebrow}>Message seller</Text>
+                      <Text style={styles.messageComposerTitle}>
+                        About &quot;{listing.title}&quot;
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={closeMessageComposer}
+                      style={({ pressed }) => [
+                        styles.messageComposerClose,
+                        pressed && styles.buttonPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close message composer"
+                      disabled={isSendingMessage}
+                    >
+                      <Feather name="x" size={18} color={colors.textDark} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.messageComposerSellerRow}>
+                    <ProfileAvatar
+                      uri={sellerAvatarUrl}
+                      name={sellerProfile?.name ?? 'Seller'}
+                      size={40}
+                    />
+                    <View style={styles.messageComposerSellerCopy}>
+                      <Text style={styles.messageComposerSellerName}>
+                        {sellerProfile?.name ?? 'Seller'}
+                      </Text>
+                      <Text style={styles.messageComposerSellerMeta} numberOfLines={1}>
+                        {listing.title}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </GestureDetector>
+              <TextInput
+                value={messageBody}
+                onChangeText={setMessageBody}
+                placeholder="Hi! Is this still available?"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                style={styles.messageComposerInput}
+                multiline
+                maxLength={2000}
+                editable={!isSendingMessage}
+                textAlignVertical="top"
+                autoFocus
+              />
+              <View style={styles.messageComposerFooter}>
+                <Text style={styles.messageComposerCount}>
+                  {Math.min(messageBody.length, 2000)}/2000
+                </Text>
+                <View style={styles.messageComposerActions}>
+                  <Pressable
+                    onPress={closeMessageComposer}
+                    style={({ pressed }) => [
+                      styles.messageComposerSecondaryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    disabled={isSendingMessage}
+                  >
+                    <Text style={styles.messageComposerSecondaryButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void onSendFirstMessage()}
+                    style={({ pressed }) => [
+                      styles.messageComposerPrimaryButton,
+                      (!messageBody.trim() || isSendingMessage) && styles.buttonDisabled,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    disabled={!messageBody.trim() || isSendingMessage}
+                  >
+                    {isSendingMessage ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Text style={styles.messageComposerPrimaryButtonText}>Send</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            </Reanimated.View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -695,15 +894,18 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
   },
   dotActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   dotInactive: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.white,
   },
   carouselArrow: {
     position: 'absolute',
@@ -714,9 +916,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(21, 71, 52, 0.14)',
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0 10px 22px rgba(0, 0, 0, 0.14)',
   },
   carouselArrowLeft: {
     left: spacing.sm,
@@ -782,6 +985,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    boxShadow: '0 12px 24px rgba(21, 71, 52, 0.18)',
   },
   messageButtonText: {
     ...typography.subhead,
@@ -793,16 +997,22 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(21, 71, 52, 0.14)',
+    borderWidth: 1,
     borderRadius: borderRadius.md,
     backgroundColor: colors.white,
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.xs,
+  },
+  postedDate: {
+    ...typography.footnote,
+    color: colors.muted,
+    marginBottom: spacing.lg,
   },
   descriptionLabel: {
     ...typography.heading,
@@ -817,13 +1027,14 @@ const styles = StyleSheet.create({
   sellerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.14)',
     padding: spacing.md,
     gap: spacing.md,
     marginTop: spacing.sm,
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   sellerAvatar: {
     width: 44,
@@ -866,14 +1077,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.16)',
     backgroundColor: colors.white,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: 'center',
     minHeight: 48,
     justifyContent: 'center',
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.06)',
   },
   editButtonText: {
     ...typography.subhead,
@@ -882,13 +1094,164 @@ const styles = StyleSheet.create({
   },
   reportLink: {
     marginTop: spacing.md,
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     alignSelf: 'flex-start',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(179, 38, 30, 0.18)',
+    backgroundColor: 'rgba(179, 38, 30, 0.06)',
   },
   reportLinkText: {
     ...typography.footnote,
     color: colors.destructive,
     fontWeight: '600',
+  },
+  messageComposerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(12, 22, 18, 0.28)',
+  },
+  messageComposerKeyboardWrap: {
+    width: '100%',
+  },
+  messageComposerSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    gap: spacing.md,
+    boxShadow: '0 -14px 36px rgba(0, 0, 0, 0.16)',
+  },
+  messageComposerDragRegion: {
+    gap: spacing.sm,
+  },
+  messageComposerHandleArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    marginTop: -spacing.sm,
+  },
+  messageComposerGrabber: {
+    width: 44,
+    height: 5,
+    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(21, 71, 52, 0.18)',
+  },
+  messageComposerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  messageComposerTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  messageComposerEyebrow: {
+    ...typography.footnote,
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '600',
+  },
+  messageComposerTitle: {
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  messageComposerClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4FAF7',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageComposerSellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#F7FCF9',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageComposerSellerCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  messageComposerSellerName: {
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    fontWeight: '700',
+  },
+  messageComposerSellerMeta: {
+    ...typography.footnote,
+    color: colors.text,
+  },
+  messageComposerInput: {
+    minHeight: 172,
+    maxHeight: 240,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: '#FCFFFE',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    ...typography.subhead,
+    color: colors.textDark,
+  },
+  messageComposerFooter: {
+    gap: spacing.sm,
+  },
+  messageComposerCount: {
+    ...typography.footnote,
+    color: colors.text,
+    textAlign: 'right',
+  },
+  messageComposerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  messageComposerSecondaryButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageComposerSecondaryButtonText: {
+    ...typography.footnoteMed,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  messageComposerPrimaryButton: {
+    minHeight: 44,
+    minWidth: 108,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageComposerPrimaryButtonText: {
+    ...typography.footnoteMed,
+    color: colors.white,
+    fontWeight: '700',
   },
   buttonPressed: {
     opacity: 0.9,

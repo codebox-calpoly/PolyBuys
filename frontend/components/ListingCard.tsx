@@ -4,6 +4,7 @@ import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } 
 import { BlurView } from 'expo-blur';
 import { motion } from '../theme/motion';
 import { formatPrice } from '../lib/formatPrice';
+import { formatRelativeDate } from '../lib/formatDate';
 import { colors, typography, borderRadius, spacing } from '../theme/tokens';
 import { nativeChrome } from '../theme/nativeChrome';
 import { useResolvedImageUrls } from '../hooks/useResolvedImageUrls';
@@ -47,6 +48,8 @@ interface ListingCardProps {
     description: string;
     images?: string[];
     condition: 'new' | 'used' | 'refurbished';
+    postedOn?: number;
+    createdAt?: number;
   };
   index?: number;
   isSaved?: boolean;
@@ -299,6 +302,11 @@ export default function ListingCard({
               ${formatPrice(listing.price)}
             </Text>
           </View>
+          {(listing.postedOn || listing.createdAt) && (
+            <Text style={[styles.listingDate, isHomeDensity && styles.listingDateHome]}>
+              {formatRelativeDate(listing.postedOn ?? listing.createdAt!)}
+            </Text>
+          )}
         </Pressable>
         {onToggleSave && (
           <Pressable
@@ -414,14 +422,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.6)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
+    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.14)',
   },
   saveButtonPressed: {
     opacity: 0.9,
@@ -443,14 +447,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.6)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
+    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.14)',
   },
   manageButtonPressed: {
     opacity: 0.85,
@@ -566,6 +566,16 @@ const styles = StyleSheet.create({
   listingPriceHome: {
     fontSize: 17,
     marginTop: spacing.xs,
+  },
+  listingDate: {
+    ...typography.footnote,
+    color: colors.muted,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  listingDateHome: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.md,
   },
   footer: {
     marginTop: spacing.sm,
