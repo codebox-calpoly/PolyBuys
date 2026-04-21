@@ -195,13 +195,20 @@ export default function HomeScreen() {
 
   const savedState = useQuery(
     api.savedListings.getSavedStateForListings,
-    isAuthenticated && listings.length > 0 ? { listingIds: listings.map((l) => l._id) } : 'skip'
+    isAuthenticated && !isWeb && listings.length > 0
+      ? { listingIds: listings.map((l) => l._id) }
+      : 'skip'
   );
 
   const handleToggleSave = useCallback(
     async (listingId: Id<'listings'>) => {
+      if (isWeb) {
+        Alert.alert('Open in the PolyBuys app', 'Saving listings is available in the mobile app.');
+        return;
+      }
+
       if (!isAuthenticated) {
-        router.replace('/auth/login?returnTo=%2F' as never);
+        router.replace('/auth/login?returnTo=%2Fhome' as never);
         return;
       }
 
@@ -213,7 +220,7 @@ export default function HomeScreen() {
         Alert.alert('Save failed', message);
       }
     },
-    [isAuthenticated, router, toggleSavedListing]
+    [isAuthenticated, isWeb, router, toggleSavedListing]
   );
 
   const hasActiveFilters =
@@ -254,32 +261,29 @@ export default function HomeScreen() {
   }, [refreshListings]);
 
   const handleCreateListing = () => {
+    if (isWeb) {
+      Alert.alert('Open in the PolyBuys app', 'Creating listings is available in the mobile app.');
+      return;
+    }
+
     if (!isAuthenticated) {
-      if (Platform.OS === 'web') {
-        router.replace('/settings');
-      } else {
-        Alert.alert('Sign In Required', 'Please sign in to create a listing', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.replace('/auth/login') },
-        ]);
-      }
+      Alert.alert('Sign In Required', 'Please sign in to create a listing', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.replace('/auth/login') },
+      ]);
       return;
     }
     router.push('/listings/new');
   };
 
   const isCompactLayout = width < 760;
-  const contentPadding = isWeb
-    ? isDesktopWeb
-      ? spacing.xl
-      : width >= 900
-        ? spacing.lg
-        : 10
-    : width >= 900
-      ? spacing.xxl
-      : isCompactLayout
-        ? spacing.xs
-        : spacing.sm;
+  const webScrollHorizontalPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
+  /** Native: same horizontal inset as My Listings (header + FilterBar). */
+  const nativeHeaderHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
+  /** Native: original Home card gutters (tighter than header). */
+  const nativeListHorizontalPadding =
+    width >= 900 ? spacing.xxl : isCompactLayout ? spacing.xs : spacing.sm;
   const contentMaxWidth = isWeb ? 1240 : 1120;
   const homeColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : 2;
   const listEmptyComponent =
@@ -367,7 +371,7 @@ export default function HomeScreen() {
           contentContainerStyle={[
             styles.webScrollContent,
             {
-              paddingHorizontal: contentPadding,
+              paddingHorizontal: webScrollHorizontalPadding,
               paddingBottom: Math.max(insets.bottom + 60, 80),
             },
           ]}
@@ -394,11 +398,17 @@ export default function HomeScreen() {
               ]}
               onPress={handleCreateListing}
               disabled={isSessionLoading}
-              accessibilityLabel="Create listing"
+              accessibilityLabel={
+                isWeb ? 'Download the Mobile App to Create Listings' : 'Create listing'
+              }
               accessibilityRole="button"
             >
-              <Text style={styles.createChipText}>
-                {isAuthenticated ? '+ Create listing' : 'Sign in to sell'}
+              <Text style={[styles.createChipText, isWeb && styles.webCreateChipText]}>
+                {isWeb
+                  ? 'Download the Mobile App to Create Listings'
+                  : isAuthenticated
+                    ? '+ Create listing'
+                    : 'Sign in to sell'}
               </Text>
             </Pressable>
           </Animated.View>
@@ -438,7 +448,6 @@ export default function HomeScreen() {
                           listing={item}
                           index={row.startIndex + columnOffset}
                           isSaved={savedState?.[item._id] ?? false}
-                          onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
                           density="home"
                           shellStyle="flat"
                         />
@@ -473,11 +482,15 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.page, styles.pageMobile]}>
-      <View
-        style={[styles.content, { paddingHorizontal: contentPadding, maxWidth: contentMaxWidth }]}
-      >
+      <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
         {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-        <Animated.View style={[styles.homeTopBlock, entranceStyle]}>
+        <Animated.View
+          style={[
+            styles.homeTopBlock,
+            entranceStyle,
+            { paddingHorizontal: nativeHeaderHorizontalPadding },
+          ]}
+        >
           <ScreenHeader
             title="Browse"
             subtitle="Fresh listings from campus"
@@ -528,7 +541,9 @@ export default function HomeScreen() {
         />
 
         {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
-          <View style={styles.centerContainer}>
+          <View
+            style={[styles.centerContainer, { paddingHorizontal: nativeListHorizontalPadding }]}
+          >
             <View style={styles.stateCard}>
               <ScreenState
                 variant={loadError ? 'error' : 'loading'}
@@ -561,7 +576,10 @@ export default function HomeScreen() {
             contentContainerStyle={[
               styles.listContainer,
               isDesktopWeb && styles.listContainerDesktop,
-              { paddingBottom: Math.max(insets.bottom + 60, 80) },
+              {
+                paddingBottom: Math.max(insets.bottom + 60, 80),
+                paddingHorizontal: nativeListHorizontalPadding,
+              },
             ]}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
@@ -654,8 +672,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   webCreateChip: {
-    minWidth: 172,
+    minWidth: 280,
     alignItems: 'center',
+  },
+  webCreateChipText: {
+    textAlign: 'center',
   },
   homeTopBlock: {
     gap: spacing.md,

@@ -16,6 +16,7 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useAuth } from '../../hooks/useAuth';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
@@ -29,15 +30,19 @@ export default function NewConversationScreen() {
 
   const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated, isSessionLoading } = useAuth();
   const createConversationAndSendFirstMessage = useAction(
     api.messages.createConversationAndSendFirstMessage
   );
 
-  const listing = useQuery(api.listings.getListing, listingId ? { id: listingId } : 'skip');
+  const listing = useQuery(
+    api.listings.getListing,
+    !isWeb && listingId ? { id: listingId } : 'skip'
+  );
   const sellerProfile = useQuery(
     api.profiles.getProfileByUserId,
-    listing?.sellerId ? { userId: listing.sellerId } : 'skip'
+    !isWeb && listing?.sellerId ? { userId: listing.sellerId } : 'skip'
   );
   const { mappedUrls: sellerAvatarUrls } = useResolvedImageUrls(
     sellerProfile?.picture ? [sellerProfile.picture] : []
@@ -70,11 +75,26 @@ export default function NewConversationScreen() {
   };
 
   useEffect(() => {
-    if (!isSessionLoading && !isAuthenticated) {
+    if (!isWeb && !isSessionLoading && !isAuthenticated) {
       const returnTo = listingId ? `/conversations/new?listingId=${listingId}` : '/inbox';
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}` as Href);
     }
-  }, [isSessionLoading, isAuthenticated, listingId, router]);
+  }, [isSessionLoading, isAuthenticated, isWeb, listingId, router]);
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Start conversations in the mobile app"
+        body="Messaging is available in the PolyBuys mobile app."
+        path={listingId ? `/conversations/new?listingId=${listingId}` : '/inbox'}
+        buttonLabel="Open Messaging in App"
+        secondaryActionLabel="Back to listing"
+        onSecondaryAction={() =>
+          listingId ? router.replace(`/listings/${listingId}` as never) : router.replace('/')
+        }
+      />
+    );
+  }
 
   if (!listingId) {
     return (
@@ -133,31 +153,41 @@ export default function NewConversationScreen() {
             </Text>
           </View>
         </View>
-        <Text style={styles.prompt}>Send a message about &quot;{listing.title}&quot;</Text>
-        <TextInput
-          value={messageBody}
-          onChangeText={setMessageBody}
-          placeholder="Type your message..."
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          style={styles.input}
-          multiline
-          maxLength={2000}
-          editable={!isSending}
-          textAlignVertical="top"
-        />
-        <Pressable
-          onPress={() => void onSend()}
-          style={({ pressed }) => [
-            styles.sendButton,
-            (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-          disabled={!messageBody.trim() || isSending}
-        >
-          <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
-        </Pressable>
+        <View style={styles.composerCard}>
+          <View style={styles.composerHeader}>
+            <Text style={styles.prompt}>Message about &quot;{listing.title}&quot;</Text>
+            <Text style={styles.promptHint}>
+              Ask about condition, pickup timing, or anything else before you buy.
+            </Text>
+          </View>
+          <TextInput
+            value={messageBody}
+            onChangeText={setMessageBody}
+            placeholder="Hi! Is this still available?"
+            placeholderTextColor={colors.muted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            style={styles.input}
+            multiline
+            maxLength={2000}
+            editable={!isSending}
+            textAlignVertical="top"
+          />
+          <View style={styles.composerFooter}>
+            <Text style={styles.characterCount}>{messageBody.length}/2000</Text>
+            <Pressable
+              onPress={() => void onSend()}
+              style={({ pressed }) => [
+                styles.sendButton,
+                (!messageBody.trim() || isSending) && styles.sendButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+              disabled={!messageBody.trim() || isSending}
+            >
+              <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send message'}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -186,8 +216,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     padding: spacing.md,
+    boxShadow: '0 8px 24px rgba(21, 71, 52, 0.06)',
   },
   sellerCopy: {
     flex: 1,
@@ -204,20 +235,45 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   prompt: {
-    ...typography.subhead,
+    ...typography.heading,
+    color: colors.textDark,
+  },
+  promptHint: {
+    ...typography.footnote,
     color: colors.text,
+  },
+  composerCard: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    gap: spacing.md,
+    boxShadow: '0 10px 28px rgba(21, 71, 52, 0.06)',
+  },
+  composerHeader: {
+    gap: spacing.xs,
   },
   input: {
     flex: 1,
-    minHeight: 120,
+    minHeight: 220,
     borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: '#FCFFFE',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     ...typography.subhead,
     color: colors.textDark,
+  },
+  composerFooter: {
+    gap: spacing.sm,
+  },
+  characterCount: {
+    ...typography.footnote,
+    color: colors.text,
+    textAlign: 'right',
   },
   sendButton: {
     backgroundColor: colors.primary,

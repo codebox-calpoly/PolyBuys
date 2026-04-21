@@ -44,7 +44,7 @@ jobs:
       - name: Deploy Convex backend
         working-directory: backend
         env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
         run: npx convex deploy
 
       - name: Submit to TestFlight
@@ -58,4 +58,4 @@ jobs:
           name: ios-build-${{ github.ref_name }}-${{ github.sha }}
           path: ${{ github.workspace }}/build.ipa
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 2

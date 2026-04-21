@@ -34,6 +34,7 @@ function providerForEmail(emailAddress: string): 'resend-otp' | 'ios-review-otp'
 
 export default function LoginScreen() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const { signIn } = useAuthActions();
   const { isAuthenticated, isSessionLoading } = useAuth();
@@ -44,7 +45,10 @@ export default function LoginScreen() {
     api.users.updateMessageNotificationsEnabled
   );
 
-  const currentProfile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const currentProfile = useQuery(
+    api.profiles.getCurrentProfile,
+    isAuthenticated && !isWeb ? {} : 'skip'
+  );
 
   const [step, setStep] = useState<LoginStep>('welcome');
   const [email, setEmail] = useState('');
@@ -65,7 +69,18 @@ export default function LoginScreen() {
     normalizedReturnTo.startsWith('/') &&
     !normalizedReturnTo.startsWith('//')
       ? (normalizedReturnTo as Href)
-      : '/';
+      : '/home';
+  const [successRedirect, setSuccessRedirect] = useState<Href>(postAuthRedirect);
+
+  useEffect(() => {
+    setSuccessRedirect(postAuthRedirect);
+  }, [postAuthRedirect]);
+
+  useEffect(() => {
+    if (isWeb) {
+      router.replace(postAuthRedirect);
+    }
+  }, [isWeb, postAuthRedirect, router]);
 
   useEffect(() => {
     const entryAction = getLoginEntryAction({
@@ -104,6 +119,7 @@ export default function LoginScreen() {
     }
 
     if (currentProfile) {
+      setSuccessRedirect(postAuthRedirect);
       setStep('success');
       return;
     }
@@ -113,17 +129,17 @@ export default function LoginScreen() {
     }
 
     setStep('profile');
-  }, [step, currentProfile, isSessionLoading, isAuthenticated]);
+  }, [step, currentProfile, isSessionLoading, isAuthenticated, postAuthRedirect]);
 
   useEffect(() => {
     if (step !== 'success') {
       return;
     }
     const t = setTimeout(() => {
-      router.replace(postAuthRedirect);
+      router.replace(successRedirect);
     }, 1500);
     return () => clearTimeout(t);
-  }, [step, postAuthRedirect, router]);
+  }, [step, successRedirect, router]);
 
   const handleCheckingRetry = useCallback(() => {
     if (retryTimerRef.current !== null) {
@@ -296,6 +312,10 @@ export default function LoginScreen() {
   const isSuccessStep = step === 'success';
   const verificationEmail = typeof step === 'object' && 'email' in step ? step.email : '';
 
+  if (isWeb) {
+    return null;
+  }
+
   if (isWelcomeStep) {
     return (
       <View style={styles.container}>
@@ -356,6 +376,7 @@ export default function LoginScreen() {
   }
 
   const finishAndRedirect = () => {
+    setSuccessRedirect(postAuthRedirect);
     setStep('success');
   };
 
@@ -639,11 +660,27 @@ export default function LoginScreen() {
               <Text style={styles.footerText}>Only @calpoly.edu emails are allowed.</Text>
             ) : (
               <View style={styles.secondaryActions}>
-                <Pressable onPress={handleResendCode} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleResendCode}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Resend code</Text>
                 </Pressable>
 
-                <Pressable onPress={handleBack} disabled={isLoading}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryActionButton,
+                    pressed && styles.buttonPressed,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleBack}
+                  disabled={isLoading}
+                >
                   <Text style={styles.linkText}>Use different email</Text>
                 </Pressable>
               </View>
@@ -849,12 +886,31 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     marginTop: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: 'rgba(21, 71, 52, 0.06)',
   },
   skipButtonText: {
-    color: colors.muted,
+    color: colors.primary,
     ...typography.subhead,
     fontWeight: '600',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.16)',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    boxShadow: '0 6px 16px rgba(21, 71, 52, 0.06)',
   },
 });

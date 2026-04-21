@@ -7,6 +7,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -32,6 +33,35 @@ const SEARCH_DEBOUNCE_MS = 300;
 const USE_NATIVE_SEARCH_BAR = Platform.OS === 'ios';
 
 const BROWSE_CATEGORIES: Category[] = ['textbooks', 'electronics', 'furniture', 'tickets', 'other'];
+const QUICK_SEARCHES = ['Desk lamp', 'Bike', 'Calculator', 'Mini fridge'];
+const CATEGORY_META: Record<
+  Category,
+  {
+    icon: keyof typeof Feather.glyphMap;
+    blurb: string;
+  }
+> = {
+  textbooks: {
+    icon: 'book-open',
+    blurb: 'Course books, notes, and study staples.',
+  },
+  electronics: {
+    icon: 'monitor',
+    blurb: 'Calculators, laptops, and dorm tech.',
+  },
+  furniture: {
+    icon: 'home',
+    blurb: 'Desks, lamps, chairs, and room setup.',
+  },
+  tickets: {
+    icon: 'tag',
+    blurb: 'Events, rides, and campus extras.',
+  },
+  other: {
+    icon: 'shopping-bag',
+    blurb: 'Everything else students are moving.',
+  },
+};
 
 export default function SearchScreen() {
   const { width } = useWindowDimensions();
@@ -73,8 +103,9 @@ export default function SearchScreen() {
   );
 
   const clearSearchAndBrowse = useCallback(() => {
-    setCategoryFilter(null);
     setSearchInput('');
+    setSearchTerm('');
+    setCategoryFilter(null);
   }, []);
 
   useEffect(() => {
@@ -135,24 +166,34 @@ export default function SearchScreen() {
 
   const savedState = useQuery(
     api.savedListings.getSavedStateForListings,
-    isAuthenticated && allListings.length > 0
+    isAuthenticated && !isWeb && allListings.length > 0
       ? { listingIds: allListings.map((l) => l._id) }
       : 'skip'
   );
 
   const handleToggleSave = useCallback(
     (listingId: Id<'listings'>) => {
+      if (isWeb) {
+        router.push('/auth/login?returnTo=%2Fsearch' as never);
+        return;
+      }
+
       if (!isAuthenticated) {
         router.replace('/auth/login?returnTo=%2Fsearch' as never);
         return;
       }
       void toggleSavedListing({ listingId });
     },
-    [isAuthenticated, router, toggleSavedListing]
+    [isAuthenticated, isWeb, router, toggleSavedListing]
   );
 
   const handleCategoryPress = useCallback((category: Category) => {
     setCategoryFilter(category);
+  }, []);
+
+  const handleQuickSearchPress = useCallback((query: string) => {
+    setCategoryFilter(null);
+    setSearchInput(query);
   }, []);
 
   const handleListingPress = useCallback(
@@ -162,7 +203,7 @@ export default function SearchScreen() {
     [router]
   );
 
-  const hasActiveQuery = searchTerm.length > 0 || categoryFilter !== null;
+  const hasActiveQuery = searchInput.trim().length > 0 || categoryFilter !== null;
   const isSearching = hasActiveQuery;
   const isInitialLoading =
     isSearching && listingsResult === undefined && cursor === null && allListings.length === 0;
@@ -172,6 +213,9 @@ export default function SearchScreen() {
     USE_NATIVE_SEARCH_BAR || Platform.OS === 'android' ? 0 : Math.max(insets.top - 6, 10);
   const searchColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : width >= 980 ? 2 : 1;
   const contentMaxWidth = isWeb ? 1240 : 980;
+  const browseCategoryColumns = width >= 900 ? 3 : width >= 520 ? 2 : 1;
+  const browseCategoryWidth =
+    browseCategoryColumns === 3 ? '31.8%' : browseCategoryColumns === 2 ? '48.2%' : '100%';
   const resultsContentLayoutStyle = {
     paddingHorizontal: contentPadding,
     maxWidth: contentMaxWidth,
@@ -218,8 +262,11 @@ export default function SearchScreen() {
   );
 
   const browseLanding = showBrowseLanding ? (
-    <View
-      style={[
+    <ScrollView
+      style={styles.contentScroll}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[
         styles.content,
         {
           paddingHorizontal: contentPadding,
@@ -228,24 +275,68 @@ export default function SearchScreen() {
       ]}
     >
       <SectionCard
-        title="Browse by category"
-        subtitle="See the latest active listings in a category, or type keywords to search titles."
+        title="Browse categories"
+        subtitle={
+          USE_NATIVE_SEARCH_BAR
+            ? 'Tap a category to see the newest campus listings.'
+            : 'Tap a category to see the newest campus listings, or use a quick search below.'
+        }
+        style={styles.browseCard}
       >
         <View style={styles.categoryGrid}>
           {BROWSE_CATEGORIES.map((cat) => (
             <Pressable
               key={cat}
-              style={({ pressed }) => [styles.categoryChip, pressed && styles.categoryChipPressed]}
+              style={({ pressed }) => [
+                styles.categoryCard,
+                { width: browseCategoryWidth },
+                browseCategoryColumns === 2 &&
+                  cat === BROWSE_CATEGORIES[BROWSE_CATEGORIES.length - 1] &&
+                  styles.categoryCardCentered,
+                pressed && styles.categoryCardPressed,
+              ]}
               onPress={() => handleCategoryPress(cat)}
               accessibilityRole="button"
               accessibilityLabel={`Browse ${CATEGORY_LABELS[cat]}`}
             >
-              <Text style={styles.categoryChipText}>{CATEGORY_LABELS[cat]}</Text>
+              <View style={styles.categoryIconWrap}>
+                <Feather name={CATEGORY_META[cat].icon} size={16} color={colors.primary} />
+              </View>
+              <View style={styles.categoryCardCopy}>
+                <Text style={styles.categoryChipText}>{CATEGORY_LABELS[cat]}</Text>
+                <Text style={styles.categoryCardBody}>{CATEGORY_META[cat].blurb}</Text>
+              </View>
+              <Feather name="arrow-right" size={16} color={colors.primary} />
             </Pressable>
           ))}
         </View>
       </SectionCard>
-    </View>
+      {!USE_NATIVE_SEARCH_BAR && (
+        <SectionCard
+          title="Popular searches"
+          subtitle="Try one of these common searches to get to good listings faster."
+          style={styles.quickSearchCard}
+        >
+          <View style={styles.quickSearchGrid}>
+            {QUICK_SEARCHES.map((query) => (
+              <Pressable
+                key={query}
+                onPress={() => handleQuickSearchPress(query)}
+                style={({ pressed }) => [
+                  styles.quickSearchChip,
+                  pressed && styles.quickSearchChipPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Search for ${query}`}
+              >
+                <Feather name="search" size={14} color={colors.primary} />
+                <Text style={styles.quickSearchText}>{query}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </SectionCard>
+      )}
+    </ScrollView>
   ) : null;
 
   const resultsList = isSearching ? (
@@ -258,7 +349,7 @@ export default function SearchScreen() {
           listing={item}
           index={index}
           isSaved={savedState?.[item._id] ?? false}
-          onToggleSave={() => handleToggleSave(item._id)}
+          onToggleSave={isWeb ? undefined : () => handleToggleSave(item._id)}
           onPress={() => handleListingPress(item)}
         />
       )}
@@ -275,6 +366,17 @@ export default function SearchScreen() {
       onEndReachedThreshold={0.5}
       ListHeaderComponent={
         <View style={styles.resultsHeader}>
+          {categoryFilter && searchTerm.length === 0 ? (
+            <Pressable
+              onPress={() => setCategoryFilter(null)}
+              style={styles.backToBrowseButton}
+              accessibilityRole="button"
+              accessibilityLabel="Back to categories"
+            >
+              <Feather name="arrow-left" size={15} color={colors.primary} />
+              <Text style={styles.backToBrowseText}>Back to categories</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.resultsHeaderTop}>
             <Text style={styles.sectionLabel}>
               {searchTerm.length > 0 ? 'Search' : categoryFilter ? 'Category' : 'Results'}
@@ -397,7 +499,7 @@ export default function SearchScreen() {
               />
               {searchInput.length > 0 ? (
                 <Pressable
-                  onPress={() => setSearchInput('')}
+                  onPress={clearSearchAndBrowse}
                   style={[
                     styles.searchClearButton,
                     { backgroundColor: searchChrome.clearButtonBackground },
@@ -421,6 +523,17 @@ export default function SearchScreen() {
                   Filtering by {CATEGORY_LABELS[categoryFilter]}
                   <Text style={styles.filterBannerClear}> · Clear</Text>
                 </Text>
+              </Pressable>
+            ) : null}
+            {hasActiveQuery ? (
+              <Pressable
+                onPress={clearSearchAndBrowse}
+                style={styles.searchResetButton}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search and category filter"
+              >
+                <Feather name="x-circle" size={16} color={colors.primary} />
+                <Text style={styles.searchResetButtonText}>Clear search and filters</Text>
               </Pressable>
             ) : null}
           </View>
@@ -484,9 +597,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   searchClearButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.xs,
@@ -497,6 +610,23 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: '700',
     lineHeight: 13,
+  },
+  searchResetButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    backgroundColor: '#EAF7F0',
+    borderWidth: 1,
+    borderColor: colors.locationDark,
+  },
+  searchResetButtonText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
   },
   filterBanner: {
     alignSelf: 'flex-start',
@@ -509,31 +639,94 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
+  contentScroll: {
+    flex: 1,
+  },
   content: {
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
     width: '100%',
     alignSelf: 'center',
+    gap: spacing.md,
+  },
+  browseCard: {
+    backgroundColor: colors.white,
+  },
+  quickSearchCard: {
+    backgroundColor: '#F3FBF7',
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  categoryChip: {
-    paddingVertical: spacing.sm,
+  categoryCard: {
+    minHeight: 116,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    boxShadow: '0 8px 20px rgba(21, 71, 52, 0.07)',
+  },
+  categoryCardPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.94,
+  },
+  categoryCardCentered: {
+    alignSelf: 'center',
+  },
+  categoryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  categoryCardCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  categoryChipText: {
+    ...typography.subhead,
+    color: colors.textDark,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  categoryCardBody: {
+    ...typography.footnote,
+    color: colors.text,
+  },
+  quickSearchGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickSearchChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.smPlus,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.full,
     backgroundColor: colors.white,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.locationDark,
   },
-  categoryChipPressed: {
-    backgroundColor: colors.location,
+  quickSearchChipPressed: {
+    backgroundColor: '#EAF7F0',
   },
-  categoryChipText: {
+  quickSearchText: {
     ...typography.footnoteMed,
-    color: colors.textDark,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
   },
   sectionLabel: {
     ...typography.footnote,
@@ -560,6 +753,23 @@ const styles = StyleSheet.create({
   resultsHeader: {
     marginBottom: spacing.md,
     gap: spacing.xs,
+  },
+  backToBrowseButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    backgroundColor: '#EAF7F0',
+    borderWidth: 1,
+    borderColor: colors.locationDark,
+  },
+  backToBrowseText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
   },
   resultsHeaderTop: {
     flexDirection: 'row',

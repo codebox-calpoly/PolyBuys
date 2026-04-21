@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as blocks from "../blocks.js";
 import type * as http from "../http.js";
 import type * as lib_authIdentity from "../lib/authIdentity.js";
+import type * as lib_reportedConversationListings from "../lib/reportedConversationListings.js";
 import type * as listings from "../listings.js";
 import type * as messages from "../messages.js";
 import type * as moderation from "../moderation.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   blocks: typeof blocks;
   http: typeof http;
   "lib/authIdentity": typeof lib_authIdentity;
+  "lib/reportedConversationListings": typeof lib_reportedConversationListings;
   listings: typeof listings;
   messages: typeof messages;
   moderation: typeof moderation;

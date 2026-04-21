@@ -74,7 +74,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Fsettings' as never);
+      router.replace('/auth/login' as never);
     }
   }, [isAuthenticated, isSessionLoading, isWeb, router]);
 
@@ -86,7 +86,7 @@ export default function SettingsScreen() {
         path="/settings"
         buttonLabel="Open Profile in App"
         secondaryActionLabel="Back to home"
-        onSecondaryAction={() => router.replace('/')}
+        onSecondaryAction={() => router.replace('/home')}
       />
     );
   }
@@ -193,12 +193,12 @@ export default function SettingsScreen() {
 
         <View style={styles.profileActions}>
           <Pressable
-            style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [styles.primaryPill, pressed && styles.buttonPressed]}
             onPress={() => router.push(PROFILE_EDIT as never)}
             accessibilityLabel="Edit profile"
             accessibilityRole="button"
           >
-            <Text style={styles.secondaryPillText}>Edit profile</Text>
+            <Text style={styles.primaryPillText}>Edit profile</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.secondaryPill, pressed && styles.buttonPressed]}
@@ -375,7 +375,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   settingsRowLabel: {
     ...typography.subhead,
@@ -404,6 +410,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   editIconText: {
     fontSize: 18,
@@ -413,7 +422,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   addBioText: {
     ...typography.subhead,
@@ -423,11 +438,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
+  primaryPill: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 14px 28px rgba(21, 71, 52, 0.20)',
+  },
+  primaryPillText: {
+    ...typography.footnoteMed,
+    color: colors.white,
+    fontWeight: '700',
+  },
   secondaryPill: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 48,
     borderRadius: borderRadius.full,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
     alignItems: 'center',
@@ -479,6 +510,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    boxShadow: '0 12px 24px rgba(21, 71, 52, 0.18)',
   },
   primaryButtonText: {
     ...typography.subhead,
@@ -487,13 +519,15 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     minHeight: 44,
     justifyContent: 'center',
     alignSelf: 'flex-start',
+    backgroundColor: colors.white,
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.06)',
   },
   secondaryButtonText: {
     ...typography.subhead,

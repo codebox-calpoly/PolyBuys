@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { getEmailValidationError } from '@polybuys/shared';
 import { useAuth } from '../../hooks/useAuth';
+import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { KeyboardAwareScreen } from '../../components/ui';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
@@ -112,9 +114,10 @@ async function uploadImageToConvex(
 
 export default function ProfileEditScreen() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
   const { isAuthenticated } = useAuth();
   const { setFlash } = useFlash();
-  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated ? {} : 'skip');
+  const profile = useQuery(api.profiles.getCurrentProfile, isAuthenticated && !isWeb ? {} : 'skip');
   const createProfile = useMutation(api.profiles.createProfile);
   const updateProfile = useMutation(api.profiles.updateProfile);
   const generateUploadUrl = useMutation(api.profiles.generateUploadUrl);
@@ -159,10 +162,10 @@ export default function ProfileEditScreen() {
   }, [isAuthenticated, profile, loadedKey]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isWeb && !isAuthenticated) {
       router.replace('/auth/login?returnTo=%2Fprofile%2Fedit' as never);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isWeb, router]);
 
   useEffect(() => {
     return () => {
@@ -312,6 +315,19 @@ export default function ProfileEditScreen() {
       setIsSubmitting(false);
     }
   };
+
+  if (isWeb) {
+    return (
+      <OpenInAppPrompt
+        title="Edit your profile in the mobile app"
+        body="Profile editing is available in the PolyBuys mobile app."
+        path="/profile/edit"
+        buttonLabel="Open Profile Editor in App"
+        secondaryActionLabel="Back to home"
+        onSecondaryAction={() => router.replace('/')}
+      />
+    );
+  }
 
   if (!isAuthenticated || profile === undefined) {
     return (
@@ -487,25 +503,30 @@ const styles = StyleSheet.create({
   },
   pictureButton: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(21, 71, 52, 0.16)',
+    backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     minHeight: 44,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-start',
+    boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   pictureButtonText: {
     ...typography.footnoteMed,
-    color: colors.textDark,
+    color: colors.primary,
     fontWeight: '600',
   },
   removeButton: {
-    minHeight: 36,
+    minHeight: 40,
     alignSelf: 'flex-start',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(179, 38, 30, 0.18)',
+    backgroundColor: 'rgba(179, 38, 30, 0.06)',
   },
   removeButtonText: {
     ...typography.footnote,
@@ -539,6 +560,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     marginTop: spacing.sm,
+    boxShadow: '0 14px 28px rgba(21, 71, 52, 0.18)',
   },
   saveButtonText: {
     ...typography.body,
