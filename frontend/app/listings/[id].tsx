@@ -271,9 +271,8 @@ export default function ListingDetailScreen() {
     const shareUrl = `${appOrigin}/l/${listing._id}`;
     try {
       await Share.share({
-        message: `${listing.title} - $${formatPrice(listing.price)}\n${shareUrl}`,
+        message: shareUrl,
         url: shareUrl,
-        title: listing.title,
       });
     } catch {
       Alert.alert('Unable to share listing right now.');

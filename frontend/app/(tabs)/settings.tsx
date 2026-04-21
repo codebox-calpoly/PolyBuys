@@ -3,7 +3,6 @@ import {
   Animated,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -20,7 +19,7 @@ import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { formatMajorLabel } from '../../constants/calPolyMajors';
-import { FilterChips, type FilterChipOption } from '../../components/ui';
+import { FilterChips, ScreenScrollView, type FilterChipOption } from '../../components/ui';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
 
@@ -107,11 +106,7 @@ export default function SettingsScreen() {
 
   if (!profile) {
     return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.centeredState}
-        contentInsetAdjustmentBehavior="automatic"
-      >
+      <ScreenScrollView style={styles.container} contentContainerStyle={styles.centeredState}>
         <Animated.View style={[styles.signInCard, entranceStyle]}>
           <Text style={styles.signInTitle}>Complete your profile</Text>
           <Text style={styles.signInBody}>
@@ -133,7 +128,7 @@ export default function SettingsScreen() {
             <Text style={styles.settingsRowChevron}>›</Text>
           </Pressable>
         </Animated.View>
-      </ScrollView>
+      </ScreenScrollView>
     );
   }
 
@@ -142,11 +137,7 @@ export default function SettingsScreen() {
   const profileSubtitle = `${formatMajorLabel(profile.major)} • ${yearLabel}`;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
+    <ScreenScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View style={[styles.profileBlock, entranceStyle]}>
         <View style={styles.profileHeader}>
           <ProfileAvatar uri={avatarUrl} name={profile.name} size={72} style={styles.avatar} />
@@ -269,7 +260,7 @@ export default function SettingsScreen() {
           )}
         </View>
       )}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

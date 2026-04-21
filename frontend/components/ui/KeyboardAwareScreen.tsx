@@ -1,9 +1,10 @@
 import { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/tokens';
+import { ScreenScrollView } from './ScreenScrollView';
 
 interface KeyboardAwareScreenProps {
   children: ReactNode;
@@ -34,18 +35,16 @@ export function KeyboardAwareScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight + extraOffset : 0}
     >
-      <ScrollView
+      <ScreenScrollView
         contentContainerStyle={[
           styles.content,
           { paddingBottom: bottomPadding },
           contentContainerStyle,
         ]}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
       >
         {children}
-      </ScrollView>
+      </ScreenScrollView>
     </KeyboardAvoidingView>
   );
 }

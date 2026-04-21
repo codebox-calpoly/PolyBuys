@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +19,11 @@ import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { getEmailValidationError } from '@polybuys/shared';
 import { MajorPicker } from '../../components/MajorPicker';
 import { formatMajorLabel, isCalPolyMajor } from '../../constants/calPolyMajors';
+import {
+  GRADUATION_YEAR_DEFAULT,
+  getGraduationYearOptions,
+  isSupportedGraduationYear,
+} from '../../constants/graduationYears';
 import { useAuth } from '../../hooks/useAuth';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import ProfileAvatar from '../../components/ProfileAvatar';
@@ -26,11 +32,6 @@ import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import { useFlash } from '../../contexts/FlashContext';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
-const BOUNDS = {
-  MIN_YEAR: 1900,
-  MAX_YEAR: 9999,
-};
-const DEFAULT_YEAR = '2026';
 const PROFILE_IMAGE_BOUNDS = {
   MAX_WIDTH: 1200,
   MAX_FILE_SIZE_MB: 5,
@@ -128,7 +129,7 @@ export default function ProfileEditScreen() {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
-  const [year, setYear] = useState(DEFAULT_YEAR);
+  const [year, setYear] = useState<string>(GRADUATION_YEAR_DEFAULT);
   const [picture, setPicture] = useState<Id<'_storage'> | null>(null);
   const [pendingPictureUri, setPendingPictureUri] = useState<string | null>(null);
   const [isPreparingPicture, setIsPreparingPicture] = useState(false);
@@ -139,6 +140,10 @@ export default function ProfileEditScreen() {
   const pictureUrl = pendingPictureUri ?? pictureUrls[0] ?? null;
   const profileEmail = profile?.email ?? user?.email ?? '';
   const isScreenLoading = !isAuthenticated || profile === undefined || (!profile && isUserLoading);
+  const yearOptions = useMemo(
+    () => getGraduationYearOptions({ preserveYear: profile?.year }),
+    [profile?.year]
+  );
 
   useEffect(() => {
     if (!isAuthenticated || profile === undefined) return;
@@ -156,7 +161,7 @@ export default function ProfileEditScreen() {
       setName('');
       setBio('');
       setMajor('');
-      setYear(DEFAULT_YEAR);
+      setYear(GRADUATION_YEAR_DEFAULT);
       setPicture(null);
     }
     setPendingPictureUri(null);
@@ -264,15 +269,11 @@ export default function ProfileEditScreen() {
       }
     }
 
-    const parsedYear = Number(year);
-    if (
-      !Number.isInteger(parsedYear) ||
-      parsedYear < BOUNDS.MIN_YEAR ||
-      parsedYear > BOUNDS.MAX_YEAR
-    ) {
-      setFlash(`Year must be between ${BOUNDS.MIN_YEAR} and ${BOUNDS.MAX_YEAR}.`);
+    if (!isSupportedGraduationYear(year, yearOptions)) {
+      setFlash('Choose a graduation year from the list.');
       return;
     }
+    const parsedYear = Number(year);
 
     try {
       setIsSubmitting(true);
@@ -461,16 +462,19 @@ export default function ProfileEditScreen() {
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Graduation year *</Text>
-        <TextInput
-          style={styles.input}
-          value={year}
-          onChangeText={setYear}
-          placeholder="2026"
-          placeholderTextColor={colors.muted}
-          selectionColor={colors.primary}
-          cursorColor={colors.primary}
-          keyboardType="number-pad"
-        />
+        <View style={[styles.yearPickerFrame, isSubmitting && styles.yearPickerDisabled]}>
+          <Picker
+            selectedValue={year}
+            onValueChange={(nextValue) => setYear(String(nextValue))}
+            enabled={!isSubmitting}
+            itemStyle={styles.yearPickerItem}
+            style={styles.yearPicker}
+          >
+            {yearOptions.map((option) => (
+              <Picker.Item key={option} label={option} value={option} color={colors.textDark} />
+            ))}
+          </Picker>
+        </View>
       </View>
 
       <Pressable
@@ -610,6 +614,25 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 90,
     textAlignVertical: 'top',
+  },
+  yearPickerFrame: {
+    height: Platform.OS === 'ios' ? 168 : 56,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+  },
+  yearPickerDisabled: {
+    opacity: 0.75,
+  },
+  yearPicker: {
+    flex: 1,
+    color: colors.textDark,
+  },
+  yearPickerItem: {
+    color: colors.textDark,
+    fontSize: 20,
   },
   saveButton: {
     backgroundColor: colors.primary,
