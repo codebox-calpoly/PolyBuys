@@ -77,11 +77,37 @@ export const CAL_POLY_MAJORS = [
   'Wine and Viticulture (BS)',
 ] as const;
 
+const SEARCH_STRIPPED_PARENTHETICAL_PATTERN =
+  /^(?:ba|barch|bfa|bla|bs|ma|mba|minor|ms|certificate|certificates|concentration|concentrations|credential|credentials)$/i;
+const SEARCH_CAMPUS_TERMS = ['campus', 'san luis obispo', 'solano'];
+
+function normalizeParentheticalForSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function shouldStripParentheticalFromMajorSearch(value: string): boolean {
+  const normalized = normalizeParentheticalForSearch(value);
+  if (!normalized) {
+    return true;
+  }
+
+  if (SEARCH_CAMPUS_TERMS.some((term) => normalized.includes(term))) {
+    return false;
+  }
+
+  return SEARCH_STRIPPED_PARENTHETICAL_PATTERN.test(normalized);
+}
+
 function normalizeMajorSearchValue(value: string): string {
   return value
     .toLowerCase()
     .replace(/&/g, ' and ')
-    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\(([^)]*)\)/g, (_match, innerText: string) =>
+      shouldStripParentheticalFromMajorSearch(innerText) ? ' ' : ` ${innerText} `
+    )
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
