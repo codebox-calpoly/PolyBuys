@@ -7,3 +7,7 @@
 export const APP_STORE_URL = 'https://testflight.apple.com/join/1BJ37S43';
 
 export const APP_SCHEME = 'polybuys';
+
+export const PRIVACY_POLICY_URL = 'https://www.polybuys.com/privacy';
+export const TERMS_OF_SERVICE_URL = 'https://www.polybuys.com/terms';
+export const SUPPORT_URL = 'https://www.polybuys.com/support';

@@ -5,6 +5,7 @@ import {
   Animated,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   Pressable,
@@ -33,6 +34,7 @@ import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications';
 import { getLoginEntryAction, type LoginStep } from '../../lib/auth/loginRedirect';
 import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../constants/app';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -769,7 +771,28 @@ export default function LoginScreen() {
             </Pressable>
 
             {isEmailStep ? (
-              <Text style={styles.footerText}>Only @calpoly.edu emails are allowed.</Text>
+              <>
+                <Text style={styles.footerText}>Only @calpoly.edu emails are allowed.</Text>
+                <Text style={styles.legalFooterText}>
+                  By continuing, you agree to our{' '}
+                  <Text
+                    style={styles.legalLink}
+                    accessibilityRole="link"
+                    onPress={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}
+                  >
+                    Terms of Service
+                  </Text>{' '}
+                  and{' '}
+                  <Text
+                    style={styles.legalLink}
+                    accessibilityRole="link"
+                    onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+                  >
+                    Privacy Policy
+                  </Text>
+                  .
+                </Text>
+              </>
             ) : (
               <View style={styles.secondaryActions}>
                 <Pressable
@@ -1014,6 +1037,17 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
     marginTop: spacing.md,
+  },
+  legalFooterText: {
+    ...typography.footnote,
+    color: colors.muted,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  legalLink: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   secondaryActions: {
     flexDirection: 'row',
