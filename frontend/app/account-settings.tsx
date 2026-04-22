@@ -361,7 +361,11 @@ export default function AccountSettingsScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Privacy Policy"
-              onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+              onPress={() => {
+                Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
+                  Alert.alert('Unable to open Privacy Policy', 'Please try again later.');
+                });
+              }}
               style={({ pressed }) => [pressed && styles.buttonPressed]}
             >
               <Text style={styles.legalLinkText}>Privacy Policy</Text>
@@ -370,12 +374,17 @@ export default function AccountSettingsScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Terms of Service"
-              onPress={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}
+              onPress={() => {
+                Linking.openURL(TERMS_OF_SERVICE_URL).catch(() => {
+                  Alert.alert('Unable to open Terms of Service', 'Please try again later.');
+                });
+              }}
               style={({ pressed }) => [pressed && styles.buttonPressed]}
             >
               <Text style={styles.legalLinkText}>Terms of Service</Text>
             </Pressable>
           </View>
+        </>
           <View style={styles.footerRow}>
             <Pressable
               style={({ pressed }) => [
