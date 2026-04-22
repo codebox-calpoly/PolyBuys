@@ -384,7 +384,6 @@ export default function AccountSettingsScreen() {
               <Text style={styles.legalLinkText}>Terms of Service</Text>
             </Pressable>
           </View>
-        </>
           <View style={styles.footerRow}>
             <Pressable
               style={({ pressed }) => [
