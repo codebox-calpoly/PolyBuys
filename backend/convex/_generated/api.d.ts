@@ -18,6 +18,7 @@ import type * as lib_authIdentity from "../lib/authIdentity.js";
 import type * as lib_logger from "../lib/logger.js";
 import type * as lib_reportedConversationListings from "../lib/reportedConversationListings.js";
 import type * as lib_runtimeConfig from "../lib/runtimeConfig.js";
+import type * as lib_storageImageValidation from "../lib/storageImageValidation.js";
 import type * as listings from "../listings.js";
 import type * as messages from "../messages.js";
 import type * as moderation from "../moderation.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   "lib/logger": typeof lib_logger;
   "lib/reportedConversationListings": typeof lib_reportedConversationListings;
   "lib/runtimeConfig": typeof lib_runtimeConfig;
+  "lib/storageImageValidation": typeof lib_storageImageValidation;
   listings: typeof listings;
   messages: typeof messages;
   moderation: typeof moderation;
