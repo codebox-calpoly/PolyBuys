@@ -7,7 +7,7 @@ type AppJsonShape = {
 
 type PluginEntry = NonNullable<ExpoConfig['plugins']>[number];
 
-const DEFAULT_APP_ORIGIN = 'https://poly-buys.vercel.app';
+const DEFAULT_APP_ORIGIN = 'https://www.polybuys.com';
 const baseConfig = (appJson as AppJsonShape).expo;
 
 function normalizeOrigin(value?: string | null): string | null {

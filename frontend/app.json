@@ -15,9 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.polybuys.polybuys",
-      "associatedDomains": ["applinks:poly-buys.vercel.app", "applinks:polybuys.com"],
+      "associatedDomains": ["applinks:polybuys.com", "applinks:www.polybuys.com"],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "PolyBuys uses your camera so you can take photos to add to marketplace listings and your profile. For example, snap a picture of a textbook you're selling or take a new profile photo.",
+        "NSPhotoLibraryUsageDescription": "PolyBuys uses your photo library so you can select existing photos to add to marketplace listings and your profile. For example, attach a saved photo of a bike you're selling or choose an image for your profile picture."
       }
     },
     "android": {
@@ -30,12 +32,12 @@
           "data": [
             {
               "scheme": "https",
-              "host": "poly-buys.vercel.app",
+              "host": "polybuys.com",
               "pathPrefix": "/l/"
             },
             {
               "scheme": "https",
-              "host": "polybuys.com",
+              "host": "www.polybuys.com",
               "pathPrefix": "/l/"
             }
           ],
@@ -47,12 +49,12 @@
           "data": [
             {
               "scheme": "https",
-              "host": "poly-buys.vercel.app",
+              "host": "polybuys.com",
               "pathPrefix": "/listings"
             },
             {
               "scheme": "https",
-              "host": "polybuys.com",
+              "host": "www.polybuys.com",
               "pathPrefix": "/listings"
             }
           ],
@@ -64,12 +66,12 @@
           "data": [
             {
               "scheme": "https",
-              "host": "poly-buys.vercel.app",
+              "host": "polybuys.com",
               "pathPrefix": "/profile"
             },
             {
               "scheme": "https",
-              "host": "polybuys.com",
+              "host": "www.polybuys.com",
               "pathPrefix": "/profile"
             }
           ],
@@ -81,7 +83,7 @@
       [
         "expo-router",
         {
-          "origin": "https://poly-buys.vercel.app"
+          "origin": "https://www.polybuys.com"
         }
       ],
       [
@@ -94,7 +96,15 @@
         }
       ],
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PolyBuys uses your photo library so you can select existing photos to add to marketplace listings and your profile. For example, attach a saved photo of a bike you're selling or choose an image for your profile picture.",
+          "cameraPermission": "PolyBuys uses your camera so you can take photos to add to marketplace listings and your profile. For example, snap a picture of a textbook you're selling or take a new profile photo.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "polybuys",
     "experiments": {
@@ -105,7 +115,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://poly-buys.vercel.app"
+        "origin": "https://www.polybuys.com"
       },
       "eas": {
         "projectId": "1f42b24b-0dcd-4b44-84d5-f31b6ff08dae"

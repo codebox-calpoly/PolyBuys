@@ -5,7 +5,7 @@ export const LEGAL_UPDATED_AT = 'April 20, 2026';
 
 /** Public URLs on the /support page (hardcoded for App Store review). */
 const SUPPORT_PUBLIC_EMAIL = 'support@polybuys.com';
-const SUPPORT_PUBLIC_WEBSITE_HREF = 'https://poly-buys.vercel.app';
+const SUPPORT_PUBLIC_WEBSITE_HREF = 'https://www.polybuys.com';
 const SUPPORT_PUBLIC_GITHUB_ISSUES_HREF = 'https://github.com/codebox-calpoly/PolyBuys/issues';
 
 export type LegalContactLine = {
@@ -42,7 +42,7 @@ export function getSupportDocument(): LegalDocument {
     {
       lead: 'Website',
       href: SUPPORT_PUBLIC_WEBSITE_HREF,
-      text: 'poly-buys.vercel.app',
+      text: 'www.polybuys.com',
     },
     {
       lead: 'GitHub Issues',

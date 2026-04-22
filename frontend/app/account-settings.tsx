@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -19,6 +20,7 @@ import { requestPermissionAndSyncToken } from '../hooks/usePushNotifications';
 import OpenInAppPrompt from '../components/OpenInAppPrompt';
 import { ScreenState } from '../components/ScreenState';
 import { formatMajorLabel } from '../constants/calPolyMajors';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../constants/app';
 import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
@@ -354,36 +356,66 @@ export default function AccountSettingsScreen() {
       }
       ListEmptyComponent={listEmpty}
       ListFooterComponent={
-        <View style={styles.footerRow}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              styles.footerButtonHalf,
-              pressed && styles.buttonPressed,
-              (isSigningOut || isLoading) && styles.buttonDisabled,
-            ]}
-            onPress={() => void handleSignOut()}
-            disabled={isSigningOut || isLoading}
-          >
-            <Text style={styles.secondaryButtonText}>
-              {isSigningOut ? 'Signing out...' : 'Sign out'}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.deleteButton,
-              styles.footerButtonHalf,
-              pressed && styles.deleteButtonPressed,
-              isLoading && styles.buttonDisabled,
-            ]}
-            onPress={handleDeleteAccount}
-            disabled={isLoading}
-            accessibilityRole="button"
-            accessibilityLabel="Delete account permanently"
-          >
-            <Text style={styles.deleteButtonText}>Delete account</Text>
-          </Pressable>
-        </View>
+        <>
+          <View style={styles.legalLinksRow}>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Privacy Policy"
+              onPress={() => {
+                Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
+                  Alert.alert('Unable to open Privacy Policy', 'Please try again later.');
+                });
+              }}
+              style={({ pressed }) => [pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+            </Pressable>
+            <Text style={styles.legalLinkSeparator}>·</Text>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Terms of Service"
+              onPress={() => {
+                Linking.openURL(TERMS_OF_SERVICE_URL).catch(() => {
+                  Alert.alert('Unable to open Terms of Service', 'Please try again later.');
+                });
+              }}
+              style={({ pressed }) => [pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.legalLinkText}>Terms of Service</Text>
+            </Pressable>
+          </View>
+        </>
+          <View style={styles.footerRow}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                styles.footerButtonHalf,
+                pressed && styles.buttonPressed,
+                (isSigningOut || isLoading) && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleSignOut()}
+              disabled={isSigningOut || isLoading}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {isSigningOut ? 'Signing out...' : 'Sign out'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.deleteButton,
+                styles.footerButtonHalf,
+                pressed && styles.deleteButtonPressed,
+                isLoading && styles.buttonDisabled,
+              ]}
+              onPress={handleDeleteAccount}
+              disabled={isLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Delete account permanently"
+            >
+              <Text style={styles.deleteButtonText}>Delete account</Text>
+            </Pressable>
+          </View>
+        </>
       }
       keyboardShouldPersistTaps="handled"
     />
@@ -516,10 +548,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
+  legalLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  legalLinkText: {
+    ...typography.footnote,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  legalLinkSeparator: {
+    ...typography.footnote,
+    color: colors.muted,
+  },
   footerRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     alignItems: 'stretch',
   },
   footerButtonHalf: {
