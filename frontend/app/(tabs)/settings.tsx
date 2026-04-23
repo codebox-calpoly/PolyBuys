@@ -20,6 +20,7 @@ import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
 import { formatMajorLabel } from '../../constants/calPolyMajors';
 import { FilterChips, ScreenScrollView, type FilterChipOption } from '../../components/ui';
+import { getSignedOutFallback } from '../../lib/navigation/guestAccess';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import type { Doc } from 'convex/_generated/dataModel';
 
@@ -71,7 +72,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
-      router.replace('/auth/login' as never);
+      router.replace((getSignedOutFallback('/settings') ?? '/home') as never);
     }
   }, [isAuthenticated, isSessionLoading, isWeb, router]);
 

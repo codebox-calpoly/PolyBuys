@@ -7,6 +7,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { getSignedOutFallback, getVisibleNativeTabs } from '../../lib/navigation/guestAccess';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 import { nativeChrome } from '../../theme/nativeChrome';
 
@@ -96,7 +97,9 @@ function WebHeaderLayout() {
 
 export default function TabsLayout() {
   const isWeb = Platform.OS === 'web';
-  const { isAuthenticated } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated, isSessionLoading } = useAuth();
   const conversations = useQuery(
     api.messages.listUserConversations,
     isAuthenticated && !isWeb ? {} : 'skip'
@@ -108,11 +111,26 @@ export default function TabsLayout() {
       0
     ) ?? 0;
 
+  useEffect(() => {
+    if (isWeb || isSessionLoading || isAuthenticated) {
+      return;
+    }
+
+    const fallback = getSignedOutFallback(pathname);
+    if (fallback) {
+      router.replace(fallback as never);
+    }
+  }, [isAuthenticated, isSessionLoading, isWeb, pathname, router]);
+
   if (isWeb) {
     return <WebHeaderLayout />;
   }
 
   const tabTint = nativeChrome.tabIconSelectedColor;
+  const visibleTabs = getVisibleNativeTabs(isAuthenticated);
+  const showMyListings = visibleTabs.includes('my-listings');
+  const showInbox = visibleTabs.includes('inbox');
+  const showSettings = visibleTabs.includes('settings');
 
   const nativeTabs = (
     <NativeTabs
@@ -155,50 +173,56 @@ export default function TabsLayout() {
           md="search"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger
-        name="my-listings"
-        disableTransparentOnScrollEdge
-        contentStyle={styles.nativeTabContent}
-      >
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
-        {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }}
-          md="view_list"
-        />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger
-        name="inbox"
-        disableTransparentOnScrollEdge
-        contentStyle={styles.nativeTabContent}
-      >
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
-        {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }}
-          md="chat"
-        />
-        {unreadCount > 0 ? (
-          <NativeTabs.Trigger.Badge>
-            {unreadCount > 9 ? '9+' : String(unreadCount)}
-          </NativeTabs.Trigger.Badge>
-        ) : null}
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger
-        name="settings"
-        disableTransparentOnScrollEdge
-        contentStyle={styles.nativeTabContent}
-      >
-        {/* NativeTabs expects plain text inside Trigger.Label. */}
-        {/* eslint-disable-next-line react-native/no-raw-text */}
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'person.circle', selected: 'person.circle.fill' }}
-          md="settings"
-        />
-      </NativeTabs.Trigger>
+      {showMyListings ? (
+        <NativeTabs.Trigger
+          name="my-listings"
+          disableTransparentOnScrollEdge
+          contentStyle={styles.nativeTabContent}
+        >
+          {/* NativeTabs expects plain text inside Trigger.Label. */}
+          {/* eslint-disable-next-line react-native/no-raw-text */}
+          <NativeTabs.Trigger.Label>My Listings</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'list.bullet.rectangle', selected: 'list.bullet.rectangle.fill' }}
+            md="view_list"
+          />
+        </NativeTabs.Trigger>
+      ) : null}
+      {showInbox ? (
+        <NativeTabs.Trigger
+          name="inbox"
+          disableTransparentOnScrollEdge
+          contentStyle={styles.nativeTabContent}
+        >
+          {/* NativeTabs expects plain text inside Trigger.Label. */}
+          {/* eslint-disable-next-line react-native/no-raw-text */}
+          <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }}
+            md="chat"
+          />
+          {unreadCount > 0 ? (
+            <NativeTabs.Trigger.Badge>
+              {unreadCount > 9 ? '9+' : String(unreadCount)}
+            </NativeTabs.Trigger.Badge>
+          ) : null}
+        </NativeTabs.Trigger>
+      ) : null}
+      {showSettings ? (
+        <NativeTabs.Trigger
+          name="settings"
+          disableTransparentOnScrollEdge
+          contentStyle={styles.nativeTabContent}
+        >
+          {/* NativeTabs expects plain text inside Trigger.Label. */}
+          {/* eslint-disable-next-line react-native/no-raw-text */}
+          <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'person.circle', selected: 'person.circle.fill' }}
+            md="settings"
+          />
+        </NativeTabs.Trigger>
+      ) : null}
     </NativeTabs>
   );
 
