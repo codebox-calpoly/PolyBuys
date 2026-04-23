@@ -1,0 +1,23 @@
+frontend/components/ListingCard.tsx
+  c170118d0b4efadf 291-297,299,302,304-308,507,512,528,530-533,535-547,551-552,562-563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "69ea5223594d296cfb5a697ff6d84903ce547da6",
+  "prompts": {
+    "c170118d0b4efadf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73c89bad-77e0-480f-8a8b-16a82c042f4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 609,
+      "total_deletions": 29,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    }
+  }
+}
