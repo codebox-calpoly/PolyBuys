@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { Linking } from 'react-native';
 import { Redirect } from 'expo-router';
 import { PRIVACY_POLICY_URL } from '../constants/app';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 export default function PrivacyRoute() {
   useEffect(() => {
-    void Linking.openURL(PRIVACY_POLICY_URL);
+    void openExternalUrl(PRIVACY_POLICY_URL, 'Unable to open Privacy Policy');
   }, []);
   return <Redirect href="/home" />;
 }

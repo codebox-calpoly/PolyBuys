@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,6 +20,7 @@ import OpenInAppPrompt from '../components/OpenInAppPrompt';
 import { ScreenState } from '../components/ScreenState';
 import { formatMajorLabel } from '../constants/calPolyMajors';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../constants/app';
+import { openExternalUrl } from '../utils/openExternalUrl';
 import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
@@ -361,11 +361,9 @@ export default function AccountSettingsScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Privacy Policy"
-              onPress={() => {
-                Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
-                  Alert.alert('Unable to open Privacy Policy', 'Please try again later.');
-                });
-              }}
+              onPress={() =>
+                void openExternalUrl(PRIVACY_POLICY_URL, 'Unable to open Privacy Policy')
+              }
               style={({ pressed }) => [pressed && styles.buttonPressed]}
             >
               <Text style={styles.legalLinkText}>Privacy Policy</Text>
@@ -374,11 +372,9 @@ export default function AccountSettingsScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Terms of Service"
-              onPress={() => {
-                Linking.openURL(TERMS_OF_SERVICE_URL).catch(() => {
-                  Alert.alert('Unable to open Terms of Service', 'Please try again later.');
-                });
-              }}
+              onPress={() =>
+                void openExternalUrl(TERMS_OF_SERVICE_URL, 'Unable to open Terms of Service')
+              }
               style={({ pressed }) => [pressed && styles.buttonPressed]}
             >
               <Text style={styles.legalLinkText}>Terms of Service</Text>
