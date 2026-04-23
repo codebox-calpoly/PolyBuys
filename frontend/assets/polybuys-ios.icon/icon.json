@@ -1,20 +1,16 @@
 {
-  "color-space-for-untagged-svg-colors": "display-p3",
-  "fill": "automatic",
+  "fill": {
+    "solid": "display-p3:0.74219,0.57890,0.31545,1.00000"
+  },
   "groups": [
     {
       "layers": [
         {
-          "blend-mode": "normal",
-          "fill": "automatic",
-          "glass": true,
-          "hidden": false,
-          "image-name": "SVG Image.svg",
-          "name": "SVG Image",
-          "opacity": 1,
+          "image-name": "SVG Image 2.svg",
+          "name": "SVG Image 2",
           "position": {
-            "scale": 1.84,
-            "translation-in-points": [-4.565996005466104, -62.15098236180194]
+            "scale": 3.44,
+            "translation-in-points": [-16.84375, 32.046875]
           }
         }
       ],
@@ -30,6 +26,6 @@
   ],
   "supported-platforms": {
     "circles": ["watchOS"],
-    "squares": ["iOS"]
+    "squares": "shared"
   }
 }
