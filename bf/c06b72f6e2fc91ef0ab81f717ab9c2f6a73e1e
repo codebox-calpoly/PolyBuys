@@ -1,0 +1,25 @@
+frontend/app/(tabs)/home.tsx
+  94f124ed4274eef7 333,344,469,580-619
+frontend/app/index.tsx
+  94f124ed4274eef7 2,4,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "bfc06b72f6e2fc91ef0ab81f717ab9c2f6a73e1e",
+  "prompts": {
+    "94f124ed4274eef7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbca1-1afc-7412-82c5-9237c358d7e1",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Evan Taylor",
+      "messages": [],
+      "total_additions": 411,
+      "total_deletions": 455,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
