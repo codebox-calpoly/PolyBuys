@@ -288,25 +288,26 @@ export default function ListingCard({
               >
                 {listing.title}
               </Text>
+              <View style={styles.conditionPill}>
+                <Text style={styles.conditionPillText} numberOfLines={1}>
+                  {conditionLabel}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.priceRow}>
               <Text
-                style={[styles.listingCondition, isHomeDensity && styles.listingConditionHome]}
+                style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
                 numberOfLines={1}
               >
-                {conditionLabel}
+                ${formatPrice(listing.price)}
               </Text>
+              {(listing.postedOn || listing.createdAt) && (
+                <Text style={styles.listingDate} numberOfLines={1}>
+                  {formatRelativeDate(listing.postedOn ?? listing.createdAt!)}
+                </Text>
+              )}
             </View>
-            <Text
-              style={[styles.listingPrice, isHomeDensity && styles.listingPriceHome]}
-              numberOfLines={1}
-            >
-              ${formatPrice(listing.price)}
-            </Text>
           </View>
-          {(listing.postedOn || listing.createdAt) && (
-            <Text style={[styles.listingDate, isHomeDensity && styles.listingDateHome]}>
-              {formatRelativeDate(listing.postedOn ?? listing.createdAt!)}
-            </Text>
-          )}
         </Pressable>
         {onToggleSave || onManagePress ? (
           <View style={styles.floatingActions} pointerEvents="box-none">
@@ -503,12 +504,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.smPlus,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
-    gap: 2,
+    gap: spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   listingTitle: {
     ...typography.subhead,
@@ -524,35 +525,43 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '600',
   },
-  listingCondition: {
-    ...typography.footnote,
+  conditionPill: {
     flexShrink: 0,
-    color: colors.gray,
-    fontWeight: '500',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.border,
   },
-  listingConditionHome: {
-    fontSize: 12,
+  conditionPillText: {
+    ...typography.footnote,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    color: colors.primary,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   listingPrice: {
     ...typography.title2,
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 18,
     fontWeight: '700',
     color: colors.accent,
-    marginTop: spacing.xs,
   },
   listingPriceHome: {
     fontSize: 17,
-    marginTop: spacing.xs,
   },
   listingDate: {
     ...typography.footnote,
+    flexShrink: 0,
+    fontSize: 12,
     color: colors.muted,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  listingDateHome: {
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.md,
   },
   footer: {
     marginTop: spacing.sm,
