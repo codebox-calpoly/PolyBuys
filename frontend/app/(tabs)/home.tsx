@@ -330,7 +330,7 @@ export default function HomeScreen() {
               loadError
                 ? "Couldn't load listings"
                 : !hasLoadedOnceRef.current && cursor === null
-                  ? 'Loading listings...'
+                  ? 'Getting the latest listings'
                   : hasSearchQuery
                     ? 'No listings found'
                     : hasActiveFilters
@@ -341,7 +341,7 @@ export default function HomeScreen() {
               loadError
                 ? 'Check your connection and try again.'
                 : !hasLoadedOnceRef.current && cursor === null
-                  ? undefined
+                  ? 'Pulling in fresh items from campus.'
                   : hasSearchQuery
                     ? `Nothing matched "${searchQuery}". Try a different search or fewer filters.`
                     : hasActiveFilters
@@ -466,18 +466,7 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
-            <View style={styles.centerContainer}>
-              <View style={styles.stateCard}>
-                <ScreenState
-                  variant={loadError ? 'error' : 'loading'}
-                  title={loadError ? "Couldn't load listings" : 'Loading listings...'}
-                  message={loadError ? 'Check your connection and try again.' : undefined}
-                  onRetry={loadError ? refreshListings : undefined}
-                />
-              </View>
-            </View>
-          ) : listings.length === 0 ? (
+          {listings.length === 0 ? (
             listEmptyComponent
           ) : (
             <>
@@ -588,61 +577,46 @@ export default function HomeScreen() {
           onClose={() => setShowSortPicker(false)}
         />
 
-        {!hasLoadedOnceRef.current && listingsResult === undefined && cursor === null ? (
-          <View
-            style={[styles.centerContainer, { paddingHorizontal: nativeListHorizontalPadding }]}
-          >
-            <View style={styles.stateCard}>
-              <ScreenState
-                variant={loadError ? 'error' : 'loading'}
-                title={loadError ? "Couldn't load listings" : 'Loading listings...'}
-                message={loadError ? 'Check your connection and try again.' : undefined}
-                onRetry={loadError ? refreshListings : undefined}
-              />
-            </View>
-          </View>
-        ) : (
-          <FlatList
-            key={`home-${homeColumns}`}
-            data={listings}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item, index }) => (
-              <ListingCard
-                listing={item}
-                index={index}
-                isSaved={savedState?.[item._id] ?? false}
-                onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
-                shellStyle="flat"
-              />
-            )}
-            numColumns={homeColumns}
-            columnWrapperStyle={
-              homeColumns > 1
-                ? [styles.columnWrapper, isCompactLayout && styles.columnWrapperCompact]
-                : undefined
-            }
-            contentContainerStyle={[
-              styles.listContainer,
-              isDesktopWeb && styles.listContainerDesktop,
-              {
-                paddingBottom: Math.max(insets.bottom + 60, 80),
-                paddingHorizontal: nativeListHorizontalPadding,
-              },
-            ]}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={[colors.primary]}
-                tintColor={colors.primary}
-              />
-            }
-            ListEmptyComponent={listEmptyComponent}
-            ListFooterComponent={listFooterComponent}
-          />
-        )}
+        <FlatList
+          key={`home-${homeColumns}`}
+          data={listings}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item, index }) => (
+            <ListingCard
+              listing={item}
+              index={index}
+              isSaved={savedState?.[item._id] ?? false}
+              onToggleSave={() => void handleToggleSave(item._id as Id<'listings'>)}
+              shellStyle="flat"
+            />
+          )}
+          numColumns={homeColumns}
+          columnWrapperStyle={
+            homeColumns > 1
+              ? [styles.columnWrapper, isCompactLayout && styles.columnWrapperCompact]
+              : undefined
+          }
+          contentContainerStyle={[
+            styles.listContainer,
+            isDesktopWeb && styles.listContainerDesktop,
+            {
+              paddingBottom: Math.max(insets.bottom + 60, 80),
+              paddingHorizontal: nativeListHorizontalPadding,
+            },
+          ]}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={listEmptyComponent}
+          ListFooterComponent={listFooterComponent}
+        />
       </View>
     </View>
   );
@@ -755,13 +729,6 @@ const styles = StyleSheet.create({
   },
   columnWrapperCompact: {
     gap: spacing.xs,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: spacing.xxl,
-    paddingHorizontal: spacing.xl,
   },
   stateContainer: {
     flex: 1,
