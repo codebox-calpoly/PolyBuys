@@ -4,7 +4,7 @@
  * If you change it, regenerate `assets/images/polybuys-download-qr.png`
  * so the encoded payload matches (e.g. `npx qrcode "<url>" -o frontend/assets/images/polybuys-download-qr.png -w 440`).
  */
-export const APP_STORE_URL = 'https://testflight.apple.com/join/1BJ37S43';
+export const APP_STORE_URL = 'https://apps.apple.com/us/app/polybuys/id6760382206';
 
 export const APP_SCHEME = 'polybuys';
 
