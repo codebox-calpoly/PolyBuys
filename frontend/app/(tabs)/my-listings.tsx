@@ -21,6 +21,7 @@ import MyListingActionsSheet, {
   type MyListingActionTarget,
 } from '../../components/MyListingActionsSheet';
 import { useAuth } from '../../hooks/useAuth';
+import { getSignedOutFallback } from '../../lib/navigation/guestAccess';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { FilterChips, ScreenHeader, type FilterChipOption } from '../../components/ui';
@@ -79,7 +80,7 @@ export default function MyListingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Fmy-listings' as never);
+      router.replace((getSignedOutFallback('/my-listings') ?? '/home') as never);
     }
   }, [isAuthenticated, isSessionLoading, isWeb, router]);
 

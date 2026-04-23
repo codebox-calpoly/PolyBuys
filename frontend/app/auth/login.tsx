@@ -419,8 +419,8 @@ export default function LoginScreen() {
               <Text style={styles.eyebrow}>PolyBuys</Text>
               <Text style={styles.title}>Welcome</Text>
               <Text style={styles.subtitle}>
-                Buy and sell with fellow Cal Poly students. Sign in with your @calpoly.edu email to
-                get started.
+                Browse listings without an account. Sign in with your @calpoly.edu email to save
+                listings, message sellers, and post items.
               </Text>
               <Pressable
                 style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}

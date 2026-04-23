@@ -290,12 +290,19 @@ export default function HomeScreen() {
     if (!isAuthenticated) {
       Alert.alert('Sign In Required', 'Please sign in to create a listing', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.replace('/auth/login') },
+        {
+          text: 'Sign In',
+          onPress: () => router.replace('/auth/login?returnTo=%2Fhome' as never),
+        },
       ]);
       return;
     }
     router.push('/listings/new');
   };
+
+  const handleBrowseSignIn = useCallback(() => {
+    router.replace('/auth/login?returnTo=%2Fhome' as never);
+  }, [router]);
 
   const isCompactLayout = width < 760;
   const webScrollHorizontalPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
@@ -528,16 +535,22 @@ export default function HomeScreen() {
         >
           <ScreenHeader
             title="Browse"
-            subtitle="Fresh listings from campus"
+            subtitle={
+              isAuthenticated
+                ? 'Fresh listings from campus'
+                : 'Browse as guest. Sign in to save listings, message sellers, and post items.'
+            }
             action={
               <Pressable
                 style={({ pressed }) => [styles.createChip, pressed && styles.createChipPressed]}
-                onPress={handleCreateListing}
+                onPress={isAuthenticated ? handleCreateListing : handleBrowseSignIn}
                 disabled={isSessionLoading}
-                accessibilityLabel="Create listing"
+                accessibilityLabel={isAuthenticated ? 'Create listing' : 'Sign in'}
                 accessibilityRole="button"
               >
-                <Text style={styles.createChipText}>+ Create</Text>
+                <Text style={styles.createChipText}>
+                  {isAuthenticated ? '+ Create' : 'Sign In'}
+                </Text>
               </Pressable>
             }
           />

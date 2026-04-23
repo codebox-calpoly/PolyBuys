@@ -23,6 +23,7 @@ import { api } from 'convex/_generated/api';
 import { Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { useAuth } from '../../hooks/useAuth';
+import { getSignedOutFallback } from '../../lib/navigation/guestAccess';
 import { useResolvedImageUrls } from '../../hooks/useResolvedImageUrls';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { ScreenState } from '../../components/ScreenState';
@@ -398,7 +399,7 @@ export default function InboxScreen() {
 
   useEffect(() => {
     if (!isWeb && !isSessionLoading && !isAuthenticated) {
-      router.replace('/auth/login?returnTo=%2Finbox' as never);
+      router.replace((getSignedOutFallback('/inbox') ?? '/home') as never);
     }
   }, [isSessionLoading, isAuthenticated, isWeb, router]);
 

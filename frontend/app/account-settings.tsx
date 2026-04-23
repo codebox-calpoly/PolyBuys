@@ -21,6 +21,7 @@ import { ScreenState } from '../components/ScreenState';
 import { formatMajorLabel } from '../constants/calPolyMajors';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../constants/app';
 import { openExternalUrl } from '../utils/openExternalUrl';
+import { getSignedOutFallback } from '../lib/navigation/guestAccess';
 import { getUserFlowErrorMessage } from '../lib/user-flow-errors';
 import { borderRadius, colors, spacing, typography } from '../theme/tokens';
 
@@ -59,7 +60,7 @@ export default function AccountSettingsScreen() {
 
   useEffect(() => {
     if (!isWeb && !isLoading && !isAuthenticated) {
-      router.replace('/auth/login' as never);
+      router.replace((getSignedOutFallback('/account-settings') ?? '/home') as never);
     }
   }, [isAuthenticated, isLoading, isWeb, router]);
 
@@ -71,7 +72,7 @@ export default function AccountSettingsScreen() {
 
   const handleSignOut = async () => {
     if (!isAuthenticated) {
-      router.replace('/auth/login' as never);
+      router.replace((getSignedOutFallback('/account-settings') ?? '/home') as never);
       return;
     }
 
