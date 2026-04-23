@@ -5,7 +5,6 @@ import {
   Animated,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   ScrollView,
   Pressable,
@@ -35,6 +34,7 @@ import { requestPermissionAndSyncToken } from '../../hooks/usePushNotifications'
 import { getLoginEntryAction, type LoginStep } from '../../lib/auth/loginRedirect';
 import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../constants/app';
+import { openExternalUrl } from '../../utils/openExternalUrl';
 import { colors, typography, spacing, borderRadius } from '../../theme/tokens';
 
 const APP_REVIEW_EMAIL = (process.env.EXPO_PUBLIC_APP_REVIEW_EMAIL ?? '').toLowerCase().trim();
@@ -778,7 +778,9 @@ export default function LoginScreen() {
                   <Text
                     style={styles.legalLink}
                     accessibilityRole="link"
-                    onPress={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}
+                    onPress={() =>
+                      void openExternalUrl(TERMS_OF_SERVICE_URL, 'Unable to open Terms of Service')
+                    }
                   >
                     Terms of Service
                   </Text>{' '}
@@ -786,7 +788,9 @@ export default function LoginScreen() {
                   <Text
                     style={styles.legalLink}
                     accessibilityRole="link"
-                    onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+                    onPress={() =>
+                      void openExternalUrl(PRIVACY_POLICY_URL, 'Unable to open Privacy Policy')
+                    }
                   >
                     Privacy Policy
                   </Text>
