@@ -1,4 +1,4 @@
-name: iOS TestFlight (manual)
+name: iOS TestFlight (dev)
 
 on:
   workflow_dispatch:
@@ -14,6 +14,13 @@ jobs:
     timeout-minutes: 90
 
     steps:
+      - name: Ensure dev branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/dev" ]; then
+            echo "::error title=Wrong branch::Run this workflow from the dev branch."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -27,6 +34,12 @@ jobs:
         with:
           node-version: '20.19.4'
           cache: 'npm'
+
+      - name: Print TestFlight version
+        working-directory: frontend
+        run: |
+          APP_VERSION=$(node -p "require('./app.json').expo.version")
+          echo "::notice title=iOS TestFlight version::Building a dev TestFlight candidate for iOS version $APP_VERSION."
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
