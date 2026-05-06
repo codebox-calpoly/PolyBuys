@@ -1,0 +1,20 @@
+frontend/app/l/[id].tsx
+  s_891b491bfd2a05::t_0ed5e2540d1a5c 1-3,5-16,19-25,27-38,41-45,47-59,61-75
+  s_891b491bfd2a05::t_49a235b6ec4c1e 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "2cd88634a83c16272d4a8e54064e3c613b5fd545",
+  "prompts": {},
+  "sessions": {
+    "s_891b491bfd2a05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f506e26e-a14e-4bfa-8e26-a117970cc0db",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>"
+    }
+  }
+}
