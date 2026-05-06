@@ -1,0 +1,36 @@
+frontend/components/LandingScreen.web.tsx
+  s_891b491bfd2a05::t_8a6ff849d65f41 3,5,8
+  s_891b491bfd2a05::t_e3639e2678f5b1 28
+  s_891b491bfd2a05::t_5625838e218455 29-34
+frontend/components/landing/index.ts
+  s_891b491bfd2a05::t_611439e055e2a2 8
+frontend/components/landing/styles.ts
+  s_891b491bfd2a05::t_5339cc7b0f774c 396-397
+  s_891b491bfd2a05::t_ee3d3186ca674c 1-201
+  s_891b491bfd2a05::t_d258ae18bf4275 1086
+  s_891b491bfd2a05::t_87c2a6f52cff44 1065-1066
+frontend/app.json
+  s_891b491bfd2a05::t_47c641f2fc1cad 114-115
+frontend/components/AppNav.web.tsx
+  s_891b491bfd2a05::t_1b6fd815e4f299 254
+  s_891b491bfd2a05::t_73530e8c572058 17
+  s_891b491bfd2a05::t_8ade7fb83c1379 101-103,113-114,125,129
+  s_891b491bfd2a05::t_092dd322b8baef 36-38
+  s_891b491bfd2a05::t_6be1a2cd63d650 224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "f1625235aa44dd999e04d23c14e508e51b857652",
+  "prompts": {},
+  "sessions": {
+    "s_891b491bfd2a05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f506e26e-a14e-4bfa-8e26-a117970cc0db",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>"
+    }
+  }
+}
