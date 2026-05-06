@@ -1,5 +1,6 @@
 import { APP_STORE_URL } from '../../constants/app';
 import qrDownloadPng from '../../assets/images/polybuys-download-qr.png';
+import { PRODUCT_IMAGES } from './productImages';
 
 export { APP_STORE_URL };
 
@@ -18,7 +19,12 @@ export type SampleListing = {
   price: string;
   seller: string;
   location: string;
-  thumbIcon: ListingThumbIconId;
+  image: {
+    src: string;
+    alt: string;
+    width: number;
+    height: number;
+  };
   gradient: string;
   badge?: string;
 };
@@ -30,7 +36,12 @@ export const HERO_LISTINGS: readonly [SampleListing, SampleListing] = [
     price: '$40',
     seller: 'Hazel',
     location: 'Poly Canyon',
-    thumbIcon: 'textbook',
+    image: {
+      src: PRODUCT_IMAGES.calculusBook,
+      alt: 'Used maroon calculus textbook with a mathematical diagram on a desk',
+      width: 640,
+      height: 400,
+    },
     gradient: 'linear-gradient(135deg, #1E5C44 0%, #154734 100%)',
     badge: 'Just listed',
   },
@@ -40,7 +51,12 @@ export const HERO_LISTINGS: readonly [SampleListing, SampleListing] = [
     price: '$35',
     seller: 'Mateo',
     location: 'Mustang Village',
-    thumbIcon: 'furniture',
+    image: {
+      src: PRODUCT_IMAGES.cubeShelf,
+      alt: 'White four-cube shelf with books and woven baskets in a living room',
+      width: 640,
+      height: 400,
+    },
     gradient: 'linear-gradient(135deg, #F3D38B 0%, #E2A84A 100%)',
   },
 ];

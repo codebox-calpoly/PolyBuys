@@ -138,6 +138,7 @@ function RootLayout() {
                 />
                 <Stack.Screen name="privacy" options={{ headerShown: false }} />
                 <Stack.Screen name="terms" options={{ headerShown: false }} />
+                <Stack.Screen name="landing" options={{ headerShown: false }} />
                 <Stack.Screen name="l/[id]" options={{ headerShown: false }} />
               </Stack>
             </FlashProvider>

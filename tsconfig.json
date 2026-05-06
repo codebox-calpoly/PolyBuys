@@ -1,12 +1,9 @@
 {
-  "compilerOptions": {
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "target": "ES2020",
-    "module": "commonjs",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "strict": true
-  },
-  "exclude": ["node_modules", "dist", "build", ".expo"]
+  // Root tsconfig — delegates to each workspace's own tsconfig.
+  // The frontend and backend each have their own tsconfig.json with the
+  // correct settings for their environment (jsx, moduleResolution, paths, etc.).
+  // This file exists so the IDE and root-level tooling have a valid config to
+  // reference without accidentally type-checking the wrong files.
+  "files": [],
+  "references": [{ "path": "./frontend" }, { "path": "./backend" }]
 }

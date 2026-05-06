@@ -14,11 +14,13 @@ import {
 } from 'react-native';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from 'convex/_generated/api';
+import Head from 'expo-router/head';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FilterBar } from '../../components/FilterBar';
+import { CategoryRail } from '../../components/CategoryRail';
 import { CategoryPicker } from '../../components/CategoryPicker';
+import { HomeBg } from '../../components/HomeBg';
 import OpenInAppPrompt from '../../components/OpenInAppPrompt';
 import { PriceRangePicker } from '../../components/PriceRangePicker';
 import { SortPicker } from '../../components/SortPicker';
@@ -26,14 +28,25 @@ import ListingCard from '../../components/ListingCard';
 import { ScreenState } from '../../components/ScreenState';
 import { ScreenHeader } from '../../components/ui';
 import type { Filters, Category, ListingSortBy } from '../../types/filters';
+import { LISTING_SORT_SHORT } from '../../types/filters';
 import { useAuth } from '../../hooks/useAuth';
+import { useSearch } from '../../contexts/SearchContext';
 import type { Doc, Id } from 'convex/_generated/dataModel';
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation';
 import { getUserFlowErrorMessage } from '../../lib/user-flow-errors';
+import { formatPrice } from '../../lib/formatPrice';
 import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 
 const PAGE_SIZE = 20;
 const FOCUS_REFETCH_STALE_MS = 45_000;
+const HOMEPAGE_FONT_HREF =
+  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700&display=swap';
+const landingTextFont =
+  Platform.OS === 'web'
+    ? { fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }
+    : undefined;
+const landingDisplayFont =
+  Platform.OS === 'web' ? { fontFamily: 'Fraunces, Georgia, serif' } : undefined;
 
 type WebHandoffPrompt = {
   key: 'create-listing' | 'save-listing';
@@ -42,6 +55,20 @@ type WebHandoffPrompt = {
   path: string;
   buttonLabel: string;
 };
+
+function HomeFooter({ isCompact }: { isCompact: boolean }) {
+  return (
+    <View style={[styles.homeFooter, isCompact && styles.homeFooterCompact]}>
+      <View style={styles.homeFooterBrandRow}>
+        <View style={styles.homeFooterDot} />
+        <Text style={[styles.homeFooterBrand, landingTextFont]}>PolyBuys</Text>
+      </View>
+      <Text style={[styles.homeFooterCopy, landingTextFont]} numberOfLines={isCompact ? 2 : 1}>
+        Built for campus buying and selling.
+      </Text>
+    </View>
+  );
+}
 
 function buildWebRows(items: Doc<'listings'>[], size: number) {
   const rows: Array<{
@@ -71,11 +98,18 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isSessionLoading } = useAuth();
   const { q } = useLocalSearchParams<{ q?: string | string[] }>();
+  const { searchQuery: contextSearchQuery, clearSearch } = useSearch();
   const { width } = useWindowDimensions();
   const entranceStyle = useEntranceAnimation();
   const isWeb = Platform.OS === 'web';
   const isDesktopWeb = isWeb && width >= 1024;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
+
+  // On web: use the shared context search query (instant, no URL round-trip).
+  // On native: fall back to URL param q (native doesn't use SearchContext).
+  const searchQuery = isWeb
+    ? contextSearchQuery.trim()
+    : (Array.isArray(q) ? (q[0] ?? '') : (q ?? '')).trim();
 
   const [filters, setFilters] = useState<Filters>({});
   const [sortBy, setSortBy] = useState<ListingSortBy>('newest');
@@ -99,7 +133,6 @@ export default function HomeScreen() {
   const lastFirstPageAtRef = useRef<number>(0);
   const hasLoadedOnceRef = useRef(false);
 
-  const searchQuery = Array.isArray(q) ? (q[0] ?? '').trim() : (q ?? '').trim();
   const hasSearchQuery = isWeb && searchQuery.length > 0;
   const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}|${sortBy}`;
 
@@ -249,10 +282,6 @@ export default function HomeScreen() {
     setFilters((prev) => ({ ...prev, minPrice, maxPrice }));
   };
 
-  const handleClearCategory = () => {
-    setFilters((prev) => ({ ...prev, category: undefined }));
-  };
-
   const handleClearPrice = () => {
     setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
   };
@@ -260,7 +289,7 @@ export default function HomeScreen() {
   const handleClearAll = () => {
     setFilters({});
     setSortBy('newest');
-    router.setParams({ q: undefined });
+    clearSearch();
   };
 
   const handleLoadMore = useCallback(() => {
@@ -304,16 +333,26 @@ export default function HomeScreen() {
     router.replace('/auth/login?returnTo=%2Fhome' as never);
   }, [router]);
 
+  const getPriceLabel = () => {
+    if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
+      return `${formatPrice(filters.minPrice)} – ${formatPrice(filters.maxPrice)}`;
+    }
+    if (filters.minPrice !== undefined) return `${formatPrice(filters.minPrice)}+`;
+    if (filters.maxPrice !== undefined) return `Under ${formatPrice(filters.maxPrice)}`;
+    return 'Price';
+  };
+
   const isCompactLayout = width < 760;
-  const webScrollHorizontalPadding = isDesktopWeb ? spacing.xl : width >= 900 ? spacing.lg : 10;
+  const webScrollHorizontalPadding =
+    width >= 1280 ? spacing.xl : width >= 900 ? spacing.lg : width >= 480 ? spacing.lg : spacing.md;
   /** Native: same horizontal inset as My Listings (header + FilterBar). */
   const nativeHeaderHorizontalPadding =
     width >= 900 ? spacing.xxl : isCompactLayout ? spacing.md : spacing.lg;
   /** Native: original Home card gutters (tighter than header). */
   const nativeListHorizontalPadding =
     width >= 900 ? spacing.xxl : isCompactLayout ? spacing.xs : spacing.sm;
-  const contentMaxWidth = isWeb ? 1240 : 1120;
-  const homeColumns = isWeb ? (width >= 1280 ? 3 : width >= 900 ? 2 : 1) : 2;
+  const contentMaxWidth = isWeb ? 1280 : 1120;
+  const homeColumns = isWeb ? (width >= 1280 ? 4 : width >= 920 ? 3 : width >= 680 ? 2 : 1) : 2;
   const listEmptyComponent =
     listings.length === 0 ? (
       <View style={styles.stateContainer}>
@@ -361,153 +400,160 @@ export default function HomeScreen() {
         </View>
       </View>
     ) : null;
-  const listFooterComponent = isLoadingMore ? (
+  const loadingFooterComponent = isLoadingMore ? (
     <View style={styles.footerLoader}>
       <ActivityIndicator size="small" color={colors.primary} />
-      <Text style={styles.footerText}>Loading more...</Text>
+      <Text style={[styles.footerText, landingTextFont]}>Loading more...</Text>
     </View>
   ) : null;
   const webRows = buildWebRows(listings, homeColumns);
 
   if (isWeb) {
     return (
-      <View style={[styles.page, styles.pageWeb]}>
-        <CategoryPicker
-          visible={showCategoryPicker}
-          selectedCategory={filters.category}
-          onSelect={handleCategorySelect}
-          onClose={() => setShowCategoryPicker(false)}
-        />
+      <>
+        <Head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="stylesheet" href={HOMEPAGE_FONT_HREF} />
+        </Head>
 
-        <PriceRangePicker
-          visible={showPricePicker}
-          minPrice={filters.minPrice}
-          maxPrice={filters.maxPrice}
-          onApply={handlePriceApply}
-          onClose={() => setShowPricePicker(false)}
-        />
-
-        <SortPicker
-          visible={showSortPicker}
-          sortBy={sortBy}
-          onSelect={setSortBy}
-          onClose={() => setShowSortPicker(false)}
-        />
-
-        <ScrollView
-          style={[styles.webScrollView, { maxWidth: contentMaxWidth }]}
-          contentContainerStyle={[
-            styles.webScrollContent,
-            {
-              paddingHorizontal: webScrollHorizontalPadding,
-              paddingBottom: Math.max(insets.bottom + 60, 80),
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
-
-          <Animated.View style={[styles.webToolbarRow, entranceStyle]}>
-            <View style={styles.webToolbarCopy}>
-              <Text style={styles.webToolbarTitle}>
-                {hasSearchQuery ? `Results for "${searchQuery}"` : 'Latest listings'}
-              </Text>
-              <Text style={styles.webToolbarBody}>
-                {hasSearchQuery
-                  ? 'Use filters to narrow the results further.'
-                  : 'Fresh campus listings from the PolyBuys marketplace.'}
-              </Text>
-            </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.createChip,
-                styles.webCreateChip,
-                pressed && styles.createChipPressed,
-              ]}
-              onPress={handleCreateListing}
-              disabled={isSessionLoading}
-              accessibilityLabel={
-                isWeb ? 'Download the Mobile App to Create Listings' : 'Create listing'
-              }
-              accessibilityRole="button"
-            >
-              <Text style={[styles.createChipText, isWeb && styles.webCreateChipText]}>
-                {isWeb
-                  ? 'Download the Mobile App to Create Listings'
-                  : isAuthenticated
-                    ? '+ Create listing'
-                    : 'Sign in to sell'}
-              </Text>
-            </Pressable>
-          </Animated.View>
-
-          <FilterBar
-            filters={filters}
-            sortBy={sortBy}
-            onCategoryPress={() => setShowCategoryPicker(true)}
-            onPricePress={() => setShowPricePicker(true)}
-            onSortPress={() => setShowSortPicker(true)}
-            onClearCategory={handleClearCategory}
-            onClearPrice={handleClearPrice}
-            onClearAll={handleClearAll}
+        <View style={[styles.page, styles.pageWeb]}>
+          {/* Layered homepage background. */}
+          <HomeBg />
+          <CategoryPicker
+            visible={showCategoryPicker}
+            selectedCategory={filters.category}
+            onSelect={handleCategorySelect}
+            onClose={() => setShowCategoryPicker(false)}
           />
 
-          {webHandoffPrompt ? (
-            <OpenInAppPrompt
-              key={webHandoffPrompt.key}
-              variant="card"
-              title={webHandoffPrompt.title}
-              body={webHandoffPrompt.body}
-              path={webHandoffPrompt.path}
-              buttonLabel={webHandoffPrompt.buttonLabel}
-              secondaryActionLabel="Keep browsing"
-              onSecondaryAction={() => setWebHandoffPrompt(null)}
-              cardStyle={styles.webHandoffCard}
-            />
-          ) : null}
+          <PriceRangePicker
+            visible={showPricePicker}
+            minPrice={filters.minPrice}
+            maxPrice={filters.maxPrice}
+            onApply={handlePriceApply}
+            onClose={() => setShowPricePicker(false)}
+          />
 
-          {listings.length === 0 ? (
-            listEmptyComponent
-          ) : (
-            <>
-              <View style={styles.webGrid}>
-                {webRows.map((row) => (
-                  <View key={row.key} style={styles.columnWrapper}>
-                    {row.items.map((item, columnOffset) => (
-                      <View key={item._id} style={styles.webGridItem}>
-                        <ListingCard
-                          listing={item}
-                          index={row.startIndex + columnOffset}
-                          isSaved={savedState?.[item._id] ?? false}
-                          density="home"
-                          shellStyle="flat"
-                        />
-                      </View>
-                    ))}
-                    {row.fillerKeys.map((fillerKey) => (
-                      <View key={fillerKey} style={styles.webGridItem} />
-                    ))}
-                  </View>
-                ))}
+          <SortPicker
+            visible={showSortPicker}
+            sortBy={sortBy}
+            onSelect={setSortBy}
+            onClose={() => setShowSortPicker(false)}
+          />
+
+          <ScrollView
+            style={[styles.webScrollView, { maxWidth: contentMaxWidth }]}
+            contentContainerStyle={[
+              styles.webScrollContent,
+              {
+                paddingHorizontal: webScrollHorizontalPadding,
+                paddingBottom: Math.max(insets.bottom + 60, 80),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            {topSafeSpace > 0 && <View style={{ height: topSafeSpace }} />}
+
+            <Animated.View style={[styles.webHeaderSection, entranceStyle]}>
+              <View style={styles.webToolbarRow}>
+                <View style={styles.webToolbarCopy}>
+                  <Text style={[styles.webToolbarTitle, landingDisplayFont]}>
+                    {hasSearchQuery ? `Results for "${searchQuery}"` : 'Latest listings'}
+                  </Text>
+                  <Text style={[styles.webToolbarBody, landingTextFont]}>
+                    {hasSearchQuery
+                      ? 'Use filters to narrow the results further.'
+                      : 'Fresh campus listings from the PolyBuys marketplace.'}
+                  </Text>
+                </View>
               </View>
-              {listFooterComponent}
-              {!isDone && !isLoadingMore ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.webLoadMoreButton,
-                    pressed && styles.createChipPressed,
-                  ]}
-                  onPress={handleLoadMore}
-                  accessibilityLabel="Load more listings"
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.webLoadMoreButtonText}>Load more listings</Text>
-                </Pressable>
-              ) : null}
-            </>
-          )}
-        </ScrollView>
-      </View>
+
+              <CategoryRail
+                selectedCategory={filters.category}
+                onSelectCategory={handleCategorySelect}
+                onClearSearch={clearSearch}
+                priceLabel={getPriceLabel()}
+                hasPrice={filters.minPrice !== undefined || filters.maxPrice !== undefined}
+                onPricePress={() => setShowPricePicker(true)}
+                onClearPrice={handleClearPrice}
+                sortLabel={LISTING_SORT_SHORT[sortBy]}
+                hasNonDefaultSort={sortBy !== 'newest'}
+                onSortPress={() => setShowSortPicker(true)}
+                hasAnyFilter={hasActiveFilters || sortBy !== 'newest'}
+                onClearAll={handleClearAll}
+              />
+            </Animated.View>
+
+            {webHandoffPrompt ? (
+              <OpenInAppPrompt
+                key={webHandoffPrompt.key}
+                variant="card"
+                title={webHandoffPrompt.title}
+                body={webHandoffPrompt.body}
+                path={webHandoffPrompt.path}
+                buttonLabel={webHandoffPrompt.buttonLabel}
+                secondaryActionLabel="Keep browsing"
+                onSecondaryAction={() => setWebHandoffPrompt(null)}
+                cardStyle={styles.webHandoffCard}
+              />
+            ) : null}
+
+            {listings.length === 0 ? (
+              listEmptyComponent
+            ) : (
+              <>
+                <View style={styles.webGrid}>
+                  {webRows.map((row) => (
+                    <View key={row.key} style={styles.columnWrapper}>
+                      {row.items.map((item, columnOffset) => (
+                        <View key={item._id} style={styles.webGridItem}>
+                          <ListingCard
+                            listing={item}
+                            index={row.startIndex + columnOffset}
+                            isSaved={savedState?.[item._id] ?? false}
+                            density="home"
+                          />
+                        </View>
+                      ))}
+                      {row.fillerKeys.map((fillerKey) => (
+                        <View key={fillerKey} style={styles.webGridItem} />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+                {loadingFooterComponent}
+                {!isDone && !isLoadingMore ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.webLoadMoreButton,
+                      pressed && styles.createChipPressed,
+                    ]}
+                    onPress={handleLoadMore}
+                    accessibilityLabel="Load more listings"
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.webLoadMoreButtonText, landingTextFont]}>
+                      Load more listings
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {isDone && listings.length > 0 ? (
+                  <View style={styles.allCaughtUp}>
+                    <View style={styles.allCaughtUpLine} />
+                    <Text style={[styles.allCaughtUpText, landingTextFont]}>
+                      {"You're all caught up"}
+                    </Text>
+                    <View style={styles.allCaughtUpLine} />
+                  </View>
+                ) : null}
+              </>
+            )}
+
+            <HomeFooter isCompact={isCompactLayout} />
+          </ScrollView>
+        </View>
+      </>
     );
   }
 
@@ -543,14 +589,18 @@ export default function HomeScreen() {
               </Pressable>
             }
           />
-          <FilterBar
-            filters={filters}
-            sortBy={sortBy}
-            onCategoryPress={() => setShowCategoryPicker(true)}
+          <CategoryRail
+            selectedCategory={filters.category}
+            onSelectCategory={handleCategorySelect}
+            onClearSearch={clearSearch}
+            priceLabel={getPriceLabel()}
+            hasPrice={filters.minPrice !== undefined || filters.maxPrice !== undefined}
             onPricePress={() => setShowPricePicker(true)}
-            onSortPress={() => setShowSortPicker(true)}
-            onClearCategory={handleClearCategory}
             onClearPrice={handleClearPrice}
+            sortLabel={LISTING_SORT_SHORT[sortBy]}
+            hasNonDefaultSort={sortBy !== 'newest'}
+            onSortPress={() => setShowSortPicker(true)}
+            hasAnyFilter={hasActiveFilters || sortBy !== 'newest'}
             onClearAll={handleClearAll}
           />
         </Animated.View>
@@ -615,7 +665,12 @@ export default function HomeScreen() {
             />
           }
           ListEmptyComponent={listEmptyComponent}
-          ListFooterComponent={listFooterComponent}
+          ListFooterComponent={
+            <>
+              {loadingFooterComponent}
+              <HomeFooter isCompact={isCompactLayout} />
+            </>
+          }
         />
       </View>
     </View>
@@ -625,13 +680,14 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F7F5EF',
   },
   pageMobile: {
     backgroundColor: colors.surface,
   },
   pageWeb: {
     minHeight: '100%',
+    position: 'relative',
   },
   content: {
     flex: 1,
@@ -646,32 +702,40 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   webScrollContent: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.sm,
     gap: spacing.lg,
+  },
+  webHeaderSection: {
+    gap: spacing.xs,
+    paddingBottom: 0,
   },
   webToolbarRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: spacing.lg,
+    paddingBottom: spacing.xs,
   },
   webToolbarCopy: {
     flex: 1,
     minWidth: 0,
-    gap: spacing.xs,
+    gap: 2,
   },
   webToolbarTitle: {
     ...typography.title1,
     color: colors.textDark,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: '500',
+    letterSpacing: 0,
   },
   webToolbarBody: {
     ...typography.subhead,
-    color: colors.text,
+    color: colors.muted,
+    fontSize: 13,
   },
   webGrid: {
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   webHandoffCard: {
     maxWidth: '100%',
@@ -683,25 +747,21 @@ const styles = StyleSheet.create({
   webLoadMoreButton: {
     alignSelf: 'center',
     minHeight: 44,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: 'rgba(21, 71, 52, 0.18)',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.xxl,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+    boxShadow: '0 1px 4px rgba(21, 71, 52, 0.06)',
+  } as never,
   webLoadMoreButtonText: {
     ...typography.subhead,
     color: colors.primary,
     fontWeight: '600',
-  },
-  webCreateChip: {
-    minWidth: 280,
-    alignItems: 'center',
-  },
-  webCreateChipText: {
-    textAlign: 'center',
+    fontSize: 14,
+    letterSpacing: 0,
   },
   homeTopBlock: {
     gap: spacing.md,
@@ -725,10 +785,10 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   columnWrapperCompact: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   stateContainer: {
     flex: 1,
@@ -762,5 +822,72 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: colors.text,
+    letterSpacing: 0,
+  },
+  // ── "All caught up" end-of-feed indicator ──
+  allCaughtUp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  allCaughtUpLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(21, 71, 52, 0.10)',
+  },
+  allCaughtUpText: {
+    ...typography.footnote,
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0,
+    flexShrink: 0,
+  },
+  homeFooter: {
+    marginTop: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(21, 71, 52, 0.12)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  homeFooterCompact: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  homeFooterBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  homeFooterDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    boxShadow: '0 0 0 3px rgba(226, 168, 74, 0.18)',
+  } as never,
+  homeFooterBrand: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  homeFooterCopy: {
+    ...typography.footnote,
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0,
+    flexShrink: 1,
   },
 });
