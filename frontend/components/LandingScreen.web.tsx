@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import Head from 'expo-router/head';
+import polybuysIcon from '../assets/images/icon.png';
 import { Footer, GetApp, GLOBAL_CSS, Hero, Nav, Why, useScrolled } from './landing';
+import { toWebImageSrc } from './landing/assetSource';
 import { scrollToLandingHash } from './landing/scrollToLandingSection';
+
+const faviconHref = toWebImageSrc(polybuysIcon);
 
 export default function LandingScreen() {
   const scrolled = useScrolled();
@@ -21,6 +25,13 @@ export default function LandingScreen() {
           name="description"
           content="Buy and sell with verified Cal Poly students. Textbooks, housing, bikes, furniture — browse on the web or get the iOS app."
         />
+        <meta name="theme-color" content="#ffffff" />
+        {faviconHref ? (
+          <>
+            <link rel="icon" type="image/png" href={faviconHref} />
+            <link rel="apple-touch-icon" href={faviconHref} />
+          </>
+        ) : null}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

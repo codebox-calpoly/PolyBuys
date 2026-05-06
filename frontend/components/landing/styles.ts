@@ -1,4 +1,206 @@
-export const GLOBAL_CSS = `
+/* Styles needed to render the landing <DownloadButton /> outside the landing page
+   (e.g. the in-app web navbar). Self-contained: includes the CSS variables it
+   depends on plus button, Apple-icon, and QR-modal rules. Concatenated into
+   GLOBAL_CSS below so the landing page picks up the same definitions. */
+export const DOWNLOAD_CTA_CSS = `
+:root {
+  --pb-ink: #14130F;
+  --pb-ink-3: #7A7A74;
+  --pb-green: #154734;
+  --pb-green-2: #1E5C44;
+  --pb-border: rgba(21, 71, 52, 0.10);
+  --pb-border-strong: rgba(21, 71, 52, 0.18);
+  --pb-radius-xl: 28px;
+  --pb-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------- BUTTONS ---------- */
+.pb-btn {
+  --h: 44px;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 22px;
+  height: var(--h);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 200ms var(--pb-ease), background 200ms var(--pb-ease),
+    color 200ms var(--pb-ease), border-color 200ms var(--pb-ease);
+  white-space: nowrap;
+}
+.pb-btn:focus-visible {
+  outline: 3px solid rgba(226, 168, 74, 0.55);
+  outline-offset: 3px;
+}
+.pb-btn--sm { --h: 36px; padding: 0 16px; font-size: 14px; }
+.pb-btn--md { --h: 44px; }
+.pb-btn--lg { --h: 54px; padding: 0 26px; font-size: 16px; }
+.pb-btn--primary {
+  background: var(--pb-green);
+  color: #FFF8E8;
+}
+.pb-btn--primary:hover:not(:active) {
+  background: var(--pb-green-2);
+  transform: translateY(-1px);
+}
+.pb-btn--primary:active {
+  transform: scale(0.98);
+}
+.pb-btn--ghost {
+  background: transparent;
+  color: var(--pb-ink);
+  border: 1px solid var(--pb-border-strong);
+}
+.pb-btn--ghost:hover {
+  background: rgba(21, 71, 52, 0.06);
+  border-color: rgba(21, 71, 52, 0.28);
+}
+.pb-btn--ghostOnDark {
+  background: transparent;
+  color: #FFF8E8;
+  border: 1px solid rgba(255, 248, 232, 0.35);
+}
+.pb-btn--ghostOnDark:hover {
+  background: rgba(255, 248, 232, 0.08);
+  border-color: rgba(255, 248, 232, 0.6);
+}
+.pb-btn--cream {
+  background: #FFF8E8;
+  color: var(--pb-green);
+}
+.pb-btn--cream:hover:not(:active) {
+  background: #fff;
+  color: var(--pb-green-2);
+  transform: translateY(-1px);
+}
+.pb-btn--cream:active {
+  transform: scale(0.98);
+}
+.pb-btn--ghost:active,
+.pb-btn--ghostOnDark:active {
+  transform: scale(0.98);
+}
+.pb-btn__arrow {
+  display: inline-block;
+  transform: translateX(0);
+  transition: transform 220ms var(--pb-ease);
+  font-weight: 400;
+}
+.pb-btn:hover .pb-btn__arrow { transform: translateX(3px); }
+
+/* ---------- APPLE ICON ---------- */
+.pb-apple-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+/* ---------- DOWNLOAD QR MODAL ---------- */
+/* No opacity animation on this wrapper: animating parent opacity breaks/defers child
+   backdrop-filter in WebKit/Blink (dim + blur appears late). Card keeps pb-popIn only. */
+.pb-qrmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pb-qrmodal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 30, 25, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.pb-qrmodal__card {
+  position: relative;
+  background: #fff;
+  border-radius: var(--pb-radius-xl);
+  padding: 28px 32px 22px;
+  border: 1px solid var(--pb-border);
+  width: min(320px, 100%);
+  flex-shrink: 0;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: pb-popIn 220ms var(--pb-ease);
+}
+.pb-qrmodal__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pb-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: -0.01em;
+}
+.pb-qrmodal__qr {
+  width: 232px;
+  height: 232px;
+  border-radius: 10px;
+  background: #fff;
+}
+.pb-qrmodal__caption {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pb-ink-3);
+}
+.pb-qrmodal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--pb-ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms var(--pb-ease), color 150ms var(--pb-ease);
+}
+.pb-qrmodal__close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--pb-ink);
+}
+.pb-qrmodal__close:focus-visible {
+  outline: 3px solid rgba(226, 168, 74, 0.55);
+  outline-offset: 2px;
+}
+@keyframes pb-popIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-qrmodal__card { animation: none !important; }
+}
+`;
+
+export const GLOBAL_CSS =
+  `
 :root {
   --pb-ink: #14130F;
   --pb-ink-2: #4A4A48;
@@ -191,87 +393,8 @@ img { max-width: 100%; display: block; }
   .pb-nav .pb-apple-icon { width: 11px; height: auto; margin-right: 0; }
 }
 
-/* ---------- BUTTONS ---------- */
-.pb-btn {
-  --h: 44px;
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 22px;
-  height: var(--h);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.005em;
-  cursor: pointer;
-  text-decoration: none;
-  transition: transform 200ms var(--pb-ease), background 200ms var(--pb-ease),
-    color 200ms var(--pb-ease), border-color 200ms var(--pb-ease);
-  white-space: nowrap;
-}
-.pb-btn:focus-visible {
-  outline: 3px solid rgba(226, 168, 74, 0.55);
-  outline-offset: 3px;
-}
-.pb-btn--sm { --h: 36px; padding: 0 16px; font-size: 14px; }
-.pb-btn--md { --h: 44px; }
-.pb-btn--lg { --h: 54px; padding: 0 26px; font-size: 16px; }
-.pb-btn--primary {
-  background: var(--pb-green);
-  color: #FFF8E8;
-}
-.pb-btn--primary:hover:not(:active) {
-  background: var(--pb-green-2);
-  transform: translateY(-1px);
-}
-.pb-btn--primary:active {
-  transform: scale(0.98);
-}
-.pb-btn--ghost {
-  background: transparent;
-  color: var(--pb-ink);
-  border: 1px solid var(--pb-border-strong);
-}
-.pb-btn--ghost:hover {
-  background: rgba(21, 71, 52, 0.06);
-  border-color: rgba(21, 71, 52, 0.28);
-}
-.pb-btn--ghostOnDark {
-  background: transparent;
-  color: #FFF8E8;
-  border: 1px solid rgba(255, 248, 232, 0.35);
-}
-.pb-btn--ghostOnDark:hover {
-  background: rgba(255, 248, 232, 0.08);
-  border-color: rgba(255, 248, 232, 0.6);
-}
-.pb-btn--cream {
-  background: #FFF8E8;
-  color: var(--pb-green);
-}
-.pb-btn--cream:hover:not(:active) {
-  background: #fff;
-  color: var(--pb-green-2);
-  transform: translateY(-1px);
-}
-.pb-btn--cream:active {
-  transform: scale(0.98);
-}
-.pb-btn--ghost:active,
-.pb-btn--ghostOnDark:active {
-  transform: scale(0.98);
-}
-.pb-btn__arrow {
-  display: inline-block;
-  transform: translateX(0);
-  transition: transform 220ms var(--pb-ease);
-  font-weight: 400;
-}
-.pb-btn:hover .pb-btn__arrow { transform: translateX(3px); }
+/* Button + Apple-icon + QR-modal styles live in DOWNLOAD_CTA_CSS (above) and
+   are concatenated to GLOBAL_CSS at the bottom of this file. */
 
 /* ---------- EYEBROW ---------- */
 .pb-eyebrow {
@@ -939,103 +1062,8 @@ img { max-width: 100%; display: block; }
   }
 }
 
-/* ---------- APPLE ICON ---------- */
-.pb-apple-icon {
-  display: inline-block;
-  vertical-align: -2px;
-  margin-right: 2px;
-}
-
-/* ---------- DOWNLOAD QR MODAL ---------- */
-/* No opacity animation on this wrapper: animating parent opacity breaks/defers child
-   backdrop-filter in WebKit/Blink (dim + blur appears late). Card keeps pb-popIn only. */
-.pb-qrmodal {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  min-height: 100vh;
-  min-height: 100dvh;
-  box-sizing: border-box;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.pb-qrmodal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(20, 30, 25, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.pb-qrmodal__card {
-  position: relative;
-  background: #fff;
-  border-radius: var(--pb-radius-xl);
-  padding: 28px 32px 22px;
-  border: 1px solid var(--pb-border);
-  width: min(320px, 100%);
-  flex-shrink: 0;
-  margin: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  animation: pb-popIn 220ms var(--pb-ease);
-}
-.pb-qrmodal__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--pb-ink);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  letter-spacing: -0.01em;
-}
-.pb-qrmodal__qr {
-  width: 232px;
-  height: 232px;
-  border-radius: 10px;
-  background: #fff;
-}
-.pb-qrmodal__caption {
-  margin: 0;
-  font-size: 13px;
-  color: var(--pb-ink-3);
-}
-.pb-qrmodal__close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  font-size: 14px;
-  color: var(--pb-ink-3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms var(--pb-ease), color 150ms var(--pb-ease);
-}
-.pb-qrmodal__close:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--pb-ink);
-}
-.pb-qrmodal__close:focus-visible {
-  outline: 3px solid rgba(226, 168, 74, 0.55);
-  outline-offset: 2px;
-}
-@keyframes pb-popIn {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: scale(1); }
-}
+/* Apple-icon + QR-modal styles live in DOWNLOAD_CTA_CSS (top of file) and are
+   appended to GLOBAL_CSS at the bottom. */
 
 /* ---------- MOTION PREFS ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -1043,7 +1071,6 @@ img { max-width: 100%; display: block; }
   .pb-preview--back { transform: rotate(-6deg); }
   .pb-preview--front { transform: rotate(4deg); }
   .pb-hero__underline { stroke-dashoffset: 0; animation: none; }
-  .pb-qrmodal__card { animation: none !important; }
   .pb-why .pb-section__head,
   .pb-why .pb-why__card,
   .pb-getapp .pb-getapp__panel {
@@ -1056,4 +1083,4 @@ img { max-width: 100%; display: block; }
   .pb-nav__link::after { display: none; }
   * { transition: none !important; }
 }
-`;
+` + DOWNLOAD_CTA_CSS;

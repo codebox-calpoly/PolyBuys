@@ -14,7 +14,7 @@ import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSearch } from '../contexts/SearchContext';
 import polybuysLogo from '../assets/images/PolyBuysLogo.png';
-import { AppleIcon } from './landing/AppleIcon';
+import { DOWNLOAD_CTA_CSS, DownloadButton } from './landing';
 import { toWebImageSrc } from './landing/assetSource';
 
 const DOWNLOAD_APP_LABEL = 'Download the app';
@@ -33,8 +33,9 @@ const NAV_CSS =
   /* reset */
   '.pbn*,.pbn*::before,.pbn*::after{box-sizing:border-box}' +
   '.pbn a{text-decoration:none;color:inherit}' +
-  /* reset form controls inside the web nav */
-  '.pbn button{font-family:inherit;cursor:pointer;border:none;padding:0;background:none}' +
+  /* reset form controls inside the web nav (skip .pb-btn so the shared landing
+     button styles aren't clobbered by this reset's higher specificity) */
+  '.pbn button:not(.pb-btn){font-family:inherit;cursor:pointer;border:none;padding:0;background:none}' +
   '.pbn input{font-family:inherit;outline:none}' +
   /* ── inner row: 3-column grid ── */
   '.pbn__row{' +
@@ -97,17 +98,9 @@ const NAV_CSS =
   '.pbn__search-clear:hover{background:#154734;color:#fff;transform:translateY(-50%) scale(1.10)}' +
   /* ── RIGHT: actions ── */
   '.pbn__actions{display:flex;align-items:center;justify-self:end;flex-shrink:0}' +
-  '.pbn__download{' +
-  'appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;' +
-  'height:36px;padding:0 16px;border-radius:999px;border:0;' +
-  'background:#154734;color:#FFF8E8;' +
-  'font-size:14px;font-weight:600;letter-spacing:0;line-height:1;white-space:nowrap;cursor:pointer;' +
-  'transition:transform 200ms cubic-bezier(0.2,0.7,0.2,1),background 200ms cubic-bezier(0.2,0.7,0.2,1),color 200ms cubic-bezier(0.2,0.7,0.2,1),border-color 200ms cubic-bezier(0.2,0.7,0.2,1)' +
-  '}' +
-  '.pbn__download .pb-apple-icon{display:inline-block;vertical-align:-2px;margin-right:2px;flex-shrink:0}' +
-  '.pbn__download:hover:not(:active){background:#1E5C44;transform:translateY(-1px)}' +
-  '.pbn__download:active{transform:scale(0.98)}' +
-  '.pbn__download:focus-visible{outline:3px solid rgba(226,168,74,0.55);outline-offset:3px}' +
+  /* compact-button overrides for the shared .pb-btn--sm in this navbar */
+  '.pbn .pb-btn--sm{height:36px;padding:0 16px;font-size:14px;gap:10px}' +
+  '.pbn .pb-apple-icon{flex-shrink:0}' +
   /* ── compact row (mobile < 640px) ── */
   '.pbn__compact{display:none;padding:0 16px 12px;align-items:center}' +
   '.pbn__search--full{max-width:none;flex:1}' +
@@ -117,8 +110,8 @@ const NAV_CSS =
   '.pbn__search{display:none}' +
   '.pbn__compact{display:flex}' +
   '.pbn__logo{width:106px}' +
-  '.pbn__download{height:34px;padding:0 11px;font-size:13px;gap:7px}' +
-  '.pbn__download .pb-apple-icon{width:11px;height:auto;margin-right:0}' +
+  '.pbn .pb-btn--sm{height:34px;padding:0 11px;font-size:13px;gap:7px}' +
+  '.pbn .pb-apple-icon{width:11px;height:auto;margin-right:0}' +
   '}' +
   '@media(min-width:480px) and (max-width:639px){' +
   '.pbn__row{height:60px;padding:0 16px;gap:12px;grid-template-columns:auto auto;justify-content:space-between}' +
@@ -129,11 +122,11 @@ const NAV_CSS =
   '@media(min-width:640px) and (max-width:899px){' +
   '.pbn__row{padding:0 20px;gap:14px}' +
   '.pbn__search{max-width:260px}' +
-  '.pbn__download{padding:0 14px}' +
+  '.pbn .pb-btn--sm{padding:0 14px}' +
   '}' +
   /* ── reduced motion ── */
   '@media(prefers-reduced-motion:reduce){' +
-  '.pbn__brand,.pbn__search-input,.pbn__download,.pbn__search-clear{transition:none!important}' +
+  '.pbn__brand,.pbn__search-input,.pbn__search-clear{transition:none!important}' +
   '}';
 
 // ─── SVG icons ────────────────────────────────────────────────────────────────
@@ -181,7 +174,6 @@ interface AppNavProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onHomePress: () => void;
-  onDownloadApp: () => void;
   isScrolled: boolean;
 }
 
@@ -190,7 +182,6 @@ export function AppNav({
   searchValue,
   onSearchChange,
   onHomePress,
-  onDownloadApp,
   isScrolled,
 }: AppNavProps) {
   const logoSrc = toWebImageSrc(polybuysLogo);
@@ -230,6 +221,7 @@ export function AppNav({
     // Outer shell: React Native View so it participates in the RN flex column
     // layout correctly (navbar above, page content below).
     <View style={[styles.shell, isScrolled && styles.shellScrolled]}>
+      <style>{DOWNLOAD_CTA_CSS}</style>
       <style>{NAV_CSS}</style>
       <div className="pbn">
         {/* Main row: logo | search | actions */}
@@ -259,18 +251,7 @@ export function AppNav({
 
           {/* RIGHT */}
           <div className="pbn__actions">
-            <a
-              className="pbn__download"
-              href="/landing#get-app"
-              aria-label={DOWNLOAD_APP_LABEL}
-              onClick={(e) => {
-                e.preventDefault();
-                onDownloadApp();
-              }}
-            >
-              <AppleIcon size={12} />
-              <span>{DOWNLOAD_APP_LABEL}</span>
-            </a>
+            <DownloadButton size="sm" variant="primary" label={DOWNLOAD_APP_LABEL} />
           </div>
         </div>
 
@@ -367,22 +348,12 @@ export function AppNavContainer() {
     router.replace('/home' as never);
   }, [router]);
 
-  const handleDownloadApp = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.location.assign('/landing#get-app');
-      return;
-    }
-
-    router.push('/landing' as never);
-  }, [router]);
-
   return (
     <AppNav
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
       onSearch={handleSearch}
       onHomePress={handleHomePress}
-      onDownloadApp={handleDownloadApp}
       isScrolled={isScrolled}
     />
   );
