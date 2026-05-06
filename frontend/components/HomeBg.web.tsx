@@ -68,6 +68,8 @@ const ghostCards = [
   },
 ] as const;
 
+const decorativeAccessibilityProps = { 'aria-hidden': true } as const;
+
 export function HomeBg() {
   const { width } = useWindowDimensions();
   const isCompact = width < 700;
@@ -79,6 +81,7 @@ export function HomeBg() {
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      {...decorativeAccessibilityProps}
       style={styles.root}
     >
       <View style={styles.base} />

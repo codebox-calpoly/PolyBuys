@@ -40,7 +40,7 @@ import { borderRadius, colors, spacing, typography } from '../../theme/tokens';
 const PAGE_SIZE = 20;
 const FOCUS_REFETCH_STALE_MS = 45_000;
 const HOMEPAGE_FONT_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700&display=swap';
+  'https://fonts.googleapis.com/css2?family=Fraunces:SOFT,opsz,wght@0..100,9..144,300..900&family=Inter:wght@400;500;600;700&display=swap';
 const landingTextFont =
   Platform.OS === 'web'
     ? { fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }

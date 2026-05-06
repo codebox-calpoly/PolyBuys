@@ -87,6 +87,7 @@ export function CategoryRail({
             onPress={onPricePress}
             onClear={hasPrice ? onClearPrice : undefined}
             accessibilityLabel={hasPrice ? `Price: ${priceLabel}` : 'Filter by price'}
+            clearAccessibilityLabel="Clear price filter"
           />
           <FilterControl
             label={`Sort: ${sortLabel}`}
@@ -120,11 +121,14 @@ function CategoryChip({
       ? ({
           backgroundColor: 'rgba(255,255,255,0.96)',
           borderColor: 'rgba(21,71,52,0.22)',
-          transform: 'translateY(-1px)',
+          transform: [{ translateY: -1 }],
           boxShadow: '0 3px 10px rgba(21,71,52,0.10)',
         } as never)
       : isWeb && hovered && isActive
-        ? ({ transform: 'translateY(-1px)', boxShadow: '0 4px 14px rgba(21,71,52,0.28)' } as never)
+        ? ({
+            transform: [{ translateY: -1 }],
+            boxShadow: '0 4px 14px rgba(21,71,52,0.28)',
+          } as never)
         : undefined;
 
   return (
@@ -161,6 +165,7 @@ function FilterControl({
   onPress,
   onClear,
   accessibilityLabel,
+  clearAccessibilityLabel,
 }: {
   label: string;
   iconName: keyof typeof Ionicons.glyphMap;
@@ -168,7 +173,10 @@ function FilterControl({
   onPress: () => void;
   onClear?: () => void;
   accessibilityLabel: string;
+  clearAccessibilityLabel?: string;
 }) {
+  const fallbackClearLabel = `Clear ${label.replace(/^Sort:\s*/i, '').toLowerCase()} filter`;
+
   return (
     <Pressable
       onPress={onPress}
@@ -200,7 +208,7 @@ function FilterControl({
           }}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Clear price filter"
+          accessibilityLabel={clearAccessibilityLabel ?? fallbackClearLabel}
           style={styles.clearButton}
         >
           <Ionicons name="close" size={12} color={colors.primary} />

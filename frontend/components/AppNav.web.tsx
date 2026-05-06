@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSearch } from '../contexts/SearchContext';
 import polybuysLogo from '../assets/images/PolyBuysLogo.png';
@@ -18,6 +18,11 @@ import { AppleIcon } from './landing/AppleIcon';
 import { toWebImageSrc } from './landing/assetSource';
 
 const DOWNLOAD_APP_LABEL = 'Download the app';
+
+function normalizeSearchParam(value: string | string[] | undefined): string {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return typeof rawValue === 'string' ? rawValue.trim() : '';
+}
 
 // ─── CSS for inner HTML elements ─────────────────────────────────────────────
 // Plain string constant — avoids react-native/no-raw-text ESLint crash.
@@ -280,15 +285,43 @@ export function AppNav({
 
 export function AppNavContainer() {
   const router = useRouter();
+  const { q } = useGlobalSearchParams<{ q?: string | string[] }>();
   const { searchQuery, setSearchQuery } = useSearch();
 
   const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number | null>(null);
   // Debounce timer ref — cancelled immediately when clearSearch fires
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasHydratedUrlSearchRef = useRef(false);
+  const hasSkippedInitialUrlSyncRef = useRef(false);
+  const hydratedUrlSearchRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (hasHydratedUrlSearchRef.current) return;
+
+    const initialSearch = normalizeSearchParam(q);
+    hydratedUrlSearchRef.current = initialSearch;
+    hasHydratedUrlSearchRef.current = true;
+
+    if (initialSearch !== searchQuery) {
+      setSearchQuery(initialSearch);
+    }
+  }, [q, searchQuery, setSearchQuery]);
 
   // Debounce: push search query to URL so home.tsx can read it
   useEffect(() => {
+    if (!hasHydratedUrlSearchRef.current) return;
+
+    if (!hasSkippedInitialUrlSyncRef.current) {
+      hasSkippedInitialUrlSyncRef.current = true;
+      return;
+    }
+
+    if (hydratedUrlSearchRef.current !== null && searchQuery === hydratedUrlSearchRef.current) {
+      hydratedUrlSearchRef.current = null;
+      return;
+    }
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const trimmed = searchQuery.trim();
@@ -335,7 +368,12 @@ export function AppNavContainer() {
   }, [router]);
 
   const handleDownloadApp = useCallback(() => {
-    router.push('/landing#get-app' as never);
+    if (typeof window !== 'undefined') {
+      window.location.assign('/landing#get-app');
+      return;
+    }
+
+    router.push('/landing' as never);
   }, [router]);
 
   return (

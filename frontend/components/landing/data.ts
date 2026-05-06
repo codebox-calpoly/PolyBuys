@@ -4,10 +4,15 @@ import { PRODUCT_IMAGES } from './productImages';
 
 export { APP_STORE_URL };
 
-type QrAsset = string | { uri?: string; default?: string };
+type QrAsset =
+  | string
+  | {
+      uri?: string;
+      width?: number;
+      height?: number;
+    };
 const qrAsset = qrDownloadPng as QrAsset;
-export const QR_SRC =
-  typeof qrAsset === 'string' ? qrAsset : (qrAsset.uri ?? qrAsset.default ?? '');
+export const QR_SRC = typeof qrAsset === 'string' ? qrAsset : (qrAsset.uri ?? '');
 
 export type ListingThumbIconId = 'textbook' | 'furniture';
 

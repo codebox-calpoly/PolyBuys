@@ -5,6 +5,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
+    "composite": true,
+    "rootDir": "..",
+    "tsBuildInfoFile": "../.cache/tsbuildinfo/backend.tsbuildinfo",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -17,6 +20,6 @@
     },
     "types": ["node"]
   },
-  "include": ["convex/**/*"],
-  "exclude": ["node_modules", "dist", "convex/__tests__"]
+  "include": ["convex/**/*", "../packages/shared/**/*.ts"],
+  "exclude": ["node_modules", "dist", "convex/**/*.test.ts", "../packages/shared/**/*.test.ts"]
 }

@@ -149,7 +149,7 @@ const webCardSweepBase: object = {
   left: '-58%',
   opacity: 0,
   // Angled sweep shape via skew
-  transform: 'skewX(-12deg)',
+  transform: [{ skewX: '-12deg' }],
   backgroundColor: 'rgba(255,255,255,0.14)',
   transition: 'left 700ms cubic-bezier(0.25,0.46,0.45,0.94), opacity 200ms ease',
 };
