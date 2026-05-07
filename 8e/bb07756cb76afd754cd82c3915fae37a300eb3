@@ -1,0 +1,19 @@
+frontend/app.json
+  s_17bb28c44ee48d::t_4fdbd21f4ef892 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "8ebb07756cb76afd754cd82c3915fae37a300eb3",
+  "prompts": {},
+  "sessions": {
+    "s_17bb28c44ee48d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7bad06bf-48ab-4f7c-9687-af49665a3002",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Evan Taylor <eltaylor1104@gmail.com>"
+    }
+  }
+}
