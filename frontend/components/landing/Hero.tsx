@@ -74,13 +74,13 @@ function SocialProof() {
 
 function HeroStage() {
   return (
-    <div className="pb-hero__stage" aria-hidden>
-      <div className="pb-orb pb-orb--a" />
-      <div className="pb-orb pb-orb--b" />
+    <aside className="pb-hero__stage" aria-label="Example PolyBuys listings">
+      <div className="pb-orb pb-orb--a" aria-hidden />
+      <div className="pb-orb pb-orb--b" aria-hidden />
       <div className="pb-stack">
         <ListingCard listing={HERO_LISTINGS[1]} variant="back" />
         <ListingCard listing={HERO_LISTINGS[0]} variant="front" />
       </div>
-    </div>
+    </aside>
   );
 }

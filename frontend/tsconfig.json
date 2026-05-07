@@ -2,6 +2,10 @@
   "extends": "../node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
+    "composite": true,
+    "noEmit": true,
+    "rootDir": "..",
+    "tsBuildInfoFile": "../.cache/tsbuildinfo/frontend.tsbuildinfo",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
@@ -15,6 +19,21 @@
       "convex/*": ["../backend/convex/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "**/__tests__/**"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "../backend/convex/**/*.ts",
+    "../backend/convex/**/*.d.ts",
+    "../packages/shared/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "../backend/convex/**/*.test.ts",
+    "../packages/shared/**/*.test.ts",
+    ".expo/types/router.d.ts"
+  ]
 }

@@ -1,5 +1,4 @@
 import type { SampleListing } from './data';
-import { ListingThumbIcon } from './icons';
 import { cx } from './cx';
 
 type CardVariant = 'back' | 'front';
@@ -14,9 +13,15 @@ export function ListingCard({ listing, variant, className }: ListingCardProps) {
   return (
     <article className={cx('pb-preview', `pb-preview--${variant}`, className)}>
       <div className="pb-preview__thumb" style={{ background: listing.gradient }}>
-        <span className="pb-preview__thumbIcon">
-          <ListingThumbIcon id={listing.thumbIcon} size={34} />
-        </span>
+        <img
+          src={listing.image.src}
+          alt={listing.image.alt}
+          className="pb-preview__image"
+          width={listing.image.width}
+          height={listing.image.height}
+          loading="eager"
+          decoding="async"
+        />
         {listing.badge ? <span className="pb-preview__badge">{listing.badge}</span> : null}
       </div>
       <div className="pb-preview__body">

@@ -21,7 +21,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "clean": "rm -rf node_modules frontend/node_modules backend/node_modules packages/shared/node_modules",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc -b",
     "prepare": "node -e \"if (process.env.CI !== '1' && process.env.VERCEL !== '1') { require('child_process').execSync('husky', {stdio: 'inherit'}) }\""
   },
   "devDependencies": {

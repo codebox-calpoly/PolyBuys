@@ -1,144 +1,18 @@
-export const GLOBAL_CSS = `
+/* Styles needed to render the landing <DownloadButton /> outside the landing page
+   (e.g. the in-app web navbar). Self-contained: includes the CSS variables it
+   depends on plus button, Apple-icon, and QR-modal rules. Concatenated into
+   GLOBAL_CSS below so the landing page picks up the same definitions. */
+export const DOWNLOAD_CTA_CSS = `
 :root {
   --pb-ink: #14130F;
-  --pb-ink-2: #4A4A48;
   --pb-ink-3: #7A7A74;
-  --pb-cream: #FAF6EC;
-  --pb-cream-2: #F3ECDA;
-  --pb-surface: #FFFFFF;
   --pb-green: #154734;
   --pb-green-2: #1E5C44;
-  --pb-green-3: #0E2E22;
-  --pb-gold: #E2A84A;
-  --pb-gold-2: #C78D2E;
-  --pb-coral: #FF6E5E;
   --pb-border: rgba(21, 71, 52, 0.10);
   --pb-border-strong: rgba(21, 71, 52, 0.18);
-  --pb-radius-sm: 10px;
-  --pb-radius-md: 16px;
-  --pb-radius-lg: 22px;
   --pb-radius-xl: 28px;
   --pb-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-
-html, body, #root, #__next { background: var(--pb-cream); }
-body {
-  margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  color: var(--pb-ink);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Full-viewport scroll container: Expo’s stack wraps screens in overflow:hidden + flex height.
-   Scrolling the document doesn’t reveal clipped content; this shell scrolls instead.
-   Used by the marketing landing page and legal pages (privacy / terms) on web. */
-.pb-web-scroll-shell {
-  position: fixed;
-  inset: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-* { box-sizing: border-box; }
-a { color: inherit; text-decoration: none; }
-img { max-width: 100%; display: block; }
-
-.pb-page {
-  position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background:
-    radial-gradient(1200px 600px at 85% -10%, rgba(226, 168, 74, 0.18), transparent 60%),
-    radial-gradient(900px 500px at -10% 20%, rgba(21, 71, 52, 0.10), transparent 60%),
-    var(--pb-cream);
-}
-
-/* ---------- NAV ---------- */
-.pb-nav {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: var(--pb-cream);
-  border-bottom: 1px solid var(--pb-border);
-  transition: border-color 200ms var(--pb-ease);
-}
-.pb-nav.is-scrolled {
-  border-bottom-color: var(--pb-border-strong);
-}
-.pb-nav__inner {
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 14px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-.pb-nav__links {
-  display: none;
-  align-items: center;
-  gap: 28px;
-}
-.pb-nav__link {
-  position: relative;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--pb-ink-2);
-  transition: color 150ms ease;
-}
-.pb-nav__link::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: -3px;
-  width: 100%;
-  height: 1px;
-  background: currentColor;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 180ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .pb-nav__link:hover { color: var(--pb-ink); }
-  .pb-nav__link:hover::after {
-    transform: scaleX(1);
-  }
-}
-.pb-nav__cta { display: flex; align-items: center; gap: 8px; }
-@media (min-width: 860px) { .pb-nav__links { display: flex; } }
-
-/* ---------- BRAND ---------- */
-.pb-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 600;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  color: var(--pb-green);
-}
-.pb-brand__mark {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--pb-green);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.pb-brand__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--pb-gold);
-  border: 2px solid rgba(226, 168, 74, 0.35);
-}
-.pb-brand--muted { color: var(--pb-ink-2); }
-.pb-brand--muted .pb-brand__mark { background: var(--pb-ink-2); }
 
 /* ---------- BUTTONS ---------- */
 .pb-btn {
@@ -222,6 +96,306 @@ img { max-width: 100%; display: block; }
 }
 .pb-btn:hover .pb-btn__arrow { transform: translateX(3px); }
 
+/* ---------- APPLE ICON ---------- */
+.pb-apple-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+/* ---------- DOWNLOAD QR MODAL ---------- */
+/* No opacity animation on this wrapper: animating parent opacity breaks/defers child
+   backdrop-filter in WebKit/Blink (dim + blur appears late). Card keeps pb-popIn only. */
+.pb-qrmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pb-qrmodal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 30, 25, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.pb-qrmodal__card {
+  position: relative;
+  background: #fff;
+  border-radius: var(--pb-radius-xl);
+  padding: 28px 32px 22px;
+  border: 1px solid var(--pb-border);
+  width: min(320px, 100%);
+  flex-shrink: 0;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: pb-popIn 220ms var(--pb-ease);
+}
+.pb-qrmodal__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pb-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: -0.01em;
+}
+.pb-qrmodal__qr {
+  width: 232px;
+  height: 232px;
+  border-radius: 10px;
+  background: #fff;
+}
+.pb-qrmodal__caption {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pb-ink-3);
+}
+.pb-qrmodal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--pb-ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms var(--pb-ease), color 150ms var(--pb-ease);
+}
+.pb-qrmodal__close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--pb-ink);
+}
+.pb-qrmodal__close:focus-visible {
+  outline: 3px solid rgba(226, 168, 74, 0.55);
+  outline-offset: 2px;
+}
+@keyframes pb-popIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-qrmodal__card { animation: none !important; }
+}
+`;
+
+export const GLOBAL_CSS =
+  `
+:root {
+  --pb-ink: #14130F;
+  --pb-ink-2: #4A4A48;
+  --pb-ink-3: #7A7A74;
+  --pb-cream: #FAF6EC;
+  --pb-cream-2: #F3ECDA;
+  --pb-surface: #FFFFFF;
+  --pb-green: #154734;
+  --pb-green-2: #1E5C44;
+  --pb-green-3: #0E2E22;
+  --pb-gold: #E2A84A;
+  --pb-gold-2: #C78D2E;
+  --pb-coral: #FF6E5E;
+  --pb-border: rgba(21, 71, 52, 0.10);
+  --pb-border-strong: rgba(21, 71, 52, 0.18);
+  --pb-radius-sm: 10px;
+  --pb-radius-md: 16px;
+  --pb-radius-lg: 22px;
+  --pb-radius-xl: 28px;
+  --pb-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+html, body, #root, #__next { background: var(--pb-cream); }
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color: var(--pb-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Full-viewport scroll container: Expo’s stack wraps screens in overflow:hidden + flex height.
+   Scrolling the document doesn’t reveal clipped content; this shell scrolls instead.
+   Used by the marketing landing page and legal pages (privacy / terms) on web. */
+.pb-web-scroll-shell {
+  position: fixed;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+* { box-sizing: border-box; }
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+
+.pb-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 248, 232, 0.36) 110px, rgba(250, 246, 236, 0) 360px),
+    radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.62) 0%, rgba(255, 248, 232, 0.34) 34%, transparent 68%),
+    var(--pb-cream);
+}
+.pb-page::before,
+.pb-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.pb-page::before {
+  background-image:
+    linear-gradient(rgba(21, 71, 52, 0.044) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 71, 52, 0.044) 1px, transparent 1px),
+    radial-gradient(circle at 24px 24px, rgba(226, 168, 74, 0.11) 0, rgba(226, 168, 74, 0.11) 1.6px, transparent 2px);
+  background-position: 50% 0, 50% 0, 50% 0;
+  background-size: 72px 72px, 72px 72px, 144px 144px;
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.68) 46%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.68) 46%, transparent 100%);
+}
+.pb-page::after {
+  background-image:
+    linear-gradient(32deg, transparent 0 47%, rgba(21, 71, 52, 0.055) 47.25% 47.55%, transparent 47.8% 100%),
+    linear-gradient(-28deg, transparent 0 55%, rgba(226, 168, 74, 0.065) 55.2% 55.55%, transparent 55.8% 100%),
+    linear-gradient(108deg, transparent 0 38%, rgba(21, 71, 52, 0.038) 38.2% 38.6%, transparent 38.9% 100%);
+  background-position: -80px 40px, 120px 10px, 40px 140px;
+  background-size: 420px 260px, 360px 220px, 520px 320px;
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.46) 50%, transparent 96%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.46) 50%, transparent 96%);
+}
+.pb-page > * {
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 700px) {
+  .pb-page::before {
+    background-size: 52px 52px, 52px 52px, 104px 104px;
+    opacity: 0.72;
+  }
+  .pb-page::after {
+    background-size: 300px 190px, 280px 170px, 360px 230px;
+    opacity: 0.52;
+  }
+}
+
+/* ---------- NAV ---------- */
+.pb-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(250, 246, 236, 0.78);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62) inset,
+    0 10px 30px rgba(21, 71, 52, 0.045);
+  transition: border-color 200ms var(--pb-ease), background 200ms var(--pb-ease),
+    box-shadow 200ms var(--pb-ease);
+}
+.pb-nav.is-scrolled {
+  background: rgba(250, 246, 236, 0.90);
+  border-bottom-color: rgba(21, 71, 52, 0.12);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.68) inset,
+    0 14px 38px rgba(21, 71, 52, 0.075);
+}
+.pb-nav__inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.pb-nav__links {
+  display: none;
+  align-items: center;
+  gap: 28px;
+}
+.pb-nav__link {
+  position: relative;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pb-ink-2);
+  transition: color 150ms ease;
+}
+.pb-nav__link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 180ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pb-nav__link:hover { color: var(--pb-ink); }
+  .pb-nav__link:hover::after {
+    transform: scaleX(1);
+  }
+}
+.pb-nav__cta { display: flex; align-items: center; gap: 8px; }
+@media (min-width: 860px) { .pb-nav__links { display: flex; } }
+
+/* ---------- BRAND ---------- */
+.pb-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: clamp(158px, 18vw, 196px);
+}
+.pb-brand__logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 716 / 158;
+  object-fit: contain;
+}
+.pb-brand--muted { opacity: 0.74; }
+.pb-footer .pb-brand { width: 172px; }
+.pb-doc__nav .pb-brand { width: clamp(158px, 30vw, 196px); }
+@media (max-width: 520px) {
+  .pb-nav__inner {
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .pb-nav .pb-brand { width: 124px; }
+  .pb-nav .pb-btn--sm {
+    padding: 0 10px;
+    gap: 7px;
+    font-size: 13px;
+  }
+  .pb-nav .pb-apple-icon { width: 11px; height: auto; margin-right: 0; }
+}
+
+/* Button + Apple-icon + QR-modal styles live in DOWNLOAD_CTA_CSS (above) and
+   are concatenated to GLOBAL_CSS at the bottom of this file. */
+
 /* ---------- EYEBROW ---------- */
 .pb-eyebrow {
   display: inline-flex;
@@ -257,18 +431,20 @@ img { max-width: 100%; display: block; }
 .pb-hero__copy { display: flex; flex-direction: column; gap: 22px; max-width: 620px; }
 .pb-hero__title {
   font-family: 'Cormorant', Georgia, 'Times New Roman', serif;
-  font-weight: 600;
+  font-weight: 700;
   font-size: clamp(44px, 7vw, 88px);
   line-height: 0.98;
-  letter-spacing: -0.028em;
+  letter-spacing: -0.018em;
   margin: 0;
   color: var(--pb-ink);
+  text-wrap: balance;
 }
 .pb-hero__accent {
   position: relative;
   display: inline-block;
   white-space: nowrap;
   font-style: italic;
+  font-weight: 700;
   color: var(--pb-green);
 }
 .pb-hero__underline {
@@ -311,8 +487,41 @@ img { max-width: 100%; display: block; }
   margin-left: -8px;
 }
 .pb-proof__avatar:first-child { margin-left: 0; }
-.pb-proof__text { margin: 0; font-size: 14px; color: var(--pb-ink-2); }
+.pb-proof__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  color: var(--pb-ink-2);
+}
 .pb-proof__text strong { color: var(--pb-ink); font-weight: 600; }
+@media (max-width: 700px) {
+  .pb-hero {
+    padding-top: 32px;
+  }
+  .pb-hero__grid {
+    gap: 28px;
+    padding: 28px 0 28px;
+  }
+  .pb-hero__title {
+    font-size: clamp(38px, 11vw, 52px);
+    line-height: 1.04;
+    text-wrap: normal;
+  }
+  .pb-hero__accent {
+    white-space: normal;
+  }
+  .pb-hero__ctas {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pb-hero__ctas .pb-btn {
+    width: min(100%, 280px);
+  }
+  .pb-proof {
+    align-items: flex-start;
+  }
+}
 
 /* ---------- HERO STAGE (preview cards) ---------- */
 .pb-hero__stage {
@@ -356,8 +565,43 @@ img { max-width: 100%; display: block; }
   background: var(--pb-surface);
   overflow: hidden;
   border: 1px solid var(--pb-border);
-  transition: transform 500ms var(--pb-ease), border-color 260ms var(--pb-ease);
+  box-shadow: 0 22px 52px rgba(21, 71, 52, 0.13),
+    0 8px 20px rgba(21, 71, 52, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  transition: transform 500ms var(--pb-ease), border-color 260ms var(--pb-ease),
+    box-shadow 260ms var(--pb-ease);
   will-change: transform;
+}
+.pb-preview::before,
+.pb-why__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.32), transparent);
+}
+.pb-preview::after,
+.pb-why__card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -58%;
+  width: 48%;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+  transition: left 680ms var(--pb-ease), opacity 260ms ease;
+}
+.pb-preview:hover::after,
+.pb-why__card:hover::after {
+  left: 118%;
+  opacity: 1;
 }
 .pb-preview--back {
   top: 30px;
@@ -385,26 +629,31 @@ img { max-width: 100%; display: block; }
 .pb-preview:hover {
   transform: rotate(0) translateY(-6px);
   border-color: var(--pb-border-strong);
+  box-shadow: 0 30px 72px rgba(21, 71, 52, 0.18),
+    0 12px 28px rgba(21, 71, 52, 0.11),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
 }
-/* Back = gold hero card, front = green hero card (see HeroStage stack order). */
-.pb-preview--back .pb-preview__thumbIcon { color: rgba(21, 71, 52, 0.92); }
-.pb-preview--front .pb-preview__thumbIcon { color: rgba(255, 248, 232, 0.95); }
 .pb-preview__thumb {
   position: relative;
   aspect-ratio: 16 / 10;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  background-color: var(--pb-cream-2);
 }
-.pb-preview__thumbIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.pb-preview__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transform: scale(1.01);
 }
 .pb-preview__badge {
   position: absolute;
   top: 10px;
   right: 10px;
+  z-index: 1;
   background: #FFF8E8;
   color: var(--pb-green);
   font-size: 11px;
@@ -445,11 +694,6 @@ img { max-width: 100%; display: block; }
   gap: 40px;
   width: max-content;
   animation: pb-marquee 50s linear infinite;
-}
-@media (hover: hover) and (pointer: fine) {
-  .pb-ticker:hover .pb-ticker__track {
-    animation-play-state: paused;
-  }
 }
 .pb-ticker__item {
   display: inline-flex;
@@ -559,6 +803,7 @@ img { max-width: 100%; display: block; }
   to { opacity: 1; transform: translateY(0); }
 }
 .pb-why__card {
+  position: relative;
   background: var(--pb-surface);
   border: 1px solid var(--pb-border);
   border-radius: var(--pb-radius-lg);
@@ -566,11 +811,19 @@ img { max-width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: transform 260ms var(--pb-ease), border-color 260ms var(--pb-ease);
+  overflow: hidden;
+  box-shadow: 0 16px 38px rgba(21, 71, 52, 0.08),
+    0 4px 14px rgba(21, 71, 52, 0.055),
+    0 1px 0 rgba(255, 255, 255, 0.80) inset;
+  transition: transform 260ms var(--pb-ease), border-color 260ms var(--pb-ease),
+    box-shadow 260ms var(--pb-ease);
 }
 .pb-why.pb-reveal.pb-reveal--visible .pb-why__card:hover {
   transform: translateY(-2px);
   border-color: var(--pb-border-strong);
+  box-shadow: 0 22px 52px rgba(21, 71, 52, 0.12),
+    0 8px 20px rgba(21, 71, 52, 0.075),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
 }
 .pb-why__icon {
   width: 48px;
@@ -809,103 +1062,8 @@ img { max-width: 100%; display: block; }
   }
 }
 
-/* ---------- APPLE ICON ---------- */
-.pb-apple-icon {
-  display: inline-block;
-  vertical-align: -2px;
-  margin-right: 2px;
-}
-
-/* ---------- DOWNLOAD QR MODAL ---------- */
-/* No opacity animation on this wrapper: animating parent opacity breaks/defers child
-   backdrop-filter in WebKit/Blink (dim + blur appears late). Card keeps pb-popIn only. */
-.pb-qrmodal {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  min-height: 100vh;
-  min-height: 100dvh;
-  box-sizing: border-box;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.pb-qrmodal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(20, 30, 25, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.pb-qrmodal__card {
-  position: relative;
-  background: #fff;
-  border-radius: var(--pb-radius-xl);
-  padding: 28px 32px 22px;
-  border: 1px solid var(--pb-border);
-  width: min(320px, 100%);
-  flex-shrink: 0;
-  margin: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  animation: pb-popIn 220ms var(--pb-ease);
-}
-.pb-qrmodal__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--pb-ink);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  letter-spacing: -0.01em;
-}
-.pb-qrmodal__qr {
-  width: 232px;
-  height: 232px;
-  border-radius: 10px;
-  background: #fff;
-}
-.pb-qrmodal__caption {
-  margin: 0;
-  font-size: 13px;
-  color: var(--pb-ink-3);
-}
-.pb-qrmodal__close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  font-size: 14px;
-  color: var(--pb-ink-3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms var(--pb-ease), color 150ms var(--pb-ease);
-}
-.pb-qrmodal__close:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--pb-ink);
-}
-.pb-qrmodal__close:focus-visible {
-  outline: 3px solid rgba(226, 168, 74, 0.55);
-  outline-offset: 2px;
-}
-@keyframes pb-popIn {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: scale(1); }
-}
+/* Apple-icon + QR-modal styles live in DOWNLOAD_CTA_CSS (top of file) and are
+   appended to GLOBAL_CSS at the bottom. */
 
 /* ---------- MOTION PREFS ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -913,7 +1071,6 @@ img { max-width: 100%; display: block; }
   .pb-preview--back { transform: rotate(-6deg); }
   .pb-preview--front { transform: rotate(4deg); }
   .pb-hero__underline { stroke-dashoffset: 0; animation: none; }
-  .pb-qrmodal__card { animation: none !important; }
   .pb-why .pb-section__head,
   .pb-why .pb-why__card,
   .pb-getapp .pb-getapp__panel {
@@ -921,7 +1078,9 @@ img { max-width: 100%; display: block; }
     transform: none !important;
     animation: none !important;
   }
+  .pb-preview::after,
+  .pb-why__card::after { display: none; }
   .pb-nav__link::after { display: none; }
   * { transition: none !important; }
 }
-`;
+` + DOWNLOAD_CTA_CSS;
