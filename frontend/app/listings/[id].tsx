@@ -62,6 +62,27 @@ import { APP_STORE_URL } from '../../constants/app';
 import { REPORT_SUBMITTED_MESSAGE } from '../../constants/feedbackMessages';
 
 const DEFAULT_APP_ORIGIN = 'https://www.polybuys.com';
+const DETAIL_FONT_HREF =
+  'https://fonts.googleapis.com/css2?family=Fraunces:SOFT,opsz,wght@0..100,9..144,300..900&family=Inter:wght@400;500;600;700;800&display=swap';
+const EMPTY_IMAGE_IDS: string[] = [];
+const detailTextFont =
+  Platform.OS === 'web'
+    ? { fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }
+    : undefined;
+const detailDisplayFont =
+  Platform.OS === 'web' ? { fontFamily: 'Fraunces, Georgia, serif' } : undefined;
+
+function isRemoteImageUrl(value: string) {
+  return value.startsWith('http://') || value.startsWith('https://');
+}
+
+function formatLabel(value: string) {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 function normalizeAppOrigin(value: unknown) {
   if (typeof value !== 'string') {
@@ -126,13 +147,25 @@ export default function ListingDetailScreen() {
   const [messageBody, setMessageBody] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messageComposerTranslateY = useSharedValue(0);
-  const { mappedUrls } = useResolvedImageUrls(listing?.images ?? []);
+  const [failedImageUrls, setFailedImageUrls] = useState<Record<string, true>>({});
+  const listingImageIds = listing?.images ?? EMPTY_IMAGE_IDS;
+  const { mappedUrls, resolvedUrls } = useResolvedImageUrls(listingImageIds);
   const { width: screenWidth } = useWindowDimensions();
-  const contentMaxWidth = 980;
-  const contentHorizontalPadding = spacing.lg * 2;
-  const cardHorizontalPadding = spacing.xl * 2;
-  const imageWidth =
-    Math.min(screenWidth, contentMaxWidth) - contentHorizontalPadding - cardHorizontalPadding;
+  const contentMaxWidth = 1120;
+  const isWideLayout = screenWidth >= 900;
+  const contentHorizontalPadding =
+    screenWidth >= 900 ? spacing.xxl : screenWidth >= 520 ? spacing.lg : spacing.md;
+  const layoutGap = isWideLayout ? spacing.xl : spacing.lg;
+  const shellWidth = Math.max(
+    0,
+    Math.min(screenWidth, contentMaxWidth) - contentHorizontalPadding * 2
+  );
+  const imageWidth = isWideLayout
+    ? Math.min(540, Math.max(360, Math.floor((shellWidth - layoutGap) * 0.52)))
+    : shellWidth;
+  const imageHeight = isWideLayout
+    ? Math.round(imageWidth * 0.78)
+    : Math.min(360, Math.max(248, Math.round(imageWidth * 0.72)));
   const sellerProfile = useQuery(
     api.profiles.getProfileByUserId,
     listing?.sellerId ? { userId: listing.sellerId } : 'skip'
@@ -141,9 +174,10 @@ export default function ListingDetailScreen() {
     sellerProfile?.picture ? [sellerProfile.picture] : []
   );
   const sellerAvatarUrl = sellerAvatarUrls[0] ?? null;
-  const hasMultipleImages = mappedUrls.length > 1;
+  const displayImageUrls = mappedUrls.map((url) => (url && !failedImageUrls[url] ? url : null));
+  const hasMultipleImages = displayImageUrls.length > 1;
   const hasPreviousImage = imageIndex > 0;
-  const hasNextImage = imageIndex < mappedUrls.length - 1;
+  const hasNextImage = imageIndex < displayImageUrls.length - 1;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const prevDisplayedSavedRef = useRef<boolean | null>(null);
   const displayedSaved = savedOptimistic ?? isSaved ?? false;
@@ -187,18 +221,29 @@ export default function ListingDetailScreen() {
 
   useEffect(() => {
     setImageIndex((currentIndex) => {
-      if (mappedUrls.length === 0) {
+      if (displayImageUrls.length === 0) {
         return 0;
       }
-      return Math.min(currentIndex, mappedUrls.length - 1);
+      return Math.min(currentIndex, displayImageUrls.length - 1);
     });
-  }, [mappedUrls.length]);
+  }, [displayImageUrls.length]);
 
   useEffect(() => {
     prevDisplayedSavedRef.current = null;
     setSavedOptimistic(null);
+    setFailedImageUrls({});
     bookmarkScale.setValue(1);
   }, [bookmarkScale, listingId]);
+
+  const onDetailImageError = useCallback((imageUrl: string) => {
+    setFailedImageUrls((current) => {
+      if (current[imageUrl]) {
+        return current;
+      }
+
+      return { ...current, [imageUrl]: true };
+    });
+  }, []);
 
   useEffect(() => {
     if (prevDisplayedSavedRef.current === null) {
@@ -381,7 +426,7 @@ export default function ListingDetailScreen() {
 
   const goToNextImage = () => {
     if (!hasNextImage) return;
-    setImageIndex((currentIndex) => Math.min(currentIndex + 1, mappedUrls.length - 1));
+    setImageIndex((currentIndex) => Math.min(currentIndex + 1, displayImageUrls.length - 1));
   };
 
   useEffect(() => {
@@ -419,13 +464,88 @@ export default function ListingDetailScreen() {
     return <ListingUnavailable />;
   }
 
+  const isListingImagePending = (index: number) => {
+    const imageId = listingImageIds[index];
+    return Boolean(imageId && !isRemoteImageUrl(imageId) && resolvedUrls[imageId] === undefined);
+  };
+
+  const getImageFallbackCopy = (index: number) => {
+    if (isListingImagePending(index)) {
+      return {
+        title: 'Loading photo...',
+        body: 'Resolving the uploaded image.',
+      };
+    }
+
+    return {
+      title: 'Photo unavailable',
+      body: 'This listing image could not be displayed.',
+    };
+  };
+
+  const renderImageFallback = (title: string, body: string) => (
+    <View style={styles.placeholderImage}>
+      <View style={styles.placeholderIcon}>
+        <Feather name="image" size={24} color={colors.primary} />
+      </View>
+      <Text style={[styles.placeholderText, detailTextFont]}>{title}</Text>
+      <Text style={[styles.placeholderSubtext, detailTextFont]}>{body}</Text>
+    </View>
+  );
+
+  const renderImageFrame = (imageUrl: string | null, frameIndex: number) => {
+    const fallbackCopy = getImageFallbackCopy(frameIndex);
+
+    return (
+      <View style={[styles.heroImageWrap, { width: imageWidth, height: imageHeight }]}>
+        {imageUrl ? (
+          <Pressable
+            style={({ pressed }) => [styles.heroImagePressable, pressed && styles.imagePressed]}
+            onPress={() => {
+              setImageIndex(frameIndex);
+              setLightboxOpen(true);
+            }}
+            accessibilityLabel="View full image"
+            accessibilityRole="button"
+          >
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.heroImage}
+              resizeMode="cover"
+              onError={() => onDetailImageError(imageUrl)}
+            />
+          </Pressable>
+        ) : (
+          renderImageFallback(fallbackCopy.title, fallbackCopy.body)
+        )}
+      </View>
+    );
+  };
+
+  const postedDateLabel = formatRelativeDate(listing.postedOn ?? listing.createdAt);
+  const categoryLabel = formatLabel(listing.category);
+  const conditionLabel = formatLabel(listing.condition);
+  const lightboxImages = displayImageUrls.filter((url): url is string => url !== null);
+  const lightboxInitialIndex = Math.max(
+    0,
+    displayImageUrls.slice(0, imageIndex + 1).filter((url): url is string => url !== null).length -
+      1
+  );
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingHorizontal: contentHorizontalPadding }]}
       contentInsetAdjustmentBehavior="automatic"
     >
       <Head>
+        {Platform.OS === 'web' && (
+          <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+            <link rel="stylesheet" href={DETAIL_FONT_HREF} />
+          </>
+        )}
         {/* eslint-disable-next-line react-native/no-raw-text */}
         <title>{`${listing.title} - PolyBuys`}</title>
         <meta property="og:title" content={`${listing.title} - PolyBuys`} />
@@ -454,281 +574,236 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      <Animated.View style={[styles.card, entranceStyle]}>
+      <Pressable
+        style={({ pressed }) => [styles.backLink, pressed && styles.buttonPressed]}
+        onPress={() => router.push('/home')}
+        accessibilityRole="button"
+        accessibilityLabel="Back to listings"
+      >
+        <Feather name="arrow-left" size={16} color={colors.primary} />
+        <Text style={[styles.backLinkText, detailTextFont]}>Back to listings</Text>
+      </Pressable>
+
+      <Animated.View style={[styles.detailShell, entranceStyle]}>
         {isHiddenOwnerView && <HiddenBanner />}
 
-        {listing.images.length > 0 ? (
-          <View style={styles.imageSection}>
-            {hasMultipleImages && Platform.OS === 'web' ? (
-              <>
-                <View style={[styles.heroImageWrap, { width: imageWidth }]}>
-                  {mappedUrls[imageIndex] ? (
-                    <Pressable
-                      onPress={() => setLightboxOpen(true)}
-                      accessibilityLabel="View full image"
-                    >
-                      <Image
-                        source={{ uri: mappedUrls[imageIndex] }}
-                        style={styles.heroImage}
-                        resizeMode="cover"
-                      />
-                    </Pressable>
-                  ) : (
-                    <View style={styles.placeholderImage}>
-                      <Text style={styles.placeholderText}>Loading image...</Text>
-                    </View>
-                  )}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.carouselArrow,
-                      styles.carouselArrowLeft,
-                      !hasPreviousImage && styles.carouselArrowDisabled,
-                      pressed && hasPreviousImage && styles.buttonPressed,
-                    ]}
-                    onPress={goToPreviousImage}
-                    disabled={!hasPreviousImage}
-                    accessibilityRole="button"
-                    accessibilityLabel="Previous image"
-                  >
-                    <Text style={styles.carouselArrowText}>‹</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.carouselArrow,
-                      styles.carouselArrowRight,
-                      !hasNextImage && styles.carouselArrowDisabled,
-                      pressed && hasNextImage && styles.buttonPressed,
-                    ]}
-                    onPress={goToNextImage}
-                    disabled={!hasNextImage}
-                    accessibilityRole="button"
-                    accessibilityLabel="Next image"
-                  >
-                    <Text style={styles.carouselArrowText}>›</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.imageIndicator}>
-                  <Text style={styles.imageIndicatorText}>
-                    {imageIndex + 1} of {mappedUrls.length}
-                  </Text>
-                  <View style={styles.dotsRow}>
-                    {mappedUrls.map((_, i) => (
-                      <Pressable
-                        key={i}
-                        onPress={() => setImageIndex(i)}
-                        style={[
-                          styles.dot,
-                          i === imageIndex ? styles.dotActive : styles.dotInactive,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`View image ${i + 1}`}
-                      />
-                    ))}
-                  </View>
-                </View>
-              </>
-            ) : hasMultipleImages ? (
-              <>
-                <FlatList
-                  data={mappedUrls}
-                  keyExtractor={(_, i) => String(i)}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                    const idx = Math.round(
-                      e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width
-                    );
-                    setImageIndex(idx);
-                  }}
-                  renderItem={({ item, index: itemIndex }) => (
-                    <View style={[styles.heroImageWrap, { width: imageWidth }]}>
-                      {item ? (
-                        <Pressable
-                          onPress={() => {
-                            setImageIndex(itemIndex);
-                            setLightboxOpen(true);
-                          }}
-                          accessibilityLabel="View full image"
-                        >
-                          <Image
-                            source={{ uri: item }}
-                            style={styles.heroImage}
-                            resizeMode="cover"
-                          />
-                        </Pressable>
-                      ) : (
-                        <View style={styles.placeholderImage}>
-                          <Text style={styles.placeholderText}>Loading image...</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                />
-                <View style={styles.imageIndicator}>
-                  <Text style={styles.imageIndicatorText}>
-                    {imageIndex + 1} of {mappedUrls.length}
-                  </Text>
-                  <View style={styles.dotsRow}>
-                    {mappedUrls.map((_, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.dot,
-                          i === imageIndex ? styles.dotActive : styles.dotInactive,
-                        ]}
-                      />
-                    ))}
-                  </View>
-                </View>
-              </>
-            ) : mappedUrls[0] ? (
-              <View style={[styles.heroImageWrap, { width: imageWidth }]}>
-                <Pressable
-                  onPress={() => setLightboxOpen(true)}
-                  accessibilityLabel="View full image"
-                >
-                  <Image
-                    source={{ uri: mappedUrls[0] }}
-                    style={styles.heroImage}
-                    resizeMode="cover"
+        <View style={[styles.detailLayout, isWideLayout && styles.detailLayoutWide]}>
+          <View style={[styles.imagePanel, isWideLayout && { width: imageWidth }]}>
+            {listingImageIds.length > 0 ? (
+              <View style={styles.imageSection}>
+                {hasMultipleImages && Platform.OS !== 'web' ? (
+                  <FlatList
+                    data={displayImageUrls}
+                    keyExtractor={(_, i) => String(i)}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                      const idx = Math.round(
+                        e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width
+                      );
+                      setImageIndex(idx);
+                    }}
+                    renderItem={({ item, index: itemIndex }) => renderImageFrame(item, itemIndex)}
                   />
-                </Pressable>
+                ) : (
+                  renderImageFrame(displayImageUrls[imageIndex] ?? null, imageIndex)
+                )}
+
+                {hasMultipleImages && (
+                  <View style={styles.imageIndicator}>
+                    <Text style={[styles.imageIndicatorText, detailTextFont]}>
+                      {imageIndex + 1} of {displayImageUrls.length}
+                    </Text>
+                    <View style={styles.dotsRow}>
+                      {displayImageUrls.map((_, i) => (
+                        <Pressable
+                          key={i}
+                          onPress={() => setImageIndex(i)}
+                          style={[
+                            styles.dot,
+                            i === imageIndex ? styles.dotActive : styles.dotInactive,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View image ${i + 1}`}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {hasMultipleImages && Platform.OS === 'web' ? (
+                  <>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.carouselArrow,
+                        styles.carouselArrowLeft,
+                        !hasPreviousImage && styles.carouselArrowDisabled,
+                        pressed && hasPreviousImage && styles.buttonPressed,
+                      ]}
+                      onPress={goToPreviousImage}
+                      disabled={!hasPreviousImage}
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous image"
+                    >
+                      <Feather name="chevron-left" size={22} color={colors.textDark} />
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.carouselArrow,
+                        styles.carouselArrowRight,
+                        !hasNextImage && styles.carouselArrowDisabled,
+                        pressed && hasNextImage && styles.buttonPressed,
+                      ]}
+                      onPress={goToNextImage}
+                      disabled={!hasNextImage}
+                      accessibilityRole="button"
+                      accessibilityLabel="Next image"
+                    >
+                      <Feather name="chevron-right" size={22} color={colors.textDark} />
+                    </Pressable>
+                  </>
+                ) : null}
               </View>
             ) : (
-              <View style={[styles.heroImageWrap, { width: imageWidth }]}>
-                <View style={styles.placeholderImage}>
-                  <Text style={styles.placeholderText}>Loading image...</Text>
-                </View>
+              <View style={[styles.heroImageWrap, { width: imageWidth, height: imageHeight }]}>
+                {renderImageFallback('No photo added', 'This listing does not have an image yet.')}
               </View>
             )}
           </View>
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Text style={styles.placeholderText}>No image provided</Text>
-          </View>
-        )}
 
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{listing.title}</Text>
-          <Text style={styles.price}>${formatPrice(listing.price)}</Text>
-        </View>
-
-        {!isOwner && (
-          <View style={styles.actionRow}>
-            <Pressable
-              style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
-              onPress={() => void onMessageSellerPress()}
-            >
-              <Text style={styles.messageButtonText}>Message Seller</Text>
-            </Pressable>
-            <GlassIconButton
-              containerStyle={styles.iconButton}
-              onPress={() => void onSavePress()}
-              accessibilityLabel={displayedSaved ? 'Unsave listing' : 'Save listing'}
-              pressedScale={0.94}
-            >
-              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-                <Ionicons
-                  name={displayedSaved ? 'bookmark' : 'bookmark-outline'}
-                  size={20}
-                  color={displayedSaved ? colors.category : colors.textDark}
-                />
-              </Animated.View>
-            </GlassIconButton>
-            <GlassIconButton
-              containerStyle={styles.iconButton}
-              onPress={() => void shareListing()}
-              accessibilityLabel="Share listing"
-              pressedScale={0.94}
-            >
-              <Feather name="share" size={18} color={colors.textDark} />
-            </GlassIconButton>
-          </View>
-        )}
-
-        <View style={styles.chipsRow}>
-          <Chip
-            variant="category"
-            label={listing.category.charAt(0).toUpperCase() + listing.category.slice(1)}
-          />
-          <Chip
-            variant="default"
-            label={listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)}
-          />
-        </View>
-
-        <Text style={styles.postedDate}>
-          Posted {formatRelativeDate(listing.postedOn ?? listing.createdAt)}
-        </Text>
-
-        <Text style={styles.descriptionLabel}>Description</Text>
-        <Text style={styles.description}>{listing.description}</Text>
-
-        {sellerProfile && (
-          <Pressable
-            style={styles.sellerBlock}
-            onPress={() => router.push(`/profile/${encodeURIComponent(listing.sellerId)}` as never)}
-            accessibilityLabel={`View ${sellerProfile.name}'s profile`}
-            accessibilityRole="button"
-          >
-            <ProfileAvatar
-              uri={sellerAvatarUrl}
-              name={sellerProfile.name}
-              size={44}
-              style={styles.sellerAvatar}
-              textStyle={styles.sellerAvatarText}
-            />
-            <View style={styles.sellerInfo}>
-              <Text style={styles.sellerName}>{sellerProfile.name}</Text>
-              <Text style={styles.sellerMeta}>
-                {formatMajorLabel(sellerProfile.major)} · Year {sellerProfile.year}
+          <View style={styles.detailsPanel}>
+            <View style={styles.headerRow}>
+              <Text style={[styles.eyebrow, detailTextFont]}>Campus marketplace</Text>
+              <Text style={[styles.title, detailDisplayFont]} selectable>
+                {listing.title}
+              </Text>
+              <Text style={[styles.price, detailTextFont]} selectable>
+                ${formatPrice(listing.price)}
               </Text>
             </View>
-          </Pressable>
-        )}
 
-        {isOwner && !isHidden && listing.status !== 'sold' && (
-          <View style={styles.buttonContainer}>
-            {listing.status === 'active' && (
+            {!isOwner && (
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.messageButton, pressed && styles.buttonPressed]}
+                  onPress={() => void onMessageSellerPress()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Message seller"
+                >
+                  <Feather name="message-circle" size={18} color={colors.white} />
+                  <Text style={[styles.messageButtonText, detailTextFont]}>Message seller</Text>
+                </Pressable>
+                <GlassIconButton
+                  containerStyle={styles.iconButton}
+                  onPress={() => void onSavePress()}
+                  accessibilityLabel={displayedSaved ? 'Unsave listing' : 'Save listing'}
+                  pressedScale={0.94}
+                >
+                  <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                    <Ionicons
+                      name={displayedSaved ? 'bookmark' : 'bookmark-outline'}
+                      size={20}
+                      color={displayedSaved ? colors.category : colors.textDark}
+                    />
+                  </Animated.View>
+                </GlassIconButton>
+                <GlassIconButton
+                  containerStyle={styles.iconButton}
+                  onPress={() => void shareListing()}
+                  accessibilityLabel="Share listing"
+                  pressedScale={0.94}
+                >
+                  <Feather name="share" size={18} color={colors.textDark} />
+                </GlassIconButton>
+              </View>
+            )}
+
+            <View style={styles.chipsRow}>
+              <Chip variant="category" label={categoryLabel} />
+              <Chip variant="default" label={conditionLabel} />
+            </View>
+
+            <Text style={[styles.postedDate, detailTextFont]} selectable>
+              Posted {postedDateLabel}
+            </Text>
+
+            <Text style={[styles.descriptionLabel, detailTextFont]}>Description</Text>
+            <Text style={[styles.description, detailTextFont]} selectable>
+              {listing.description}
+            </Text>
+
+            {sellerProfile && (
               <Pressable
-                style={({ pressed }) => [
-                  styles.markSoldButton,
-                  pressed && styles.buttonPressed,
-                  markingSold && styles.buttonDisabled,
-                ]}
-                onPress={() => void onMarkSoldPress()}
-                disabled={markingSold}
-                accessibilityLabel="Mark as sold"
+                style={({ pressed }) => [styles.sellerBlock, pressed && styles.buttonPressed]}
+                onPress={() =>
+                  router.push(`/profile/${encodeURIComponent(listing.sellerId)}` as never)
+                }
+                accessibilityLabel={`View ${sellerProfile.name}'s profile`}
                 accessibilityRole="button"
               >
-                {markingSold ? (
-                  <ActivityIndicator size="small" color={colors.white} />
-                ) : (
-                  <Text style={styles.markSoldButtonText}>Mark as Sold</Text>
-                )}
+                <ProfileAvatar
+                  uri={sellerAvatarUrl}
+                  name={sellerProfile.name}
+                  size={44}
+                  style={styles.sellerAvatar}
+                  textStyle={styles.sellerAvatarText}
+                />
+                <View style={styles.sellerInfo}>
+                  <Text style={[styles.sellerName, detailTextFont]} selectable>
+                    {sellerProfile.name}
+                  </Text>
+                  <Text style={[styles.sellerMeta, detailTextFont]}>
+                    {formatMajorLabel(sellerProfile.major)} - Year {sellerProfile.year}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
             )}
-            <Pressable
-              style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
-              onPress={() => router.push(`/listings/${listing._id}/edit`)}
-            >
-              <Text style={styles.editButtonText}>Edit Listing</Text>
-            </Pressable>
-          </View>
-        )}
 
-        {!isOwner && !isWeb && (
-          <Pressable
-            style={({ pressed }) => [styles.reportLink, pressed && styles.buttonPressed]}
-            onPress={() => setReportOpen(true)}
-            accessible
-            accessibilityLabel="Report listing"
-            accessibilityRole="button"
-          >
-            <Text style={styles.reportLinkText}>Report listing</Text>
-          </Pressable>
-        )}
+            {isOwner && !isHidden && listing.status !== 'sold' && (
+              <View style={styles.buttonContainer}>
+                {listing.status === 'active' && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.markSoldButton,
+                      pressed && styles.buttonPressed,
+                      markingSold && styles.buttonDisabled,
+                    ]}
+                    onPress={() => void onMarkSoldPress()}
+                    disabled={markingSold}
+                    accessibilityLabel="Mark as sold"
+                    accessibilityRole="button"
+                  >
+                    {markingSold ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Text style={[styles.markSoldButtonText, detailTextFont]}>Mark as sold</Text>
+                    )}
+                  </Pressable>
+                )}
+                <Pressable
+                  style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
+                  onPress={() => router.push(`/listings/${listing._id}/edit`)}
+                >
+                  <Text style={[styles.editButtonText, detailTextFont]}>Edit listing</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {!isOwner && !isWeb && (
+              <Pressable
+                style={({ pressed }) => [styles.reportLink, pressed && styles.buttonPressed]}
+                onPress={() => setReportOpen(true)}
+                accessible
+                accessibilityLabel="Report listing"
+                accessibilityRole="button"
+              >
+                <Text style={[styles.reportLinkText, detailTextFont]}>Report listing</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
 
         <ReportModal
           isVisible={reportOpen}
@@ -740,11 +815,8 @@ export default function ListingDetailScreen() {
       </Animated.View>
 
       <ImageLightbox
-        images={mappedUrls.filter((url): url is string => url !== null)}
-        initialIndex={
-          mappedUrls.slice(0, imageIndex + 1).filter((url): url is string => url !== null).length -
-          1
-        }
+        images={lightboxImages}
+        initialIndex={lightboxInitialIndex}
         visible={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
       />
@@ -877,15 +949,15 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: '#F7F5EF',
   },
   content: {
     width: '100%',
-    maxWidth: 980,
+    maxWidth: 1120,
     alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
+    gap: spacing.md,
   },
   webBannerContainer: {
     marginBottom: 12,
@@ -925,28 +997,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.lg,
+  backLink: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    boxShadow: '0 2px 8px rgba(21, 71, 52, 0.06)',
+  },
+  backLinkText: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  detailShell: {
     gap: spacing.md,
+  },
+  detailLayout: {
+    gap: spacing.lg,
+  },
+  detailLayoutWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  imagePanel: {
+    width: '100%',
+    borderRadius: borderRadius.xl,
+    backgroundColor: '#FFFCF4',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
     overflow: 'hidden',
+    boxShadow: '0 12px 34px rgba(21, 71, 52, 0.11), 0 2px 8px rgba(21, 71, 52, 0.06)',
+  },
+  detailsPanel: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 71, 52, 0.12)',
+    padding: spacing.xl,
+    gap: spacing.lg,
+    boxShadow: '0 12px 34px rgba(21, 71, 52, 0.10), 0 2px 8px rgba(21, 71, 52, 0.05)',
   },
   imageSection: {
-    marginBottom: spacing.lg,
+    position: 'relative',
   },
   heroImageWrap: {
-    height: 280,
     marginRight: 0,
     position: 'relative',
+    backgroundColor: '#EEF4F1',
+  },
+  heroImagePressable: {
+    width: '100%',
+    height: '100%',
   },
   heroImage: {
     width: '100%',
     height: '100%',
-    borderRadius: borderRadius.md,
     backgroundColor: colors.border,
+  },
+  imagePressed: {
+    opacity: 0.96,
   },
   imageIndicator: {
     alignItems: 'center',
@@ -1001,46 +1120,62 @@ const styles = StyleSheet.create({
   carouselArrowDisabled: {
     opacity: 0.45,
   },
-  carouselArrowText: {
-    color: colors.textDark,
-    fontSize: 24,
-    fontWeight: '600',
-    lineHeight: 24,
-  },
   placeholderImage: {
     width: '100%',
     flex: 1,
     minHeight: 180,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: '#EEF4F1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    gap: spacing.xs,
+    padding: spacing.xl,
+  },
+  placeholderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(21, 71, 52, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   placeholderText: {
-    color: colors.text,
-    fontSize: 14,
+    ...typography.subhead,
+    color: colors.textDark,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0,
+  },
+  placeholderSubtext: {
+    ...typography.footnote,
+    color: colors.muted,
+    textAlign: 'center',
+    letterSpacing: 0,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    marginTop: spacing.xs,
+    gap: spacing.sm,
+  },
+  eyebrow: {
+    ...typography.footnoteMed,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   title: {
     ...typography.title1,
-    fontSize: 24,
-    lineHeight: 30,
-    flex: 1,
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '600',
     color: colors.textDark,
+    letterSpacing: 0,
   },
   price: {
     ...typography.title1,
-    fontSize: 22,
-    color: colors.accent,
+    fontSize: 34,
+    lineHeight: 40,
+    color: colors.primary,
+    letterSpacing: 0,
   },
   actionRow: {
     flexDirection: 'row',
@@ -1049,13 +1184,15 @@ const styles = StyleSheet.create({
   },
   messageButton: {
     flex: 1,
+    flexDirection: 'row',
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.full,
     minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.sm,
     boxShadow: '0 12px 24px rgba(21, 71, 52, 0.18)',
   },
   messageButtonText: {
@@ -1072,33 +1209,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
   },
   postedDate: {
     ...typography.footnote,
-    color: colors.muted,
-    marginBottom: spacing.lg,
+    color: colors.primary,
+    backgroundColor: 'rgba(172, 221, 202, 0.35)',
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    overflow: 'hidden',
   },
   descriptionLabel: {
     ...typography.heading,
     color: colors.textDark,
-    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
   },
   description: {
     ...typography.body,
-    color: colors.textDark,
-    lineHeight: 24,
+    color: colors.text,
+    lineHeight: 26,
   },
   sellerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
+    backgroundColor: '#F7FCF9',
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(21, 71, 52, 0.14)',
+    borderColor: 'rgba(21, 71, 52, 0.12)',
     padding: spacing.md,
     gap: spacing.md,
-    marginTop: spacing.sm,
     boxShadow: '0 8px 18px rgba(21, 71, 52, 0.08)',
   },
   sellerAvatar: {
@@ -1114,6 +1255,8 @@ const styles = StyleSheet.create({
   },
   sellerInfo: {
     flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   sellerName: {
     ...typography.subhead,
@@ -1123,6 +1266,7 @@ const styles = StyleSheet.create({
   sellerMeta: {
     ...typography.footnote,
     color: colors.text,
+    letterSpacing: 0,
   },
   buttonContainer: {
     gap: spacing.sm,
