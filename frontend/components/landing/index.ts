@@ -5,6 +5,6 @@ export { Why } from './Why';
 export { GetApp } from './GetApp';
 export { Footer } from './Footer';
 export { DownloadButton } from './DownloadButton';
-export { GLOBAL_CSS } from './styles';
+export { GLOBAL_CSS, DOWNLOAD_CTA_CSS } from './styles';
 export { useScrolled } from './useScrolled';
 export { useRevealOnVisible } from './useRevealOnVisible';

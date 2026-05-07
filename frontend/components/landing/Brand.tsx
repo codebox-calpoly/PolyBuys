@@ -1,3 +1,5 @@
+import polybuysLogo from '../../assets/images/PolyBuysLogo.png';
+import { toWebImageSrc } from './assetSource';
 import { cx } from './cx';
 
 interface BrandProps {
@@ -9,13 +11,16 @@ interface BrandProps {
 
 export function Brand({ muted = false, href, ariaLabel, className }: BrandProps) {
   const classes = cx('pb-brand', muted && 'pb-brand--muted', className);
+  const logoSrc = toWebImageSrc(polybuysLogo);
   const content = (
-    <>
-      <span className="pb-brand__mark" aria-hidden>
-        <span className="pb-brand__dot" />
-      </span>
-      <span className="pb-brand__word">PolyBuys</span>
-    </>
+    <img
+      src={logoSrc}
+      alt="PolyBuys logo"
+      className="pb-brand__logo"
+      width={716}
+      height={158}
+      decoding="async"
+    />
   );
 
   if (href) {

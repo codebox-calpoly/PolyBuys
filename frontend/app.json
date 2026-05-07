@@ -111,7 +111,8 @@
       "typedRoutes": true
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/images/icon.png"
     },
     "extra": {
       "router": {
