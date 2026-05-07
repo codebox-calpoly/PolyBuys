@@ -16,6 +16,7 @@ export default defineSchema({
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
     messageNotificationsEnabled: v.optional(v.boolean()),
+    isAdmin: v.optional(v.boolean()),
   })
     .index('phone', ['phone'])
     .index('email', ['email']),
@@ -118,6 +119,11 @@ export default defineSchema({
       v.literal('other')
     ),
     notes: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal('pending'), v.literal('reviewed'), v.literal('dismissed'))
+    ),
+    reviewedBy: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index('by_target', ['targetId', 'targetType'])

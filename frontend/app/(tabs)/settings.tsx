@@ -65,6 +65,7 @@ export default function SettingsScreen() {
   const avatarUrl = avatarUrls[0];
 
   const listingsCount = myListings?.filter((l) => l.status === 'active').length ?? 0;
+  const isAdmin = useQuery(api.admin.isCurrentUserAdmin, isAuthenticated ? {} : 'skip');
   const itemsSoldCount = myListings?.filter((l) => l.status === 'sold').length ?? 0;
   const displayListings: Doc<'listings'>[] =
     myListings?.filter((l): l is Doc<'listings'> => l.status !== 'deleted') ?? [];
@@ -199,6 +200,18 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
       </Animated.View>
+
+      {isAdmin && (
+        <Pressable
+          style={({ pressed }) => [styles.settingsRow, pressed && styles.buttonPressed]}
+          onPress={() => router.push('/admin/moderation' as never)}
+          accessibilityRole="button"
+          accessibilityLabel="Open moderation dashboard"
+        >
+          <Text style={styles.settingsRowLabel}>Moderation</Text>
+          <Text style={styles.settingsRowChevron}>›</Text>
+        </Pressable>
+      )}
 
       <FilterChips options={TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />
 
