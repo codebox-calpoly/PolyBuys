@@ -93,6 +93,11 @@ function buildWebRows(items: Doc<'listings'>[], size: number) {
   return rows;
 }
 
+function normalizeSearchParam(value: string | string[] | undefined): string {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return typeof rawValue === 'string' ? rawValue.trim() : '';
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -105,11 +110,9 @@ export default function HomeScreen() {
   const isDesktopWeb = isWeb && width >= 1024;
   const topSafeSpace = Platform.OS === 'ios' ? Math.max(insets.top - 6, 10) : 0;
 
-  // On web: use the shared context search query (instant, no URL round-trip).
-  // On native: fall back to URL param q (native doesn't use SearchContext).
-  const searchQuery = isWeb
-    ? contextSearchQuery.trim()
-    : (Array.isArray(q) ? (q[0] ?? '') : (q ?? '')).trim();
+  // Web gets instant navbar state from SearchContext. Native has no navbar
+  // provider, so deep links and native navigation use the q route param.
+  const searchQuery = isWeb ? contextSearchQuery.trim() : normalizeSearchParam(q);
 
   const [filters, setFilters] = useState<Filters>({});
   const [sortBy, setSortBy] = useState<ListingSortBy>('newest');
@@ -133,7 +136,7 @@ export default function HomeScreen() {
   const lastFirstPageAtRef = useRef<number>(0);
   const hasLoadedOnceRef = useRef(false);
 
-  const hasSearchQuery = isWeb && searchQuery.length > 0;
+  const hasSearchQuery = searchQuery.length > 0;
   const activeFilterKey = `${filters.category ?? ''}|${filters.minPrice ?? ''}|${filters.maxPrice ?? ''}|${searchQuery}|${sortBy}`;
 
   const queryFilterVersion = currentFilterVersionRef.current;
@@ -286,10 +289,21 @@ export default function HomeScreen() {
     setFilters((prev) => ({ ...prev, minPrice: undefined, maxPrice: undefined }));
   };
 
+  const handleClearSearch = useCallback(() => {
+    if (isWeb) {
+      clearSearch();
+      return;
+    }
+
+    if (normalizeSearchParam(q).length > 0) {
+      router.replace('/home' as never);
+    }
+  }, [clearSearch, isWeb, q, router]);
+
   const handleClearAll = () => {
     setFilters({});
     setSortBy('newest');
-    clearSearch();
+    handleClearSearch();
   };
 
   const handleLoadMore = useCallback(() => {
@@ -472,7 +486,7 @@ export default function HomeScreen() {
               <CategoryRail
                 selectedCategory={filters.category}
                 onSelectCategory={handleCategorySelect}
-                onClearSearch={clearSearch}
+                onClearSearch={handleClearSearch}
                 priceLabel={getPriceLabel()}
                 hasPrice={filters.minPrice !== undefined || filters.maxPrice !== undefined}
                 onPricePress={() => setShowPricePicker(true)}
@@ -480,7 +494,7 @@ export default function HomeScreen() {
                 sortLabel={LISTING_SORT_SHORT[sortBy]}
                 hasNonDefaultSort={sortBy !== 'newest'}
                 onSortPress={() => setShowSortPicker(true)}
-                hasAnyFilter={hasActiveFilters || sortBy !== 'newest'}
+                hasAnyFilter={hasActiveFilters || hasSearchQuery || sortBy !== 'newest'}
                 onClearAll={handleClearAll}
               />
             </Animated.View>
@@ -592,7 +606,7 @@ export default function HomeScreen() {
           <CategoryRail
             selectedCategory={filters.category}
             onSelectCategory={handleCategorySelect}
-            onClearSearch={clearSearch}
+            onClearSearch={handleClearSearch}
             priceLabel={getPriceLabel()}
             hasPrice={filters.minPrice !== undefined || filters.maxPrice !== undefined}
             onPricePress={() => setShowPricePicker(true)}
@@ -600,7 +614,7 @@ export default function HomeScreen() {
             sortLabel={LISTING_SORT_SHORT[sortBy]}
             hasNonDefaultSort={sortBy !== 'newest'}
             onSortPress={() => setShowSortPicker(true)}
-            hasAnyFilter={hasActiveFilters || sortBy !== 'newest'}
+            hasAnyFilter={hasActiveFilters || hasSearchQuery || sortBy !== 'newest'}
             onClearAll={handleClearAll}
           />
         </Animated.View>

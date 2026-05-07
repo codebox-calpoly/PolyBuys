@@ -31,7 +31,7 @@ function normalizeSearchParam(value: string | string[] | undefined): string {
 
 const NAV_CSS =
   /* reset */
-  '.pbn*,.pbn*::before,.pbn*::after{box-sizing:border-box}' +
+  '.pbn,.pbn::before,.pbn::after,.pbn *,.pbn *::before,.pbn *::after{box-sizing:border-box}' +
   '.pbn a{text-decoration:none;color:inherit}' +
   /* reset form controls inside the web nav (skip .pb-btn so the shared landing
      button styles aren't clobbered by this reset's higher specificity) */
@@ -268,53 +268,66 @@ export function AppNavContainer() {
   const router = useRouter();
   const { q } = useGlobalSearchParams<{ q?: string | string[] }>();
   const { searchQuery, setSearchQuery } = useSearch();
+  const urlSearch = normalizeSearchParam(q);
 
   const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number | null>(null);
   // Debounce timer ref — cancelled immediately when clearSearch fires
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasHydratedUrlSearchRef = useRef(false);
-  const hasSkippedInitialUrlSyncRef = useRef(false);
-  const hydratedUrlSearchRef = useRef<string | null>(null);
+  const searchQueryRef = useRef(searchQuery);
+  const pendingUrlSyncRef = useRef<{ value: string } | null>(null);
 
   useEffect(() => {
-    if (hasHydratedUrlSearchRef.current) return;
+    searchQueryRef.current = searchQuery;
+  }, [searchQuery]);
 
-    const initialSearch = normalizeSearchParam(q);
-    hydratedUrlSearchRef.current = initialSearch;
-    hasHydratedUrlSearchRef.current = true;
-
-    if (initialSearch !== searchQuery) {
-      setSearchQuery(initialSearch);
-    }
-  }, [q, searchQuery, setSearchQuery]);
-
-  // Debounce: push search query to URL so home.tsx can read it
   useEffect(() => {
-    if (!hasHydratedUrlSearchRef.current) return;
-
-    if (!hasSkippedInitialUrlSyncRef.current) {
-      hasSkippedInitialUrlSyncRef.current = true;
+    if (searchQueryRef.current === urlSearch) {
+      if (pendingUrlSyncRef.current?.value === urlSearch) {
+        pendingUrlSyncRef.current = null;
+      }
       return;
     }
 
-    if (hydratedUrlSearchRef.current !== null && searchQuery === hydratedUrlSearchRef.current) {
-      hydratedUrlSearchRef.current = null;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
+    pendingUrlSyncRef.current = { value: urlSearch };
+    setSearchQuery(urlSearch);
+  }, [setSearchQuery, urlSearch]);
+
+  // Debounce: push search query to URL so home.tsx can read it
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    const pendingUrlSync = pendingUrlSyncRef.current;
+    if (pendingUrlSync) {
+      if (pendingUrlSync.value === trimmed) {
+        pendingUrlSyncRef.current = null;
+      }
+      return;
+    }
+
+    if (trimmed === urlSearch) {
       return;
     }
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const trimmed = searchQuery.trim();
       router.replace({
         pathname: '/home' as never,
         params: (trimmed.length > 0 ? { q: trimmed } : {}) as never,
       });
+      debounceRef.current = null;
     }, 250);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
     };
-  }, [searchQuery, router]);
+  }, [searchQuery, router, urlSearch]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -345,8 +358,16 @@ export function AppNavContainer() {
   );
 
   const handleHomePress = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    pendingUrlSyncRef.current = { value: '' };
+    if (searchQueryRef.current.length > 0) {
+      setSearchQuery('');
+    }
     router.replace('/home' as never);
-  }, [router]);
+  }, [router, setSearchQuery]);
 
   return (
     <AppNav

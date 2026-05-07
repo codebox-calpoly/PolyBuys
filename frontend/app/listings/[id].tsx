@@ -429,6 +429,24 @@ export default function ListingDetailScreen() {
     setImageIndex((currentIndex) => Math.min(currentIndex + 1, displayImageUrls.length - 1));
   };
 
+  const goBackToListings = useCallback(() => {
+    try {
+      if (isWeb) {
+        if (typeof window !== 'undefined' && window.history.length > 1) {
+          router.back();
+          return;
+        }
+      } else if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+    } catch {
+      // Fall through to the stable listings route if history is unavailable.
+    }
+
+    router.replace('/home' as never);
+  }, [isWeb, router]);
+
   useEffect(() => {
     if (Platform.OS === 'web' && listing && typeof document !== 'undefined') {
       document.title = `${listing.title} - PolyBuys`;
@@ -576,7 +594,7 @@ export default function ListingDetailScreen() {
 
       <Pressable
         style={({ pressed }) => [styles.backLink, pressed && styles.buttonPressed]}
-        onPress={() => router.push('/home')}
+        onPress={goBackToListings}
         accessibilityRole="button"
         accessibilityLabel="Back to listings"
       >
