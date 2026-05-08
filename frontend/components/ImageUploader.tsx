@@ -157,28 +157,30 @@ export default function ImageUploader({
     });
   }
 
-  async function pickFromLibrary() {
+  async function pickFromLibrary(remainingSlots: number): Promise<PickedImage[]> {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permission required', 'Please allow access to your photo library.');
-      return null;
+      return [];
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 1,
       allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
     });
 
-    if (result.canceled) {
-      return null;
+    if (result.canceled || result.assets.length === 0) {
+      return [];
     }
 
-    return {
-      uri: result.assets[0].uri,
-      width: result.assets[0].width,
-      height: result.assets[0].height,
-    };
+    return result.assets.map((asset) => ({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    }));
   }
 
   async function pickFromCamera() {
@@ -421,6 +423,20 @@ export default function ImageUploader({
     await startUpload(picked, localId);
   }
 
+  async function handlePickAndUploadMultiple(pickedImages: PickedImage[]) {
+    if (pickedImages.length === 0) {
+      return;
+    }
+    const newPending: PendingUpload[] = pickedImages.map((img, i) => ({
+      localId: `pending-${Date.now()}-${i}`,
+      uri: img.uri,
+      progress: 0,
+      status: 'uploading' as UploadStatus,
+    }));
+    setPendingUploads((prev) => [...prev, ...newPending]);
+    await Promise.all(pickedImages.map((img, i) => startUpload(img, newPending[i].localId)));
+  }
+
   async function addImage() {
     if (images.length + pendingUploads.length >= maxImages) {
       Alert.alert('Maximum reached', `You can only upload up to ${maxImages} images.`);
@@ -450,6 +466,8 @@ export default function ImageUploader({
       return;
     }
 
+    const remainingSlots = maxImages - images.length - pendingUploads.length;
+
     Alert.alert('Add image', 'Choose image source', [
       {
         text: 'Camera',
@@ -463,7 +481,8 @@ export default function ImageUploader({
         text: 'Photo Library',
         onPress: () => {
           void (async () => {
-            await handlePickAndUpload(pickFromLibrary);
+            const picked = await pickFromLibrary(remainingSlots);
+            await handlePickAndUploadMultiple(picked);
           })();
         },
       },
