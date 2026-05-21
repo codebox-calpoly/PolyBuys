@@ -79,9 +79,7 @@ const origin = getAppOrigin();
 
 const config: ExpoConfig = {
   ...baseConfig,
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: baseConfig.version ?? '1.0.0',
   updates: {
     ...baseConfig.updates,
     url: EAS_UPDATE_URL,

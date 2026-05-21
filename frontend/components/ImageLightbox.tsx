@@ -335,7 +335,7 @@ export default function ImageLightbox({
                   ],
                 },
               ]}
-              resizeMode="contain"
+              resizeMode="cover"
               accessibilityLabel={`Image ${currentIndex + 1} of ${images.length}`}
             />
           </Animated.View>
