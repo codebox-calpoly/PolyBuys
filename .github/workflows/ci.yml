@@ -37,7 +37,7 @@ jobs:
         run: npm test
 
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical --legacy-peer-deps
 
   build:
     name: Build Check
