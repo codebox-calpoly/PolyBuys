@@ -679,12 +679,7 @@ export default function HomeScreen() {
             />
           }
           ListEmptyComponent={listEmptyComponent}
-          ListFooterComponent={
-            <>
-              {loadingFooterComponent}
-              <HomeFooter isCompact={isCompactLayout} />
-            </>
-          }
+          ListFooterComponent={<>{loadingFooterComponent}</>}
         />
       </View>
     </View>
