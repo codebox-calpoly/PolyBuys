@@ -1,8 +1,7 @@
-import appJson from './app.json';
 import type { ExpoConfig } from 'expo/config';
 
-type AppJsonShape = {
-  expo: ExpoConfig;
+type ExpoConfigContext = {
+  config: ExpoConfig;
 };
 
 type PluginEntry = NonNullable<ExpoConfig['plugins']>[number];
@@ -10,7 +9,6 @@ type PluginEntry = NonNullable<ExpoConfig['plugins']>[number];
 const DEFAULT_APP_ORIGIN = 'https://www.polybuys.com';
 const EAS_PROJECT_ID = '1f42b24b-0dcd-4b44-84d5-f31b6ff08dae';
 const EAS_UPDATE_URL = `https://u.expo.dev/${EAS_PROJECT_ID}`;
-const baseConfig = (appJson as AppJsonShape).expo;
 
 function normalizeOrigin(value?: string | null): string | null {
   if (!value) {
@@ -75,28 +73,28 @@ function withRouterOrigin(
   });
 }
 
-const origin = getAppOrigin();
+export default function getConfig({ config: baseConfig }: ExpoConfigContext): ExpoConfig {
+  const origin = getAppOrigin();
 
-const config: ExpoConfig = {
-  ...baseConfig,
-  runtimeVersion: baseConfig.version ?? '1.0.0',
-  updates: {
-    ...baseConfig.updates,
-    url: EAS_UPDATE_URL,
-  },
-  extra: {
-    ...baseConfig.extra,
-    appOrigin: origin,
-    router: {
-      ...getRouterExtra(baseConfig.extra),
-      origin,
+  return {
+    ...baseConfig,
+    runtimeVersion: baseConfig.version ?? '1.0.0',
+    updates: {
+      ...baseConfig.updates,
+      url: EAS_UPDATE_URL,
     },
-    eas: {
-      ...(baseConfig.extra?.eas ?? {}),
-      projectId: EAS_PROJECT_ID,
+    extra: {
+      ...baseConfig.extra,
+      appOrigin: origin,
+      router: {
+        ...getRouterExtra(baseConfig.extra),
+        origin,
+      },
+      eas: {
+        ...(baseConfig.extra?.eas ?? {}),
+        projectId: EAS_PROJECT_ID,
+      },
     },
-  },
-  plugins: withRouterOrigin(baseConfig.plugins, origin),
-};
-
-export default config;
+    plugins: withRouterOrigin(baseConfig.plugins, origin),
+  };
+}

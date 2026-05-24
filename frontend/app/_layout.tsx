@@ -36,7 +36,7 @@ export const unstable_settings = {
 Sentry.init({
   dsn: 'https://ed516d30275214d7429df46a33c04764@o4510288242933760.ingest.us.sentry.io/4511024032382976',
   sendDefaultPii: allowSentryPii,
-  enableLogs: __DEV__,
+  debug: __DEV__,
   // spotlight: __DEV__,
 });
 

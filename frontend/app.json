@@ -87,7 +87,7 @@
         }
       ],
       [
-        "@sentry/react-native/expo",
+        "@sentry/react-native",
         {
           "url": "https://sentry.io/",
           "organization": "taylor-labs-llc",
@@ -97,6 +97,7 @@
       ],
       "expo-font",
       "expo-notifications",
+      "expo-web-browser",
       [
         "expo-image-picker",
         {
