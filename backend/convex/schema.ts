@@ -123,6 +123,34 @@ export default defineSchema({
     .index('by_target', ['targetId', 'targetType'])
     .index('by_reporter', ['reporterId']),
 
+  supportReports: defineTable({
+    reporterId: v.string(),
+    reporterEmail: v.optional(v.string()),
+    category: v.union(
+      v.literal('bug'),
+      v.literal('account_login'),
+      v.literal('listing'),
+      v.literal('messages'),
+      v.literal('payments_offers'),
+      v.literal('safety'),
+      v.literal('other')
+    ),
+    description: v.string(),
+    context: v.optional(
+      v.object({
+        platform: v.optional(v.string()),
+        appVersion: v.optional(v.string()),
+        osVersion: v.optional(v.string()),
+        route: v.optional(v.string()),
+        listingId: v.optional(v.string()),
+        conversationId: v.optional(v.string()),
+      })
+    ),
+    createdAt: v.number(),
+  })
+    .index('by_reporter_createdAt', ['reporterId', 'createdAt'])
+    .index('by_createdAt', ['createdAt']),
+
   conversations: defineTable({
     listingId: v.id('listings'),
     buyerId: v.string(), // Auth identity subject

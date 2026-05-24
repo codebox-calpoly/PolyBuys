@@ -26,6 +26,7 @@ import type * as profiles from "../profiles.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as reports from "../reports.js";
 import type * as savedListings from "../savedListings.js";
+import type * as supportReports from "../supportReports.js";
 import type * as users from "../users.js";
 
 import type {
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   pushNotifications: typeof pushNotifications;
   reports: typeof reports;
   savedListings: typeof savedListings;
+  supportReports: typeof supportReports;
   users: typeof users;
 }>;
 

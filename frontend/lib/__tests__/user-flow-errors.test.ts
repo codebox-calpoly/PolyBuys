@@ -12,4 +12,13 @@ describe('getUserFlowErrorMessage', () => {
       'This conversation is no longer available.'
     );
   });
+
+  it('maps support report rate-limit errors to retryable support copy', () => {
+    expect(
+      getUserFlowErrorMessage(
+        new Error('Support report limit reached. Please try again later.'),
+        'submit-support-report'
+      )
+    ).toBe('You have reached the support report limit for now. Try again later.');
+  });
 });

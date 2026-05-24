@@ -15,6 +15,7 @@ export type UserFlowErrorContext =
   | 'save-listing'
   | 'mark-listing-sold'
   | 'submit-report'
+  | 'submit-support-report'
   | 'open-in-app'
   | 'download-app';
 
@@ -284,6 +285,28 @@ export function getUserFlowErrorMessage(error: unknown, context: UserFlowErrorCo
       return 'We could not submit your report right now. Check your connection and try again.';
     }
     return 'We could not submit your report right now. Please try again.';
+  }
+
+  if (context === 'submit-support-report') {
+    if (message.includes('already submitted')) {
+      return 'You already sent this problem recently. Our team has it.';
+    }
+    if (message.includes('support report limit reached')) {
+      return 'You have reached the support report limit for now. Try again later.';
+    }
+    if (message.includes('description is required')) {
+      return 'Describe what happened before sending.';
+    }
+    if (message.includes('description must be')) {
+      return 'That description is too long. Shorten it and try again.';
+    }
+    if (isSessionIssue(message)) {
+      return 'Please sign in again before reporting a problem.';
+    }
+    if (isNetworkIssue(message)) {
+      return 'We could not send your report right now. Check your connection and try again.';
+    }
+    return 'We could not send your report right now. Please try again.';
   }
 
   if (context === 'open-in-app') {

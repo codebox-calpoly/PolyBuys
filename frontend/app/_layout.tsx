@@ -129,6 +129,16 @@ function RootLayout() {
                   options={{ title: 'Settings', headerBackTitle: 'Profile' }}
                 />
                 <Stack.Screen
+                  name="report-problem"
+                  options={{
+                    title: 'Report a Problem',
+                    headerBackTitle: 'Settings',
+                    presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
+                    sheetGrabberVisible: true,
+                    sheetAllowedDetents: [0.75, 1.0],
+                  }}
+                />
+                <Stack.Screen
                   name="profile/edit"
                   options={{ title: 'Edit Profile', headerBackTitle: 'Profile' }}
                 />
