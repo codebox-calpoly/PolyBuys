@@ -6,6 +6,9 @@ on:
   push:
     branches: [main, dev]
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-typecheck:
     name: Lint & Type Check
@@ -22,7 +25,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --include=optional --legacy-peer-deps
+        run: npm ci --include=optional
 
       - name: Run ESLint
         run: npm run lint
@@ -37,7 +40,7 @@ jobs:
         run: npm test
 
       - name: Audit dependencies
-        run: npm audit --audit-level=critical --legacy-peer-deps
+        run: npm audit --audit-level=high
 
   build:
     name: Build Check
@@ -55,7 +58,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --include=optional --legacy-peer-deps
+        run: npm ci --include=optional
 
       - name: Build all workspaces
         run: npm run build --if-present

@@ -155,4 +155,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RootLayout;
+export default Sentry.wrap(RootLayout);

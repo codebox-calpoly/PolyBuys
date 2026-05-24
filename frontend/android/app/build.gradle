@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.polybuys"
+    namespace "com.polybuys.polybuys"
     defaultConfig {
-        applicationId "com.polybuys"
+        applicationId "com.polybuys.polybuys"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
