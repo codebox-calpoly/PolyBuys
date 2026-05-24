@@ -592,15 +592,17 @@ export default function ListingDetailScreen() {
         </View>
       )}
 
-      <Pressable
-        style={({ pressed }) => [styles.backLink, pressed && styles.buttonPressed]}
-        onPress={goBackToListings}
-        accessibilityRole="button"
-        accessibilityLabel="Back to listings"
-      >
-        <Feather name="arrow-left" size={16} color={colors.primary} />
-        <Text style={[styles.backLinkText, detailTextFont]}>Back to listings</Text>
-      </Pressable>
+      {isWeb && (
+        <Pressable
+          style={({ pressed }) => [styles.backLink, pressed && styles.buttonPressed]}
+          onPress={goBackToListings}
+          accessibilityRole="button"
+          accessibilityLabel="Back to listings"
+        >
+          <Feather name="arrow-left" size={16} color={colors.primary} />
+          <Text style={[styles.backLinkText, detailTextFont]}>Back to listings</Text>
+        </Pressable>
+      )}
 
       <Animated.View style={[styles.detailShell, entranceStyle]}>
         {isHiddenOwnerView && <HiddenBanner />}

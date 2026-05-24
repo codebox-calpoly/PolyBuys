@@ -28,7 +28,6 @@ export async function manipulateImage(
     image = await context.renderAsync();
     return await image.saveAsync({ format, ...restSaveOptions });
   } finally {
-    image?.release();
-    context.release();
+    // No manual resource release is required for the current Expo image manipulator API.
   }
 }

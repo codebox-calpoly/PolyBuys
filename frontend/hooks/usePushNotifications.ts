@@ -37,8 +37,8 @@ async function getTokenIfPermissionGranted(): Promise<string | null> {
     return null;
   }
 
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
+  const { granted } = await Notifications.getPermissionsAsync();
+  if (!granted) {
     return null;
   }
 
@@ -71,15 +71,15 @@ export async function requestPermissionAndSyncToken(
     return false;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const { granted: existingGranted } = await Notifications.getPermissionsAsync();
+  let finalGranted = existingGranted;
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  if (!existingGranted) {
+    const { granted } = await Notifications.requestPermissionsAsync();
+    finalGranted = granted;
   }
 
-  if (finalStatus !== 'granted') {
+  if (!finalGranted) {
     return false;
   }
 

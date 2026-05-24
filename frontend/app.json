@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "platforms": ["ios", "android", "web"],
-    "icon": "./assets/polybuys-ios.icon",
+    "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
@@ -87,7 +87,7 @@
         }
       ],
       [
-        "@sentry/react-native/expo",
+        "@sentry/react-native",
         {
           "url": "https://sentry.io/",
           "organization": "taylor-labs-llc",
@@ -97,6 +97,7 @@
       ],
       "expo-font",
       "expo-notifications",
+      "expo-web-browser",
       [
         "expo-image-picker",
         {
