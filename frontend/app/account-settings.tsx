@@ -152,6 +152,13 @@ export default function AccountSettingsScreen() {
     [unblockUser]
   );
 
+  const handleReportProblem = () => {
+    router.push({
+      pathname: '/report-problem',
+      params: { source: '/account-settings' },
+    } as never);
+  };
+
   const handleMessageNotificationsToggle = async (value: boolean) => {
     if (isUpdatingMessageNotifications) return;
 
@@ -347,6 +354,24 @@ export default function AccountSettingsScreen() {
           </View>
 
           <View style={[styles.section, styles.blockedIntroSection]}>
+            <Text style={styles.sectionTitle}>Support</Text>
+            <Pressable
+              style={({ pressed }) => [styles.supportButton, pressed && styles.buttonPressed]}
+              onPress={handleReportProblem}
+              accessibilityRole="button"
+              accessibilityLabel="Report a Problem"
+            >
+              <View style={styles.supportButtonTextGroup}>
+                <Text style={styles.supportButtonTitle}>Report a Problem</Text>
+                <Text style={styles.notificationHint}>
+                  Tell us about app bugs, broken flows, or account issues.
+                </Text>
+              </View>
+              <Text style={styles.supportButtonChevron}>›</Text>
+            </Pressable>
+          </View>
+
+          <View style={[styles.section, styles.blockedIntroSection]}>
             <Text style={styles.sectionTitle}>Blocked users</Text>
             <Text style={styles.notificationHint}>
               People you have blocked cannot message you. Unblock someone to allow conversations
@@ -475,6 +500,34 @@ const styles = StyleSheet.create({
   notificationHint: {
     ...typography.footnote,
     color: colors.muted,
+  },
+  supportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    minHeight: 56,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  supportButtonTextGroup: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  supportButtonTitle: {
+    ...typography.subhead,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  supportButtonChevron: {
+    ...typography.title1,
+    color: colors.muted,
+    fontWeight: '300',
   },
   blockedListEmpty: {
     paddingVertical: spacing.xl,

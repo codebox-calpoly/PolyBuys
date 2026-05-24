@@ -12,6 +12,7 @@ import * as usersModule from '../users';
 import * as messagesModule from '../messages';
 import * as blocksModule from '../blocks';
 import * as reportsModule from '../reports';
+import * as supportReportsModule from '../supportReports';
 import * as moderationModule from '../moderation';
 import * as pushNotificationsModule from '../pushNotifications';
 import * as apiModule from '../_generated/api';
@@ -26,6 +27,7 @@ export const modules = {
   '../messages.ts': () => Promise.resolve(messagesModule),
   '../blocks.ts': () => Promise.resolve(blocksModule),
   '../reports.ts': () => Promise.resolve(reportsModule),
+  '../supportReports.ts': () => Promise.resolve(supportReportsModule),
   '../moderation.ts': () => Promise.resolve(moderationModule),
   '../pushNotifications.ts': () => Promise.resolve(pushNotificationsModule),
   '../_generated/api.ts': () => Promise.resolve(apiModule),
